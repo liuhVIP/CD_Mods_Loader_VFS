@@ -94,12 +94,17 @@ def is_json_patch_data(data: object) -> bool:
 
 
 def is_format3_data(data: object) -> bool:
-    """判断 JSON 内容是否为 Format 3 语义补丁。"""
-    return (
-        isinstance(data, dict)
-        and data.get("format") == 3
-        and isinstance(data.get("target"), str)
-        and isinstance(data.get("intents"), list)
+    """判断 JSON 内容是否为 Format 3 语义补丁，兼容单目标和多目标结构。"""
+    if not isinstance(data, dict) or data.get("format") != 3:
+        return False
+    if isinstance(data.get("target"), str) and isinstance(data.get("intents"), list):
+        return True
+    targets = data.get("targets")
+    return isinstance(targets, list) and any(
+        isinstance(item, dict)
+        and isinstance(item.get("file"), str)
+        and isinstance(item.get("intents"), list)
+        for item in targets
     )
 
 

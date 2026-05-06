@@ -97,6 +97,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         vanilla_store,
         warnings,
         errors,
+        [*loose_overlay_inputs, *json_overlay_inputs],
     )
     # loose 先写、JSON 再写、Format 3 最后写；同 entry_path 时 build_overlay 会保留最后写入结果。
     overlay_inputs = [*loose_overlay_inputs, *json_overlay_inputs, *format3_overlay_inputs]

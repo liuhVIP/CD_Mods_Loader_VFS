@@ -94,7 +94,14 @@ def build_patch_overlay_entries(
         base_entry = base_by_entry.get(vanilla_entry.path.lower())
         base_plaintext = base_entry.content if base_entry is not None else plaintext
         modified = bytearray(base_plaintext)
-        name_offsets = _build_name_offsets(game_dir, vanilla_store, game_file, base_plaintext, errors)
+        name_offsets = _build_name_offsets(
+            game_dir,
+            vanilla_store,
+            game_file,
+            base_plaintext,
+            errors,
+            base_by_entry,
+        )
         had_mismatch = False
         total_applied = 0
         total_mismatched = 0
@@ -374,6 +381,7 @@ def _build_name_offsets(
     game_file: str,
     body: bytes,
     errors: list[str],
+    base_by_entry: dict[str, OverlayInputEntry] | None = None,
 ) -> dict[str, int] | None:
     """构建 entry 名称到 name_end 的映射，用于 Format 3 的 entry+rel_offset。"""
     if not game_file.lower().endswith(".pabgb"):
@@ -388,6 +396,9 @@ def _build_name_offsets(
     except Exception as exc:
         errors.append(f"{pabgh_file}: entry 名称索引构建失败：{exc}")
         return None
+    base_header = (base_by_entry or {}).get(vanilla_entry.path.lower())
+    if base_header is not None:
+        header = base_header.content
     table_name = Path(game_file.replace("\\", "/")).stem.lower()
     key_size, offsets = _parse_pabgh_index(header, table_name)
     if key_size not in (2, 4) or not offsets:
