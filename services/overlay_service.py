@@ -103,6 +103,9 @@ _DDS_BC_BLOCK_BYTES_BY_DXGI = {
 
 _pathc_cache: dict[str, object] = {}
 
+# overlay 构建期间同一个原始 PAMT 可能服务几十个 entry，完整目录映射只需解析一次。
+_full_path_map_cache: dict[tuple[str, int, int], dict[str, str]] = {}
+
 
 def allocate_overlay_dir(game_dir: Path) -> str:
     """分配本次 overlay 目录，优先复用 state 中加载器上次创建的目录。"""
@@ -454,6 +457,11 @@ def _build_full_path_map(pamt_path: Path) -> dict[str, str]:
     """解析 PAMT folder records，建立 flattened entry_path 到完整目录的映射。"""
     if not pamt_path.exists():
         return {}
+    stat = pamt_path.stat()
+    cache_key = (str(pamt_path.resolve()), stat.st_mtime_ns, stat.st_size)
+    cached = _full_path_map_cache.get(cache_key)
+    if cached is not None:
+        return cached
     data = pamt_path.read_bytes()
     if len(data) < 24:
         return {}
@@ -535,6 +543,7 @@ def _build_full_path_map(pamt_path: Path) -> dict[str, str]:
             if folder is not None:
                 flattened = f"{root}/{filename}" if root else filename
                 result[flattened] = folder
+        _full_path_map_cache[cache_key] = result
         return result
     except Exception:
         return {}

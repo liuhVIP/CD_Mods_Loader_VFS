@@ -8,11 +8,12 @@ import struct
 from pathlib import Path
 from typing import Any
 
-from cdmm.archive.pamt import derive_pamt_dir, find_pamt_entry, parse_pamt
-from cdmm.common.constants import GAME_DIR_NAME_LENGTH, OVERLAY_PAMT_NAME
+from cdmm.archive.pamt import derive_pamt_dir
+from cdmm.common.constants import GAME_DIR_NAME_LENGTH
 from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
 from cdmm.services.format3_iteminfo_writer import build_iteminfo_prefab_changes
 from cdmm.services.json_loader import build_patch_overlay_entries, extract_plaintext
+from cdmm.services.pamt_index_service import get_game_pamt_index
 from cdmm.services.scanner import load_json_file
 from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.path_utils import lower_game_rel_path
@@ -288,25 +289,10 @@ def _find_preferred_game_entry(game_dir: Path, target: str, suffix: str) -> PazE
     if not normalized.endswith(suffix):
         normalized += suffix
     basename = os.path.basename(normalized)
-    candidates: list[PazEntry] = []
-    for directory in sorted(game_dir.iterdir(), key=lambda item: item.name):
-        if not _is_numbered_game_dir(directory):
-            continue
-        pamt_path = directory / OVERLAY_PAMT_NAME
-        if not pamt_path.exists():
-            continue
-        try:
-            entries = parse_pamt(pamt_path, paz_dir=directory)
-        except Exception as exc:
-            logger.warning("跳过无法解析的 PAMT：%s (%s)", pamt_path, exc)
-            continue
-        for entry in entries:
-            entry_path = lower_game_rel_path(entry.path)
-            if entry_path == normalized or os.path.basename(entry_path) == basename:
-                candidates.append(entry)
+    index = get_game_pamt_index(game_dir)
+    candidates = [*index.by_exact.get(normalized, []), *index.by_basename.get(basename, [])]
     if not candidates:
-        # 保留旧查找作为兜底，避免极端路径命名完全不在编号目录扫描中。
-        return find_pamt_entry(target, game_dir)
+        return None
     candidates.sort(key=lambda entry: _format3_entry_score(entry, normalized, basename))
     best = candidates[0]
     if lower_game_rel_path(best.path) != normalized:

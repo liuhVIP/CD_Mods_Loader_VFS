@@ -6,6 +6,7 @@ import logging
 import shutil
 from pathlib import Path
 
+from cdmm.common.constants import GAME_DIR_NAME_LENGTH, META_DIR_NAME
 from cdmm.common.constants import PRE_APPLY_SUFFIX
 from cdmm.utils.path_utils import fs_rel_path
 
@@ -80,10 +81,33 @@ class Transaction:
 def recover_interrupted(game_dir: Path) -> int:
     """恢复上次中断提交留下的 .pre-apply 文件。"""
     count = 0
-    for backup in game_dir.rglob(f"*{PRE_APPLY_SUFFIX}"):
+    for backup in _iter_pre_apply_backups(game_dir):
         original = backup.with_name(backup.name.removesuffix(PRE_APPLY_SUFFIX))
         if original.exists():
             original.unlink()
         backup.rename(original)
         count += 1
     return count
+
+
+def _iter_pre_apply_backups(game_dir: Path) -> list[Path]:
+    """只扫描加载器会写入的位置，避免每次 apply 遍历完整游戏目录。"""
+    backups: list[Path] = []
+    meta_dir = game_dir / META_DIR_NAME
+    if meta_dir.is_dir():
+        backups.extend(sorted(meta_dir.glob(f"*{PRE_APPLY_SUFFIX}"), key=_path_sort_key))
+    for directory in sorted(game_dir.iterdir(), key=_path_sort_key):
+        if not _is_numbered_game_dir(directory):
+            continue
+        backups.extend(sorted(directory.glob(f"*{PRE_APPLY_SUFFIX}"), key=_path_sort_key))
+    return backups
+
+
+def _is_numbered_game_dir(path: Path) -> bool:
+    """判断路径是否为四位数字游戏数据目录。"""
+    return path.is_dir() and path.name.isdigit() and len(path.name) == GAME_DIR_NAME_LENGTH
+
+
+def _path_sort_key(path: Path) -> str:
+    """统一路径排序，保证恢复顺序稳定。"""
+    return path.as_posix().lower()

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from cdmm.archive.pamt import build_pamt_index, derive_pamt_dir, parse_pamt
+from cdmm.archive.pamt import derive_pamt_dir
 from cdmm.common.constants import (
     GAME_DIR_NAME_LENGTH,
     KNOWN_GAME_TOP_DIRS,
@@ -15,6 +15,7 @@ from cdmm.common.constants import (
     OVERLAY_PAZ_NAME,
 )
 from cdmm.common.models import OverlayInputEntry, PazEntry
+from cdmm.services.pamt_index_service import get_game_pamt_index
 from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.path_utils import lower_game_rel_path
 
@@ -144,15 +145,7 @@ def _build_entry_from_loose_file(
 
 def _find_entry_in_pamt_dir(game_dir: Path, pamt_dir: str, target_path: str) -> PazEntry | None:
     """只在 files/NNNN 指定的游戏目录中查找目标，避免被旧 overlay 干扰。"""
-    pamt_path = game_dir / pamt_dir / OVERLAY_PAMT_NAME
-    if not pamt_path.exists():
-        return None
-    try:
-        entries = parse_pamt(pamt_path, paz_dir=pamt_path.parent)
-    except Exception as exc:
-        logger.warning("跳过无法解析的 loose 目标 PAMT：%s (%s)", pamt_path, exc)
-        return None
-
+    entries = get_game_pamt_index(game_dir).entries_in_dir(pamt_dir)
     normalized = lower_game_rel_path(target_path)
     basename = normalized.rsplit("/", 1)[-1]
     basename_match: PazEntry | None = None
@@ -172,24 +165,9 @@ def _find_entry_globally(game_dir: Path, target_path: str) -> PazEntry | None:
     normalized = lower_game_rel_path(target_path)
     basename = normalized.rsplit("/", 1)[-1]
 
-    exact_matches: list[PazEntry] = []
-    basename_matches: list[PazEntry] = []
-    for directory in sorted((item for item in game_dir.iterdir() if _is_game_archive_dir(item)), key=_path_sort_key):
-        pamt_path = directory / OVERLAY_PAMT_NAME
-        if not pamt_path.exists():
-            continue
-        try:
-            entries = parse_pamt(pamt_path, paz_dir=pamt_path.parent)
-        except Exception as exc:
-            logger.warning("跳过无法解析的 root loose 目标 PAMT：%s (%s)", pamt_path, exc)
-            continue
-        for entry in entries:
-            entry_key = lower_game_rel_path(entry.path)
-            if entry_key == normalized:
-                exact_matches.append(entry)
-            elif entry_key.rsplit("/", 1)[-1] == basename:
-                basename_matches.append(entry)
-
+    index = get_game_pamt_index(game_dir)
+    exact_matches = index.by_exact.get(normalized, [])
+    basename_matches = index.by_basename.get(basename, [])
     exact = _pick_best_global_match(exact_matches, normalized, basename)
     if exact is not None:
         return exact

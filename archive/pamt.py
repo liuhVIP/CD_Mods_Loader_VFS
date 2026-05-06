@@ -16,12 +16,28 @@ logger = logging.getLogger(__name__)
 # 防止损坏 PAMT 声明超大 PAZ 数量导致无意义扫描。
 MAX_SANE_PAZ_COUNT = 4096
 
+# 单次运行内 PAMT 会被 loose、JSON、Format 3、overlay 目录恢复反复查询。
+# 这里按文件状态缓存解析结果，避免同一个 0.pamt 被重复读盘和重复拆结构。
+_PARSED_PAMT_CACHE: dict[tuple[str, int, int, str | None], list[PazEntry]] = {}
+
 
 def parse_pamt(pamt_path: str | Path, paz_dir: str | Path | None = None) -> list[PazEntry]:
     """解析 PAMT 文件并返回可定位的 PAZ entry 列表。"""
     pamt_path = Path(pamt_path)
+    stat = pamt_path.stat()
+    cache_key = (
+        str(pamt_path.resolve()),
+        stat.st_mtime_ns,
+        stat.st_size,
+        str(Path(paz_dir).resolve()) if paz_dir else None,
+    )
+    cached = _PARSED_PAMT_CACHE.get(cache_key)
+    if cached is not None:
+        return list(cached)
     try:
-        return _parse_pamt_impl(pamt_path, Path(paz_dir) if paz_dir else None)
+        entries = _parse_pamt_impl(pamt_path, Path(paz_dir) if paz_dir else None)
+        _PARSED_PAMT_CACHE[cache_key] = entries
+        return list(entries)
     except (struct.error, IndexError) as exc:
         raise ValueError(f"损坏的 PAMT {pamt_path.name}: {exc}") from exc
 

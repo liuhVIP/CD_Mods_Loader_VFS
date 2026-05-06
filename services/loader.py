@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+from time import perf_counter
 from pathlib import Path
 
 from cdmm.common.constants import (
@@ -52,7 +53,9 @@ def ensure_work_dirs(game_dir: Path) -> None:
 def scan_loader(game_dir: Path) -> LoaderResult:
     """只扫描 mods 目录，不写入游戏文件。"""
     validate_game_dir(game_dir)
+    started = perf_counter()
     mods, warnings = scan_mods(game_dir)
+    _log_phase("扫描 mods", started)
     format3_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_FORMAT3]
     warnings.extend(collect_format3_warnings(format3_mods))
     return LoaderResult(overlay_dir=None, loaded_mods=mods, warnings=warnings, errors=[])
@@ -60,6 +63,7 @@ def scan_loader(game_dir: Path) -> LoaderResult:
 
 def apply_loader(game_dir: Path) -> LoaderResult:
     """全量重建 overlay 并注册到 PAPGT。"""
+    total_started = perf_counter()
     validate_game_dir(game_dir)
     ensure_work_dirs(game_dir)
     recovered = recover_interrupted(game_dir)
@@ -68,21 +72,28 @@ def apply_loader(game_dir: Path) -> LoaderResult:
     if recovered:
         warnings.append(f"检测到上次中断提交，已恢复 {recovered} 个文件")
 
+    phase_started = perf_counter()
     mods, scan_warnings = scan_mods(game_dir)
+    _log_phase("扫描 mods", phase_started)
     warnings.extend(scan_warnings)
     json_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_JSON_PATCH]
     format3_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_FORMAT3]
     warnings.extend(collect_format3_warnings(format3_mods))
 
+    phase_started = perf_counter()
     vanilla_store = VanillaStore(game_dir)
     vanilla_store.ensure_meta_backup()
+    _log_phase("准备 vanilla 备份", phase_started)
 
+    phase_started = perf_counter()
     loose_overlay_inputs = build_loose_overlay_entries(
         game_dir,
         vanilla_store,
         warnings,
         errors,
     )
+    _log_phase("构建 loose overlay 输入", phase_started)
+    phase_started = perf_counter()
     json_overlay_inputs = build_json_overlay_entries(
         game_dir,
         json_mods,
@@ -91,6 +102,8 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         errors,
         loose_overlay_inputs,
     )
+    _log_phase("构建 JSON overlay 输入", phase_started)
+    phase_started = perf_counter()
     format3_overlay_inputs = build_format3_overlay_entries(
         game_dir,
         format3_mods,
@@ -99,11 +112,14 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         errors,
         [*loose_overlay_inputs, *json_overlay_inputs],
     )
+    _log_phase("构建 Format 3 overlay 输入", phase_started)
     # loose 先写、JSON 再写、Format 3 最后写；同 entry_path 时 build_overlay 会保留最后写入结果。
     overlay_inputs = [*loose_overlay_inputs, *json_overlay_inputs, *format3_overlay_inputs]
     if errors:
         return LoaderResult(overlay_dir=None, loaded_mods=mods, warnings=warnings, errors=errors)
+    phase_started = perf_counter()
     standalone_archives = collect_standalone_archives(game_dir)
+    _log_phase("收集 standalone 归档", phase_started)
     if not overlay_inputs and not standalone_archives:
         save_state(
             game_dir,
@@ -124,7 +140,10 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         overlay_dir = allocate_overlay_dir(game_dir)
         while overlay_dir in reserved_dirs:
             overlay_dir = f"{int(overlay_dir) + 1:04d}"
+        phase_started = perf_counter()
         overlay = build_overlay(overlay_dir, overlay_inputs, game_dir)
+        _log_phase("构建 overlay PAZ/PAMT", phase_started)
+        phase_started = perf_counter()
         pathc_bytes = build_pathc_for_overlay(
             game_dir,
             vanilla_store,
@@ -132,15 +151,19 @@ def apply_loader(game_dir: Path) -> LoaderResult:
             overlay.entries,
             warnings,
         )
+        _log_phase("构建 PATHC", phase_started)
     modified_pamts = dict(standalone_pamts)
     if overlay is not None and overlay_dir is not None:
         modified_pamts[overlay_dir] = overlay.pamt_bytes
+    phase_started = perf_counter()
     papgt_bytes = build_papgt(game_dir, vanilla_store, modified_pamts)
+    _log_phase("构建 PAPGT", phase_started)
 
     staging = game_dir / WORK_DIR_NAME / STAGING_DIR_NAME
     if staging.exists():
         shutil.rmtree(staging)
     transaction = Transaction(game_dir, staging)
+    phase_started = perf_counter()
     for archive in standalone_archives:
         transaction.stage_file(f"{archive.assigned_dir}/{OVERLAY_PAZ_NAME}", archive.paz_bytes)
         transaction.stage_file(f"{archive.assigned_dir}/{OVERLAY_PAMT_NAME}", archive.pamt_bytes)
@@ -153,6 +176,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         transaction.stage_file(f"{META_DIR_NAME}/0.pathc", pathc_bytes)
     transaction.commit()
     transaction.cleanup_staging()
+    _log_phase("事务写入游戏目录", phase_started)
 
     save_state(
         game_dir,
@@ -161,6 +185,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         loaded_mods=mods,
         standalone_dirs=standalone_state_items(standalone_archives),
     )
+    _log_phase("apply 总耗时", total_started)
     return LoaderResult(overlay_dir=overlay_dir, loaded_mods=mods, warnings=warnings, errors=[])
 
 
@@ -227,3 +252,8 @@ def _looks_like_staged_archive_dir(path: Path) -> bool:
         return False
     names = {item.name for item in path.iterdir()}
     return names.issubset({OVERLAY_PAZ_NAME, OVERLAY_PAMT_NAME})
+
+
+def _log_phase(name: str, started: float) -> None:
+    """输出阶段耗时，方便定位真实加载慢点。"""
+    logger.info("耗时：%s %.2fs", name, perf_counter() - started)

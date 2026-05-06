@@ -7,10 +7,11 @@ import os
 import struct
 from pathlib import Path
 
-from cdmm.archive.pamt import derive_pamt_dir, parse_pamt
+from cdmm.archive.pamt import derive_pamt_dir
 from cdmm.archive.paz_crypto import decrypt, lz4_decompress
-from cdmm.common.constants import GAME_DIR_NAME_LENGTH, OVERLAY_PAMT_NAME
+from cdmm.common.constants import GAME_DIR_NAME_LENGTH
 from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
+from cdmm.services.pamt_index_service import get_game_pamt_index
 from cdmm.services.scanner import load_json_file
 from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.path_utils import lower_game_rel_path
@@ -419,23 +420,9 @@ def _find_patch_target_entry(game_file: str, game_dir: Path) -> PazEntry | None:
     """查找 JSON patch 目标，优先低编号 vanilla 目录，避免命中旧 overlay。"""
     normalized = lower_game_rel_path(game_file)
     basename = normalized.rsplit("/", 1)[-1]
-    exact_matches: list[PazEntry] = []
-    basename_matches: list[PazEntry] = []
-    for directory in sorted((item for item in game_dir.iterdir() if _is_game_archive_dir(item)), key=_path_sort_key):
-        pamt_path = directory / OVERLAY_PAMT_NAME
-        if not pamt_path.exists():
-            continue
-        try:
-            entries = parse_pamt(pamt_path, paz_dir=pamt_path.parent)
-        except Exception as exc:
-            logger.warning("跳过无法解析的 JSON 目标 PAMT：%s (%s)", pamt_path, exc)
-            continue
-        for entry in entries:
-            entry_key = lower_game_rel_path(entry.path)
-            if entry_key == normalized:
-                exact_matches.append(entry)
-            elif entry_key.rsplit("/", 1)[-1] == basename:
-                basename_matches.append(entry)
+    index = get_game_pamt_index(game_dir)
+    exact_matches = index.by_exact.get(normalized, [])
+    basename_matches = index.by_basename.get(basename, [])
 
     match = _pick_best_patch_match(exact_matches, normalized, basename)
     if match is not None:
