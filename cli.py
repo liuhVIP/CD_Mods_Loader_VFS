@@ -28,6 +28,7 @@ from cdmm.common.constants import (
 from cdmm.common.models import LoaderResult
 from cdmm.services.loader import apply_loader, revert_loader, scan_loader
 from cdmm.services.scanner import (
+    EMPTY_MOD_DIR_WARNING_PREFIX,
     MOD_TYPE_DDS,
     MOD_TYPE_FORMAT3,
     MOD_TYPE_JSON_PATCH,
@@ -77,6 +78,9 @@ SCAN_GROUP_ORDER = (
     "other",
 )
 
+# 只扫描模式下最多直接展示的空目录数量，避免异常目录过多刷屏。
+MAX_VISIBLE_EMPTY_MOD_DIRS = 50
+
 # 控制台双语文案，所有用户可见文本尽量集中在这里，避免散落硬编码。
 UI_TEXTS = {
     LANGUAGE_ZH: {
@@ -118,6 +122,8 @@ UI_TEXTS = {
         "failed": "失败：{error}",
         "error": "错误：{error}",
         "scan_done": "扫描完成：发现 {count} 个可识别模组",
+        "empty_mod_dirs_title": "空目录（不参与加载）",
+        "empty_mod_dirs_more": "还有 {count} 个空目录，详见日志。",
         "revert_done": "恢复完成",
         "load_done_overlay": "加载完成：overlay 已写入 {overlay_dir}",
         "load_done_no_overlay": "加载完成：未生成 overlay",
@@ -183,6 +189,8 @@ UI_TEXTS = {
         "failed": "Failed: {error}",
         "error": "Error: {error}",
         "scan_done": "Scan complete: found {count} recognizable mods",
+        "empty_mod_dirs_title": "Empty directories (not loaded)",
+        "empty_mod_dirs_more": "{count} more empty directories; see the log.",
         "revert_done": "Restore complete",
         "load_done_overlay": "Load complete: overlay written to {overlay_dir}",
         "load_done_no_overlay": "Load complete: no overlay generated",
@@ -440,6 +448,7 @@ def print_result(command: str, result: LoaderResult, elapsed_seconds: float, lan
     if command == COMMAND_SCAN:
         print(text("scan_done", language, count=len(result.loaded_mods)))
         print_scan_groups(result.loaded_mods, language)
+        print_empty_mod_dirs(result.warnings, language)
     elif command == COMMAND_REVERT:
         print(text("revert_done", language))
     else:
@@ -465,6 +474,25 @@ def print_scan_groups(mods: Iterable[Any], language: str) -> None:
         print(f"{scan_group_title(group_key, language)} ({len(group_mods)})")
         for mod in group_mods:
             print(f"- {mod.name} [{mod_type_label(mod.mod_type, language)}]")
+
+
+def print_empty_mod_dirs(warnings: Iterable[str], language: str) -> None:
+    """只扫描模式下，把空目录单独整理给用户看。"""
+    empty_names = [
+        warning.removeprefix(EMPTY_MOD_DIR_WARNING_PREFIX)
+        for warning in warnings
+        if warning.startswith(EMPTY_MOD_DIR_WARNING_PREFIX)
+    ]
+    if not empty_names:
+        return
+    visible_names = empty_names[:MAX_VISIBLE_EMPTY_MOD_DIRS]
+    print("")
+    print(f"{text('empty_mod_dirs_title', language)} ({len(empty_names)})")
+    for name in visible_names:
+        print(f"- {name}")
+    hidden_count = len(empty_names) - len(visible_names)
+    if hidden_count > 0:
+        print(text("empty_mod_dirs_more", language, count=hidden_count))
 
 
 def scan_group_key(mod_type: str) -> str:

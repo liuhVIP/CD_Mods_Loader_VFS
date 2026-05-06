@@ -36,6 +36,9 @@ MOD_TYPE_STANDALONE_ARCHIVE = "standalone_archive"
 MOD_TYPE_META = "meta"
 MOD_TYPE_DDS = "dds"
 
+# 空目录跳过提示前缀，CLI 会据此把空目录单独整理展示给用户。
+EMPTY_MOD_DIR_WARNING_PREFIX = "空目录（已跳过）："
+
 # 目录型模组可能包含多种组件，按固定顺序合并展示。
 DIRECTORY_MOD_TYPE_ORDER = (
     MOD_TYPE_LOOSE_FILES,
@@ -102,11 +105,30 @@ def is_json_patch_data(data: object) -> bool:
     if not isinstance(patches, list) or not patches:
         return False
     return any(
-        isinstance(item, dict)
-        and isinstance(item.get("game_file"), str)
-        and isinstance(item.get("changes"), list)
+        _is_non_empty_json_patch_item(item)
         for item in patches
     )
+
+
+def _is_non_empty_json_patch_item(item: object) -> bool:
+    """判断单个 JSON patch 目标是否包含真实字节改动，过滤空 DDS 映射清单。"""
+    if not isinstance(item, dict):
+        return False
+    if not isinstance(item.get("game_file"), str):
+        return False
+    changes = item.get("changes")
+    if not isinstance(changes, list):
+        return False
+    return any(_has_patch_bytes(change) for change in changes)
+
+
+def _has_patch_bytes(change: object) -> bool:
+    """判断 change 是否至少声明了 original/patched 中的一段字节内容。"""
+    if not isinstance(change, dict):
+        return False
+    original = change.get("original")
+    patched = change.get("patched")
+    return (isinstance(original, str) and bool(original)) or (isinstance(patched, str) and bool(patched))
 
 
 def is_format3_data(data: object) -> bool:
@@ -143,6 +165,9 @@ def _collect_candidates(mods_dir: Path, warnings: list[str]) -> list[Path]:
             candidates.append(item)
             continue
         if item.is_dir():
+            if _is_empty_directory(item):
+                warnings.append(f"{EMPTY_MOD_DIR_WARNING_PREFIX}{item.name}")
+                continue
             component_types = _scan_deferred_components(item, warnings)
             if component_types:
                 candidates.append(item)
@@ -151,6 +176,11 @@ def _collect_candidates(mods_dir: Path, warnings: list[str]) -> list[Path]:
                     continue
                 candidates.append(json_file)
     return candidates
+
+
+def _is_empty_directory(path: Path) -> bool:
+    """判断顶层模组目录是否完全为空，空目录只提示不参与加载。"""
+    return not any(path.iterdir())
 
 
 def _scan_deferred_components(mod_dir: Path, warnings: list[str]) -> set[str]:
