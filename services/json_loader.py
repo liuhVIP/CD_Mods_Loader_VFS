@@ -125,6 +125,7 @@ def build_patch_overlay_entries(
         total_applied = 0
         total_mismatched = 0
         already_patched = 0
+        need_already_patched_check = False
         inserts_out: list[tuple[int, int]] = []
 
         for mod, patch in patch_items:
@@ -141,7 +142,8 @@ def build_patch_overlay_entries(
             )
             total_applied += applied
             total_mismatched += mismatched
-            already_patched += _count_already_patched(changes, base_plaintext)
+            if applied == 0:
+                need_already_patched_check = True
             if relocated:
                 logger.info("%s: %s 发生 %d 个偏移重定位", mod.name, game_file, relocated)
             if mismatched:
@@ -158,6 +160,11 @@ def build_patch_overlay_entries(
         if total_applied == 0:
             warnings.append(f"{game_file}: 没有任何补丁成功应用")
             continue
+        if need_already_patched_check:
+            already_patched = sum(
+                _count_already_patched(patch.get("changes", []), base_plaintext)
+                for _mod, patch in patch_items
+            )
         if bytes(modified) == base_plaintext and base_entry is None and already_patched <= 0:
             warnings.append(f"{game_file}: 补丁应用后内容未变化")
             continue
@@ -257,9 +264,15 @@ def apply_byte_patches(
     mismatched = 0
     relocated = 0
     writes: list[tuple[int, int]] = []
+    total_shift = 0
+    write_cursor = 0
 
     def shift_for(position: int) -> int:
-        return sum(delta for write_pos, delta in writes if write_pos < position)
+        nonlocal total_shift, write_cursor
+        while write_cursor < len(writes) and writes[write_cursor][0] < position:
+            total_shift += writes[write_cursor][1]
+            write_cursor += 1
+        return total_shift
 
     parsed_changes = []
     for change in changes:
@@ -267,29 +280,29 @@ def apply_byte_patches(
         if offset is None:
             mismatched += 1
             continue
-        parsed_changes.append((offset, change))
+        parsed = _parse_patch_change(change)
+        if parsed is None:
+            mismatched += 1
+            continue
+        parsed_changes.append((offset, change, *parsed))
     parsed_changes.sort(key=lambda item: item[0])
 
-    for original_offset, change in parsed_changes:
-        offset = original_offset + shift_for(original_offset)
+    for original_offset, change, patched_bytes, original_bytes, old_len in parsed_changes:
+        if writes:
+            offset = original_offset + shift_for(original_offset)
+        else:
+            offset = original_offset
         if change.get("type") == "insert":
-            insert_bytes = _bytes_from_hex(change.get("bytes"))
-            if insert_bytes is None or offset > len(data):
+            if offset > len(data):
                 mismatched += 1
                 continue
-            data[offset:offset] = insert_bytes
-            writes.append((original_offset, len(insert_bytes)))
+            data[offset:offset] = patched_bytes
+            writes.append((original_offset, len(patched_bytes)))
             if inserts_out is not None:
-                inserts_out.append((original_offset, len(insert_bytes)))
+                inserts_out.append((original_offset, len(patched_bytes)))
             applied += 1
             continue
 
-        patched_bytes = _bytes_from_hex(change.get("patched"))
-        if patched_bytes is None:
-            mismatched += 1
-            continue
-        original_bytes = _bytes_from_hex(change.get("original"))
-        old_len = len(original_bytes) if original_bytes is not None else len(patched_bytes)
         if offset + old_len > len(data):
             mismatched += 1
             continue
@@ -322,6 +335,21 @@ def apply_byte_patches(
             name_offsets=name_offsets,
         )
     return applied, mismatched, relocated
+
+
+def _parse_patch_change(change: dict) -> tuple[bytes, bytes | None, int] | None:
+    """提前解析 JSON change 的 hex 字段，避免应用阶段重复转换。"""
+    if change.get("type") == "insert":
+        insert_bytes = _bytes_from_hex(change.get("bytes"))
+        if insert_bytes is None:
+            return None
+        return insert_bytes, None, 0
+    patched_bytes = _bytes_from_hex(change.get("patched"))
+    if patched_bytes is None:
+        return None
+    original_bytes = _bytes_from_hex(change.get("original"))
+    old_len = len(original_bytes) if original_bytes is not None else len(patched_bytes)
+    return patched_bytes, original_bytes, old_len
 
 
 def fixup_pabgh_after_inserts(pabgh: bytes, inserts: list[tuple[int, int]]) -> bytes:
