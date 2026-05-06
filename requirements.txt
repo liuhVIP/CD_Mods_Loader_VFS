@@ -1,0 +1,6 @@
+# 独立 cdloader 运行与本地验证依赖。
+cryptography>=42.0
+lz4>=4.3
+pytest>=8.0
+ruff>=0.4
+pyinstaller>=6.0
