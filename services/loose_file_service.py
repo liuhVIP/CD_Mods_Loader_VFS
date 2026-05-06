@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from time import perf_counter
 from pathlib import Path
 
@@ -44,22 +45,33 @@ def build_loose_overlay_entries(
     match_seconds = 0.0
     build_seconds = 0.0
     skipped = 0
+    exact_matches: Counter[str] = Counter()
+    basename_matches: Counter[str] = Counter()
+    raw_path_writes: Counter[str] = Counter()
+    root_skips: Counter[str] = Counter()
     for loose_file in loose_files:
         mod_dir, pamt_dir, rel_path, loose_path = loose_file
         target_path = rel_path.as_posix()
         try:
             match_started = perf_counter()
-            source_entry = (
-                _find_entry_in_pamt_dir(game_dir, pamt_dir, target_path)
-                if pamt_dir is not None
-                else _find_entry_globally(game_dir, target_path)
-            )
+            source_entry: PazEntry | None
+            matched_by_basename = False
+            if pamt_dir is not None:
+                source_entry, matched_by_basename = _find_entry_in_pamt_dir(game_dir, pamt_dir, target_path)
+            else:
+                source_entry, matched_by_basename = _find_entry_globally(game_dir, target_path)
             match_seconds += perf_counter() - match_started
             if pamt_dir is None and source_entry is None:
-                warnings.append(f"{mod_dir.name}: {target_path} 未在唯一 vanilla PAMT 中命中，已跳过")
+                root_skips[mod_dir.name] += 1
                 skipped += 1
                 continue
             target_pamt_dir = pamt_dir or derive_pamt_dir(source_entry.paz_file)
+            if source_entry is None:
+                raw_path_writes[f"{mod_dir.name}/{target_pamt_dir}"] += 1
+            elif matched_by_basename:
+                basename_matches[target_pamt_dir] += 1
+            else:
+                exact_matches[target_pamt_dir] += 1
             build_started = perf_counter()
             entries.append(
                 _build_entry_from_loose_file(
@@ -76,6 +88,8 @@ def build_loose_overlay_entries(
         except Exception as exc:
             prefix = pamt_dir if pamt_dir is not None else "root"
             errors.append(f"{mod_dir.name}: {prefix}/{target_path} 加载失败：{exc}")
+    _append_loose_summary_warnings(warnings, raw_path_writes, root_skips)
+    _log_loose_match_summary(exact_matches, basename_matches, raw_path_writes, root_skips)
     logger.info(
         "loose 细分：枚举 %.2fs，目标匹配 %.2fs，读取/构建 %.2fs，文件 %d 个（编号 %d，根路径 %d，跳过 %d）",
         enumerate_seconds,
@@ -156,7 +170,6 @@ def _build_entry_from_loose_file(
     """基于 loose 文件内容和 vanilla 元数据构造 overlay entry。"""
     content = loose_path.read_bytes()
     if source_entry is None:
-        warnings.append(f"{mod_name}: {target_path} 未在 {pamt_dir}/0.pamt 中找到，按原始路径写入")
         return OverlayInputEntry(
             content=content,
             entry_path=target_path,
@@ -176,16 +189,17 @@ def _build_entry_from_loose_file(
     )
 
 
-def _find_entry_in_pamt_dir(game_dir: Path, pamt_dir: str, target_path: str) -> PazEntry | None:
+def _find_entry_in_pamt_dir(game_dir: Path, pamt_dir: str, target_path: str) -> tuple[PazEntry | None, bool]:
     """只在 files/NNNN 指定的游戏目录中查找目标，避免被旧 overlay 干扰。"""
     normalized = lower_game_rel_path(target_path)
     entry = get_game_pamt_index(game_dir).find_in_dir(pamt_dir, target_path)
     if entry is not None and lower_game_rel_path(entry.path) != normalized:
-        logger.info("按 basename 匹配 loose %s/%s -> %s", pamt_dir, target_path, entry.path)
-    return entry
+        logger.debug("按 basename 匹配 loose %s/%s -> %s", pamt_dir, target_path, entry.path)
+        return entry, True
+    return entry, False
 
 
-def _find_entry_globally(game_dir: Path, target_path: str) -> PazEntry | None:
+def _find_entry_globally(game_dir: Path, target_path: str) -> tuple[PazEntry | None, bool]:
     """根路径 loose 没有 NNNN，优先完整路径，其次安全 basename 命中。"""
     normalized = lower_game_rel_path(target_path)
 
@@ -193,37 +207,46 @@ def _find_entry_globally(game_dir: Path, target_path: str) -> PazEntry | None:
     entry = index.find_best(target_path)
     if entry is not None:
         if lower_game_rel_path(entry.path) != normalized:
-            logger.info("按唯一 basename 匹配 root loose %s -> %s", target_path, entry.path)
-        return entry
-    logger.warning("root loose %s 未命中唯一 PAMT entry，已跳过", target_path)
-    return None
+            logger.debug("按唯一 basename 匹配 root loose %s -> %s", target_path, entry.path)
+            return entry, True
+        return entry, False
+    logger.debug("root loose %s 未命中唯一 PAMT entry，已跳过", target_path)
+    return None, False
 
 
-def _pick_best_global_match(
-    matches: list[PazEntry],
-    normalized: str,
-    basename: str,
-) -> PazEntry | None:
-    """从 root loose 候选中选择最像 vanilla 的 entry，无法唯一判断则返回 None。"""
-    if not matches:
-        return None
-    scored = sorted(((_global_match_score(entry, normalized, basename), entry) for entry in matches), key=lambda item: item[0])
-    if len(scored) == 1 or scored[0][0] < scored[1][0]:
-        return scored[0][1]
-    return None
+def _append_loose_summary_warnings(
+    warnings: list[str],
+    raw_path_writes: Counter[str],
+    root_skips: Counter[str],
+) -> None:
+    """把大量 loose 未命中提示压缩成汇总警告。"""
+    for key, count in sorted(raw_path_writes.items()):
+        mod_name, pamt_dir = key.rsplit("/", 1)
+        warnings.append(f"{mod_name}: {count} 个文件未在 {pamt_dir}/0.pamt 中找到，已按原始路径写入")
+    for mod_name, count in sorted(root_skips.items()):
+        warnings.append(f"{mod_name}: {count} 个 root loose 文件未在唯一 vanilla PAMT 中命中，已跳过")
 
 
-def _global_match_score(entry: PazEntry, normalized: str, basename: str) -> tuple[int, int, int]:
-    """root loose 匹配排序：完整路径、gamedata 路径、低编号原版目录优先。"""
-    entry_key = lower_game_rel_path(entry.path)
-    try:
-        pamt_number = int(Path(entry.paz_file).parent.name)
-    except ValueError:
-        pamt_number = 9999
-    exact_score = 0 if entry_key == normalized else 1
-    gamedata_score = 0 if entry_key.startswith("gamedata/") else 1
-    basename_score = 0 if entry_key.rsplit("/", 1)[-1] == basename else 1
-    return exact_score, gamedata_score + basename_score, pamt_number
+def _log_loose_match_summary(
+    exact_matches: Counter[str],
+    basename_matches: Counter[str],
+    raw_path_writes: Counter[str],
+    root_skips: Counter[str],
+) -> None:
+    """输出 loose 匹配汇总，避免大量逐文件日志拖慢加载。"""
+    if exact_matches:
+        logger.info("loose 匹配汇总：完整路径命中 %s", _format_counter(exact_matches))
+    if basename_matches:
+        logger.info("loose 匹配汇总：basename 命中 %s", _format_counter(basename_matches))
+    if raw_path_writes:
+        logger.info("loose 匹配汇总：原始路径写入 %s", _format_counter(raw_path_writes))
+    if root_skips:
+        logger.info("loose 匹配汇总：root 跳过 %s", _format_counter(root_skips))
+
+
+def _format_counter(counter: Counter[str]) -> str:
+    """格式化计数器，保持汇总日志短小。"""
+    return ", ".join(f"{key}={count}" for key, count in sorted(counter.items()))
 
 
 def _is_game_archive_dir(path: Path) -> bool:

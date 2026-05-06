@@ -41,6 +41,8 @@ class GamePamtIndex:
     game_dir: Path
     signature: tuple[tuple[str, int, int], ...]
     by_dir: dict[str, list[PazEntry]]
+    by_dir_exact: dict[str, dict[str, list[PazEntry]]]
+    by_dir_basename: dict[str, dict[str, list[PazEntry]]]
     target_cache: dict[str, PazEntry | None]
     desired_basenames: set[str]
     desired_exact: set[str]
@@ -50,12 +52,18 @@ class GamePamtIndex:
         """按需读取指定 NNNN 目录下的 entry 列表。"""
         if pamt_dir not in self.by_dir:
             self.by_dir[pamt_dir] = _parse_entries_in_dir(self.game_dir, pamt_dir)
+            self._index_dir(pamt_dir)
+        elif pamt_dir not in self.by_dir_exact:
+            self._index_dir(pamt_dir)
         return self.by_dir.get(pamt_dir, [])
 
     def find_in_dir(self, pamt_dir: str, target: str) -> PazEntry | None:
         """只在指定目录中查找目标，优先完整路径，其次 basename。"""
         normalized = lower_game_rel_path(target)
         basename = os.path.basename(normalized)
+        cache_key = _dir_target_cache_key(pamt_dir, normalized)
+        if cache_key in self.target_cache:
+            return self.target_cache[cache_key]
         self.register_target(normalized)
         if pamt_dir not in self.by_dir:
             desired_basenames = {*self.desired_basenames, basename}
@@ -66,14 +74,20 @@ class GamePamtIndex:
                 desired_basenames,
                 desired_exact,
             )
-        basename_match: PazEntry | None = None
-        for entry in self.by_dir.get(pamt_dir, []):
-            entry_key = lower_game_rel_path(entry.path)
-            if entry_key == normalized:
-                return entry
-            if os.path.basename(entry_key) == basename:
-                basename_match = entry
-        return basename_match
+            self._index_dir(pamt_dir)
+        elif pamt_dir not in self.by_dir_exact:
+            self._index_dir(pamt_dir)
+        exact_matches = self.by_dir_exact.get(pamt_dir, {}).get(normalized, [])
+        if exact_matches:
+            match = exact_matches[0]
+            self.target_cache[cache_key] = match
+            self.target_cache_dirty = True
+            return match
+        basename_matches = self.by_dir_basename.get(pamt_dir, {}).get(basename, [])
+        match = basename_matches[-1] if basename_matches else None
+        self.target_cache[cache_key] = match
+        self.target_cache_dirty = True
+        return match
 
     def find_best(
         self,
@@ -155,9 +169,10 @@ class GamePamtIndex:
                     ),
                     missing_dirs,
                 )
-            )
+        )
         for dir_name, entries in parsed_items:
             self.by_dir[dir_name] = entries
+            self._index_dir(dir_name)
         logger.info(
             "PAMT 目标预筛选：多线程解析 %d 个 PAMT，线程 %d，目标 basename %d 个",
             len(missing_dirs),
@@ -170,6 +185,17 @@ class GamePamtIndex:
         if self.target_cache_dirty:
             _save_target_cache(self.game_dir, self.signature, self.target_cache)
             self.target_cache_dirty = False
+
+    def _index_dir(self, pamt_dir: str) -> None:
+        """为一个已解析目录建立 O(1) exact/basename 查询索引。"""
+        exact: dict[str, list[PazEntry]] = {}
+        basename_index: dict[str, list[PazEntry]] = {}
+        for entry in self.by_dir.get(pamt_dir, []):
+            entry_key = lower_game_rel_path(entry.path)
+            exact.setdefault(entry_key, []).append(entry)
+            basename_index.setdefault(os.path.basename(entry_key), []).append(entry)
+        self.by_dir_exact[pamt_dir] = exact
+        self.by_dir_basename[pamt_dir] = basename_index
 
 
 _GAME_INDEX_CACHE: dict[tuple[str, tuple[tuple[str, int, int], ...]], GamePamtIndex] = {}
@@ -190,6 +216,8 @@ def get_game_pamt_index(game_dir: Path) -> GamePamtIndex:
         game_dir=game_dir,
         signature=signature,
         by_dir={},
+        by_dir_exact={},
+        by_dir_basename={},
         target_cache=target_cache,
         desired_basenames=set(),
         desired_exact=set(),
@@ -297,6 +325,11 @@ def _target_cache_key(normalized: str, *, require_unique_best: bool) -> str:
     """目标缓存 key，区分是否要求唯一最佳候选。"""
     unique_flag = "unique" if require_unique_best else "best"
     return f"{unique_flag}|{normalized}"
+
+
+def _dir_target_cache_key(pamt_dir: str, normalized: str) -> str:
+    """编号目录 loose 目标缓存 key。"""
+    return f"dir|{pamt_dir}|{normalized}"
 
 
 def _load_target_cache(
