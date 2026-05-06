@@ -33,6 +33,7 @@ from cdmm.services.papgt_service import build_papgt
 from cdmm.services.pathc_service import build_pathc_for_overlay
 from cdmm.services.scanner import MOD_TYPE_FORMAT3, MOD_TYPE_JSON_PATCH, scan_mods
 from cdmm.services.standalone_archive_service import (
+    cleanup_stale_standalone_dirs,
     collect_standalone_archives,
     standalone_state_items,
 )
@@ -71,6 +72,10 @@ def apply_loader(game_dir: Path) -> LoaderResult:
     errors: list[str] = []
     if recovered:
         warnings.append(f"检测到上次中断提交，已恢复 {recovered} 个文件")
+    previous_state = load_state(game_dir)
+    previous_standalone_items = previous_state.get("standalone_dirs")
+    if not isinstance(previous_standalone_items, list):
+        previous_standalone_items = []
 
     phase_started = perf_counter()
     mods, scan_warnings = scan_mods(game_dir)
@@ -118,7 +123,10 @@ def apply_loader(game_dir: Path) -> LoaderResult:
     if errors:
         return LoaderResult(overlay_dir=None, loaded_mods=mods, warnings=warnings, errors=errors)
     phase_started = perf_counter()
-    standalone_archives = collect_standalone_archives(game_dir)
+    standalone_archives = collect_standalone_archives(
+        game_dir,
+        previous_items=previous_standalone_items,
+    )
     _log_phase("收集 standalone 归档", phase_started)
     if not overlay_inputs and not standalone_archives:
         save_state(
@@ -177,6 +185,13 @@ def apply_loader(game_dir: Path) -> LoaderResult:
     transaction.commit()
     transaction.cleanup_staging()
     _log_phase("事务写入游戏目录", phase_started)
+    removed_standalone_dirs = cleanup_stale_standalone_dirs(
+        game_dir,
+        previous_standalone_items,
+        standalone_archives,
+    )
+    if removed_standalone_dirs:
+        warnings.append(f"已清理不再使用的 standalone 输出目录：{', '.join(removed_standalone_dirs)}")
 
     save_state(
         game_dir,
