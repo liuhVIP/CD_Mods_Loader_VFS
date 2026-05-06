@@ -16,8 +16,6 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
-from tqdm import tqdm
-
 from cdmm.common.constants import (
     APPLY_PROGRESS_PHASES,
     COLD_LOAD_LOG_FILE_NAME,
@@ -409,27 +407,27 @@ def default_config_path() -> Path:
 
 
 def run_apply_command(game_dir: Path, language: str = DEFAULT_LANGUAGE) -> LoaderResult:
-    """执行真实加载并显示 tqdm 进度条。"""
-    with tqdm(
+    """执行真实加载并显示轻量控制台进度。"""
+    progress_bar = ConsoleProgress(
         total=len(APPLY_PROGRESS_PHASES),
         desc=text("apply_desc", language),
         unit=text("progress_unit", language),
-        dynamic_ncols=True,
-        leave=True,
-    ) as progress_bar:
-        completed_phases: set[str] = set()
+    )
+    completed_phases: set[str] = set()
 
-        def update_progress(phase_name: str) -> None:
-            if phase_name in completed_phases:
-                return
-            completed_phases.add(phase_name)
-            progress_bar.set_postfix_str(progress_phase_label(phase_name, language))
-            progress_bar.update(1)
+    def update_progress(phase_name: str) -> None:
+        if phase_name in completed_phases:
+            return
+        completed_phases.add(phase_name)
+        progress_bar.update(progress_phase_label(phase_name, language))
 
+    try:
         result = apply_loader(game_dir, progress_callback=update_progress)
         for phase_name in APPLY_PROGRESS_PHASES:
             update_progress(phase_name)
         return result
+    finally:
+        progress_bar.finish()
 
 
 def print_result(command: str, result: LoaderResult, elapsed_seconds: float, language: str) -> int:
@@ -636,6 +634,37 @@ def scan_group_title(group_key: str, language: str) -> str:
 def progress_phase_label(phase_name: str, language: str) -> str:
     """返回进度阶段的当前语言名称。"""
     return typed_text("progress_phase_labels", phase_name, language, phase_name)
+
+
+class ConsoleProgress:
+    """单文件打包友好的轻量控制台进度条。"""
+
+    def __init__(self, total: int, desc: str, unit: str) -> None:
+        """初始化进度条状态。"""
+        self.total = max(total, 1)
+        self.desc = desc
+        self.unit = unit
+        self.current = 0
+        self.render("")
+
+    def update(self, phase_name: str) -> None:
+        """推进一个阶段并刷新同一行显示。"""
+        self.current = min(self.current + 1, self.total)
+        self.render(phase_name)
+
+    def finish(self) -> None:
+        """结束进度条输出，避免后续结果覆盖当前行。"""
+        print("")
+
+    def render(self, phase_name: str) -> None:
+        """渲染固定宽度文本进度条。"""
+        bar_width = 28
+        filled = int(bar_width * self.current / self.total)
+        bar = "#" * filled + "-" * (bar_width - filled)
+        percent = int(100 * self.current / self.total)
+        suffix = f" | {phase_name}" if phase_name else ""
+        message = f"\r{self.desc}: [{bar}] {self.current}/{self.total} {self.unit} {percent:3d}%{suffix}"
+        print(message[:120], end="", flush=True)
 
 
 def command_log_path(game_dir: Path, command: str) -> Path:
