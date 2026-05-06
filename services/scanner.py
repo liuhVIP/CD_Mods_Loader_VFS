@@ -31,6 +31,18 @@ logger = logging.getLogger(__name__)
 
 MOD_TYPE_JSON_PATCH = "json_patch"
 MOD_TYPE_FORMAT3 = "format3"
+MOD_TYPE_LOOSE_FILES = "loose_files"
+MOD_TYPE_STANDALONE_ARCHIVE = "standalone_archive"
+MOD_TYPE_META = "meta"
+MOD_TYPE_DDS = "dds"
+
+# 目录型模组可能包含多种组件，按固定顺序合并展示。
+DIRECTORY_MOD_TYPE_ORDER = (
+    MOD_TYPE_LOOSE_FILES,
+    MOD_TYPE_DDS,
+    MOD_TYPE_STANDALONE_ARCHIVE,
+    MOD_TYPE_META,
+)
 
 
 def scan_mods(game_dir: Path) -> tuple[list[DiscoveredMod], list[str]]:
@@ -68,13 +80,17 @@ def scan_mods(game_dir: Path) -> tuple[list[DiscoveredMod], list[str]]:
 
 
 def detect_mod_type(path: Path) -> str | None:
-    """识别传统 JSON patch 或 Format 3 JSON。"""
+    """识别传统 JSON patch、Format 3 JSON 或目录型组件。"""
     if path.is_file() and path.suffix.lower() == JSON_SUFFIX:
         data = load_json_optional(path)
         if is_json_patch_data(data):
             return MOD_TYPE_JSON_PATCH
         if is_format3_data(data):
             return MOD_TYPE_FORMAT3
+    if path.is_dir():
+        component_types = _detect_directory_component_types(path)
+        if component_types:
+            return _format_directory_mod_type(component_types)
     return None
 
 
@@ -127,7 +143,9 @@ def _collect_candidates(mods_dir: Path, warnings: list[str]) -> list[Path]:
             candidates.append(item)
             continue
         if item.is_dir():
-            _scan_deferred_components(item, warnings)
+            component_types = _scan_deferred_components(item, warnings)
+            if component_types:
+                candidates.append(item)
             for json_file in sorted(item.rglob(f"*{JSON_SUFFIX}"), key=lambda p: p.as_posix()):
                 if _inside_game_archive_tree(json_file.relative_to(item)):
                     continue
@@ -135,19 +153,21 @@ def _collect_candidates(mods_dir: Path, warnings: list[str]) -> list[Path]:
     return candidates
 
 
-def _scan_deferred_components(mod_dir: Path, warnings: list[str]) -> None:
-    """识别但不加载第二阶段组件，避免影响第一版 JSON apply 链路。"""
+def _scan_deferred_components(mod_dir: Path, warnings: list[str]) -> set[str]:
+    """识别目录型组件并返回组件类型，具体提示写入 warnings。"""
     reported: set[str] = set()
+    component_types: set[str] = set()
     for child in sorted(mod_dir.iterdir(), key=lambda p: p.name.lower()):
         lower_name = child.name.lower()
         if child.is_dir() and lower_name in {LOOSE_FILES_DIR_NAME, GAME_FILES_DIR_NAME}:
-            _scan_loose_container(mod_dir, child, warnings, reported)
+            component_types.update(_scan_loose_container(mod_dir, child, warnings, reported))
             continue
         if child.is_dir() and _is_game_archive_dir(child.name):
-            _scan_numbered_dir(mod_dir, child, warnings, reported)
+            component_types.add(_scan_numbered_dir(mod_dir, child, warnings, reported))
             continue
         if child.is_dir() and lower_name == META_DIR_NAME:
-            _scan_meta_dir(mod_dir, child, warnings, reported)
+            if _scan_meta_dir(mod_dir, child, warnings, reported):
+                component_types.add(MOD_TYPE_META)
             continue
         if child.is_dir() and lower_name in KNOWN_GAME_TOP_DIRS:
             _append_once(
@@ -155,8 +175,11 @@ def _scan_deferred_components(mod_dir: Path, warnings: list[str]) -> None:
                 reported,
                 f"发现根路径 loose files 组件（将尝试加载）：{mod_dir.name}/{child.name}",
             )
+            component_types.add(MOD_TYPE_LOOSE_FILES)
     if any(path.suffix.lower() == DDS_SUFFIX for path in mod_dir.rglob("*") if path.is_file()):
         _append_once(warnings, reported, f"发现 DDS 文件（将尝试更新 PATHC）：{mod_dir.name}")
+        component_types.add(MOD_TYPE_DDS)
+    return component_types
 
 
 def _scan_loose_container(
@@ -166,6 +189,7 @@ def _scan_loose_container(
     reported: set[str],
 ) -> None:
     """扫描 files/NNNN 或 game_files/NNNN 形式的 loose game files。"""
+    component_types: set[str] = set()
     for child in sorted(container.iterdir(), key=lambda p: p.name.lower()):
         if not child.is_dir():
             continue
@@ -175,12 +199,15 @@ def _scan_loose_container(
                 reported,
                 f"发现 loose files 组件（将尝试加载）：{mod_dir.name}/{container.name}/{child.name}",
             )
+            component_types.add(MOD_TYPE_LOOSE_FILES)
         elif child.name.lower() in KNOWN_GAME_TOP_DIRS:
             _append_once(
                 warnings,
                 reported,
                 f"发现 loose files 组件（将尝试加载）：{mod_dir.name}/{container.name}/{child.name}",
             )
+            component_types.add(MOD_TYPE_LOOSE_FILES)
+    return component_types
 
 
 def _scan_numbered_dir(
@@ -199,15 +226,16 @@ def _scan_numbered_dir(
             reported,
             f"发现 standalone PAZ/PAMT 组件（将尝试加载）：{mod_dir.name}/{numbered_dir.name}",
         )
-        return
+        return MOD_TYPE_STANDALONE_ARCHIVE
     _append_once(
         warnings,
         reported,
         f"发现根部编号 loose files 组件（将尝试加载）：{mod_dir.name}/{numbered_dir.name}",
     )
+    return MOD_TYPE_LOOSE_FILES
 
 
-def _scan_meta_dir(mod_dir: Path, meta_dir: Path, warnings: list[str], reported: set[str]) -> None:
+def _scan_meta_dir(mod_dir: Path, meta_dir: Path, warnings: list[str], reported: set[str]) -> bool:
     """扫描模组自带 meta 文件，当前只记录提示。"""
     meta_files: list[str] = []
     if (meta_dir / PAPGT_FILE_NAME).is_file():
@@ -217,6 +245,46 @@ def _scan_meta_dir(mod_dir: Path, meta_dir: Path, warnings: list[str], reported:
     if meta_files:
         joined = ", ".join(meta_files)
         _append_once(warnings, reported, f"发现 meta 组件（将由加载器统一重建）：{mod_dir.name}/meta/{joined}")
+        return True
+    return False
+
+
+def _detect_directory_component_types(mod_dir: Path) -> set[str]:
+    """静默识别目录型模组组件类型，用于扫描汇总展示。"""
+    component_types: set[str] = set()
+    for child in mod_dir.iterdir():
+        lower_name = child.name.lower()
+        if child.is_dir() and lower_name in {LOOSE_FILES_DIR_NAME, GAME_FILES_DIR_NAME}:
+            if _has_loose_container_entries(child):
+                component_types.add(MOD_TYPE_LOOSE_FILES)
+            continue
+        if child.is_dir() and _is_game_archive_dir(child.name):
+            has_archive_pair = (child / OVERLAY_PAZ_NAME).is_file() and (child / OVERLAY_PAMT_NAME).is_file()
+            component_types.add(MOD_TYPE_STANDALONE_ARCHIVE if has_archive_pair else MOD_TYPE_LOOSE_FILES)
+            continue
+        if child.is_dir() and lower_name == META_DIR_NAME:
+            if (child / PAPGT_FILE_NAME).is_file() or (child / PATHC_FILE_NAME).is_file():
+                component_types.add(MOD_TYPE_META)
+            continue
+        if child.is_dir() and lower_name in KNOWN_GAME_TOP_DIRS:
+            component_types.add(MOD_TYPE_LOOSE_FILES)
+    if any(path.suffix.lower() == DDS_SUFFIX for path in mod_dir.rglob("*") if path.is_file()):
+        component_types.add(MOD_TYPE_DDS)
+    return component_types
+
+
+def _has_loose_container_entries(container: Path) -> bool:
+    """判断 files/ 或 game_files/ 下是否有可加载 loose 路径。"""
+    return any(
+        child.is_dir() and (_is_game_archive_dir(child.name) or child.name.lower() in KNOWN_GAME_TOP_DIRS)
+        for child in container.iterdir()
+    )
+
+
+def _format_directory_mod_type(component_types: set[str]) -> str:
+    """把目录型组件类型按固定顺序合并为展示用 mod_type。"""
+    ordered = [component_type for component_type in DIRECTORY_MOD_TYPE_ORDER if component_type in component_types]
+    return "+".join(ordered)
 
 
 def _is_game_archive_dir(name: str) -> bool:

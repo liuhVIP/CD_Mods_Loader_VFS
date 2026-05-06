@@ -1,6 +1,6 @@
 # cdmm 统一启动脚本。
 param(
-    [ValidateSet("", "apply", "scan", "revert", "selfcheck")]
+    [ValidateSet("", "apply", "scan")]
     [string]$Action = "",
     [string]$GameDir = ""
 )
@@ -59,7 +59,7 @@ function Confirm-GameDir {
 
 function Invoke-LoaderCommand {
     param(
-        [ValidateSet("apply", "scan", "revert")]
+        [ValidateSet("apply", "scan")]
         [string]$LoaderCommand
     )
 
@@ -74,41 +74,22 @@ function Invoke-LoaderCommand {
     Write-Host "游戏目录：$TargetGameDir"
     Write-Host "mods 目录：$(Join-Path $TargetGameDir 'mods')"
 
-    & $PythonPath -m cdmm.cli $LoaderCommand --game-dir $TargetGameDir --verbose
-    $script:CdmmExitCode = $LASTEXITCODE
-}
-
-function Invoke-SelfCheck {
-    Set-Location $RepoRoot
-    $env:PYTHONPATH = "src"
-
-    Write-Host "开始运行 cdmm 开发自检代码检查，不会加载真实游戏目录..." -ForegroundColor Cyan
-    & $PythonPath -m ruff check cdmm tests\test_cdmm_loader.py
-    if ($LASTEXITCODE -ne 0) {
-        $script:CdmmExitCode = $LASTEXITCODE
-        return
-    }
-
-    Write-Host "开始运行 cdmm 单元测试，使用临时伪造游戏目录..." -ForegroundColor Cyan
-    & $PythonPath -m pytest tests\test_cdmm_loader.py -q
+    & $PythonPath -m cdmm.cli $LoaderCommand --game-dir $TargetGameDir
     $script:CdmmExitCode = $LASTEXITCODE
 }
 
 function Read-ActionFromMenu {
     Write-Host ""
+    Write-Host "红色沙漠独立轻量模组加载器(b站up改名开发)—版本v1.0" -ForegroundColor Cyan
     Write-Host "请选择要执行的操作：" -ForegroundColor Cyan
-    Write-Host "1. 真实加载 mods 到游戏目录"
+    Write-Host "1. 开始加载模组"
     Write-Host "2. 只扫描 mods，不写入游戏文件"
-    Write-Host "3. 恢复加载器上次写入"
-    Write-Host "4. 开发自检（ruff + pytest，不加载真实游戏）"
-    Write-Host "0. 退出"
+    Write-Host "3. 退出"
     $Choice = Read-Host "请输入编号"
 
     switch ($Choice) {
         "1" { return "apply" }
         "2" { return "scan" }
-        "3" { return "revert" }
-        "4" { return "selfcheck" }
         default { return "" }
     }
 }
@@ -122,14 +103,30 @@ if (-not (Test-Path -LiteralPath $PythonPath)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($Action)) {
-    $Action = Read-ActionFromMenu
+    while ($true) {
+        $Action = Read-ActionFromMenu
+        switch ($Action) {
+            "apply" { Invoke-LoaderCommand -LoaderCommand "apply" }
+            "scan" { Invoke-LoaderCommand -LoaderCommand "scan" }
+            default {
+                Write-Host "已退出。"
+                exit 0
+            }
+        }
+
+        if ($script:CdmmExitCode -eq 0) {
+            Write-Host "执行完成。" -ForegroundColor Green
+        } else {
+            Write-Host "执行失败，退出码：$script:CdmmExitCode" -ForegroundColor Red
+        }
+        Read-Host "按 Enter 返回菜单"
+        $Action = ""
+    }
 }
 
 switch ($Action) {
     "apply" { Invoke-LoaderCommand -LoaderCommand "apply" }
     "scan" { Invoke-LoaderCommand -LoaderCommand "scan" }
-    "revert" { Invoke-LoaderCommand -LoaderCommand "revert" }
-    "selfcheck" { Invoke-SelfCheck }
     default {
         Write-Host "已退出。"
         $script:CdmmExitCode = 0

@@ -5,9 +5,11 @@ from __future__ import annotations
 import logging
 import shutil
 from time import perf_counter
+from collections.abc import Callable
 from pathlib import Path
 
 from cdmm.common.constants import (
+    APPLY_PROGRESS_PHASES,
     LOGS_DIR_NAME,
     META_DIR_NAME,
     MODS_DIR_NAME,
@@ -48,6 +50,9 @@ from cdmm.utils.hash_utils import fingerprint_mods
 
 logger = logging.getLogger(__name__)
 
+# apply 阶段进度回调签名，供 CLI 精简模式显示 tqdm 进度条。
+ProgressCallback = Callable[[str], None]
+
 
 def ensure_work_dirs(game_dir: Path) -> None:
     """创建独立加载器工作目录。"""
@@ -70,11 +75,12 @@ def scan_loader(game_dir: Path) -> LoaderResult:
     return LoaderResult(overlay_dir=None, loaded_mods=mods, warnings=warnings, errors=[])
 
 
-def apply_loader(game_dir: Path) -> LoaderResult:
+def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = None) -> LoaderResult:
     """全量重建 overlay 并注册到 PAPGT。"""
     total_started = perf_counter()
     validate_game_dir(game_dir)
     ensure_work_dirs(game_dir)
+    _notify_progress(progress_callback, "初始化加载环境")
     recovered = recover_interrupted(game_dir)
     warnings: list[str] = []
     errors: list[str] = []
@@ -88,6 +94,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
     phase_started = perf_counter()
     mods, scan_warnings = scan_mods(game_dir)
     _log_phase("扫描 mods", phase_started)
+    _notify_progress(progress_callback, "扫描 mods")
     warnings.extend(scan_warnings)
     json_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_JSON_PATCH]
     format3_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_FORMAT3]
@@ -103,6 +110,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
     vanilla_store = VanillaStore(game_dir)
     vanilla_store.ensure_meta_backup()
     _log_phase("准备 meta 读取", phase_started)
+    _notify_progress(progress_callback, "准备 meta 读取")
 
     phase_started = perf_counter()
     loose_overlay_inputs = build_loose_overlay_entries(
@@ -112,6 +120,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         errors,
     )
     _log_phase("构建 loose overlay 输入", phase_started)
+    _notify_progress(progress_callback, "构建 loose overlay 输入")
     phase_started = perf_counter()
     json_overlay_inputs = build_json_overlay_entries(
         game_dir,
@@ -122,6 +131,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         loose_overlay_inputs,
     )
     _log_phase("构建 JSON overlay 输入", phase_started)
+    _notify_progress(progress_callback, "构建 JSON overlay 输入")
     phase_started = perf_counter()
     format3_overlay_inputs = build_format3_overlay_entries(
         game_dir,
@@ -132,6 +142,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         [*loose_overlay_inputs, *json_overlay_inputs],
     )
     _log_phase("构建 Format 3 overlay 输入", phase_started)
+    _notify_progress(progress_callback, "构建 Format 3 overlay 输入")
     # loose 先写、JSON 再写、Format 3 最后写；同 entry_path 时 build_overlay 会保留最后写入结果。
     overlay_inputs = [*loose_overlay_inputs, *json_overlay_inputs, *format3_overlay_inputs]
     if errors:
@@ -142,6 +153,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         previous_items=previous_standalone_items,
     )
     _log_phase("收集 standalone 归档", phase_started)
+    _notify_progress(progress_callback, "收集 standalone 归档")
     removed_standalone_dirs = cleanup_stale_standalone_dirs(
         game_dir,
         previous_standalone_items,
@@ -172,6 +184,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         phase_started = perf_counter()
         overlay = build_overlay(overlay_dir, overlay_inputs, game_dir)
         _log_phase("构建 overlay PAZ/PAMT", phase_started)
+        _notify_progress(progress_callback, "构建 overlay PAZ/PAMT")
         phase_started = perf_counter()
         pathc_bytes = build_pathc_for_overlay(
             game_dir,
@@ -181,12 +194,17 @@ def apply_loader(game_dir: Path) -> LoaderResult:
             warnings,
         )
         _log_phase("构建 PATHC", phase_started)
+        _notify_progress(progress_callback, "构建 PATHC")
+    else:
+        _notify_progress(progress_callback, "构建 overlay PAZ/PAMT")
+        _notify_progress(progress_callback, "构建 PATHC")
     modified_pamts = dict(standalone_pamts)
     if overlay is not None and overlay_dir is not None:
         modified_pamts[overlay_dir] = overlay.pamt_bytes
     phase_started = perf_counter()
     papgt_bytes = build_papgt(game_dir, vanilla_store, modified_pamts)
     _log_phase("构建 PAPGT", phase_started)
+    _notify_progress(progress_callback, "构建 PAPGT")
 
     staging = game_dir / WORK_DIR_NAME / STAGING_DIR_NAME
     if staging.exists():
@@ -206,6 +224,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
     transaction.commit()
     transaction.cleanup_staging()
     _log_phase("事务写入游戏目录", phase_started)
+    _notify_progress(progress_callback, "事务写入游戏目录")
 
     save_game_pamt_target_cache(game_dir)
     save_state(
@@ -215,6 +234,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         loaded_mods=mods,
         standalone_dirs=standalone_state_items(standalone_archives),
     )
+    _notify_progress(progress_callback, "保存加载状态")
     _log_phase("apply 总耗时", total_started)
     return LoaderResult(overlay_dir=overlay_dir, loaded_mods=mods, warnings=warnings, errors=[])
 
@@ -287,3 +307,10 @@ def _looks_like_staged_archive_dir(path: Path) -> bool:
 def _log_phase(name: str, started: float) -> None:
     """输出阶段耗时，方便定位真实加载慢点。"""
     logger.info("耗时：%s %.2fs", name, perf_counter() - started)
+
+
+def _notify_progress(progress_callback: ProgressCallback | None, phase_name: str) -> None:
+    """通知控制台进度条完成一个 apply 阶段。"""
+    if progress_callback is None or phase_name not in APPLY_PROGRESS_PHASES:
+        return
+    progress_callback(phase_name)
