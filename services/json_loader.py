@@ -58,6 +58,24 @@ def build_json_overlay_entries(
     )
 
 
+def collect_json_pamt_targets(mods: list[DiscoveredMod]) -> list[str]:
+    """收集传统 JSON byte patch 会查询的目标路径。"""
+    targets: list[str] = []
+    for mod in mods:
+        try:
+            data = load_json_file(mod.path)
+        except Exception:
+            continue
+        for patch in data.get("patches", []):
+            if not _is_patch_block(patch):
+                continue
+            game_file = str(patch["game_file"])
+            targets.append(game_file)
+            if game_file.lower().endswith(".pabgb"):
+                targets.append(game_file.rsplit(".", 1)[0] + ".pabgh")
+    return targets
+
+
 def build_patch_overlay_entries(
     game_dir: Path,
     grouped: dict[str, list[tuple[DiscoveredMod, dict]]],
@@ -419,17 +437,11 @@ def _build_name_offsets(
 def _find_patch_target_entry(game_file: str, game_dir: Path) -> PazEntry | None:
     """查找 JSON patch 目标，优先低编号 vanilla 目录，避免命中旧 overlay。"""
     normalized = lower_game_rel_path(game_file)
-    basename = normalized.rsplit("/", 1)[-1]
     index = get_game_pamt_index(game_dir)
-    exact_matches = index.by_exact.get(normalized, [])
-    basename_matches = index.by_basename.get(basename, [])
-
-    match = _pick_best_patch_match(exact_matches, normalized, basename)
+    match = index.find_best(game_file)
     if match is not None:
-        return match
-    match = _pick_best_patch_match(basename_matches, normalized, basename)
-    if match is not None:
-        logger.info("按 basename 匹配 %s -> %s", game_file, match.path)
+        if lower_game_rel_path(match.path) != normalized:
+            logger.info("按 basename 匹配 %s -> %s", game_file, match.path)
         return match
     return None
 

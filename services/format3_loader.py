@@ -167,6 +167,23 @@ def build_format3_patch_items(
     return grouped
 
 
+def collect_format3_pamt_targets(mods: list[DiscoveredMod]) -> list[str]:
+    """收集 Format 3 阶段会查询的 PABGB/PABGH 目标。"""
+    targets: list[str] = []
+    for mod in mods:
+        try:
+            target_pairs = _parse_format3_targets(mod.path)
+        except Exception:
+            continue
+        for target, _intents in target_pairs:
+            body_target = lower_game_rel_path(target)
+            if not body_target.endswith(".pabgb"):
+                body_target += ".pabgb"
+            targets.append(body_target)
+            targets.append(body_target.rsplit(".", 1)[0] + ".pabgh")
+    return targets
+
+
 def _parse_format3_targets(path: Path) -> list[tuple[str, list[dict[str, Any]]]]:
     """解析 Format 3 单目标 target/intents 或新版多目标 targets[]。"""
     data = load_json_file(path)
@@ -288,13 +305,10 @@ def _find_preferred_game_entry(game_dir: Path, target: str, suffix: str) -> PazE
     normalized = lower_game_rel_path(target)
     if not normalized.endswith(suffix):
         normalized += suffix
-    basename = os.path.basename(normalized)
     index = get_game_pamt_index(game_dir)
-    candidates = [*index.by_exact.get(normalized, []), *index.by_basename.get(basename, [])]
-    if not candidates:
+    best = index.find_best(target, suffix=suffix, require_unique_best=False)
+    if best is None:
         return None
-    candidates.sort(key=lambda entry: _format3_entry_score(entry, normalized, basename))
-    best = candidates[0]
     if lower_game_rel_path(best.path) != normalized:
         logger.info("按 Format 3 basename 匹配 %s -> %s", target, best.path)
     return best

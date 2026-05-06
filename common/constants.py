@@ -20,6 +20,15 @@ LOGS_DIR_NAME = "logs"
 # 状态文件名，只记录恢复、清理和诊断所需的最小信息。
 STATE_FILE_NAME = "state.json"
 
+# PAMT 目标命中缓存文件名，只保存模组实际查过的目标，不保存全量游戏索引。
+PAMT_TARGET_CACHE_FILE_NAME = "pamt_target_cache.json"
+
+# PAMT 目标命中缓存 schema 版本，结构变化时递增以强制重建。
+PAMT_TARGET_CACHE_SCHEMA = 1
+
+# 冷启动构建 PAMT 索引时并行解析的线程数，只读原版 0.pamt，不参与游戏文件写入。
+PAMT_INDEX_WORKER_COUNT = 4
+
 # 可选加载顺序文件名，位于 mods 目录下。
 LOAD_ORDER_FILE_NAME = "load_order.json"
 

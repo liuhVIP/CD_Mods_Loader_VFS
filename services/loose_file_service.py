@@ -89,6 +89,14 @@ def build_loose_overlay_entries(
     return entries
 
 
+def collect_loose_pamt_targets(game_dir: Path) -> list[str]:
+    """收集 loose 阶段会按 PAMT 查询的目标路径，用于冷启动预筛选。"""
+    mods_dir = game_dir / MODS_DIR_NAME
+    if not mods_dir.exists():
+        return []
+    return [rel_path.as_posix() for _mod_dir, _pamt_dir, rel_path, _loose_path in _iter_loose_files(mods_dir)]
+
+
 def _iter_loose_files(mods_dir: Path) -> list[tuple[Path, str | None, Path, Path]]:
     """按模组目录顺序枚举 files/NNNN 与根部 NNNN 下的实际文件。"""
     result: list[tuple[Path, str | None, Path, Path]] = []
@@ -170,38 +178,24 @@ def _build_entry_from_loose_file(
 
 def _find_entry_in_pamt_dir(game_dir: Path, pamt_dir: str, target_path: str) -> PazEntry | None:
     """只在 files/NNNN 指定的游戏目录中查找目标，避免被旧 overlay 干扰。"""
-    entries = get_game_pamt_index(game_dir).entries_in_dir(pamt_dir)
     normalized = lower_game_rel_path(target_path)
-    basename = normalized.rsplit("/", 1)[-1]
-    basename_match: PazEntry | None = None
-    for entry in entries:
-        entry_key = lower_game_rel_path(entry.path)
-        if entry_key == normalized:
-            return entry
-        if entry_key.rsplit("/", 1)[-1] == basename:
-            basename_match = entry
-    if basename_match is not None:
-        logger.info("按 basename 匹配 loose %s/%s -> %s", pamt_dir, target_path, basename_match.path)
-    return basename_match
+    entry = get_game_pamt_index(game_dir).find_in_dir(pamt_dir, target_path)
+    if entry is not None and lower_game_rel_path(entry.path) != normalized:
+        logger.info("按 basename 匹配 loose %s/%s -> %s", pamt_dir, target_path, entry.path)
+    return entry
 
 
 def _find_entry_globally(game_dir: Path, target_path: str) -> PazEntry | None:
     """根路径 loose 没有 NNNN，优先完整路径，其次安全 basename 命中。"""
     normalized = lower_game_rel_path(target_path)
-    basename = normalized.rsplit("/", 1)[-1]
 
     index = get_game_pamt_index(game_dir)
-    exact_matches = index.by_exact.get(normalized, [])
-    basename_matches = index.by_basename.get(basename, [])
-    exact = _pick_best_global_match(exact_matches, normalized, basename)
-    if exact is not None:
-        return exact
-    entry = _pick_best_global_match(basename_matches, normalized, basename)
+    entry = index.find_best(target_path)
     if entry is not None:
-        logger.info("按唯一 basename 匹配 root loose %s -> %s", target_path, entry.path)
+        if lower_game_rel_path(entry.path) != normalized:
+            logger.info("按唯一 basename 匹配 root loose %s -> %s", target_path, entry.path)
         return entry
-    if basename_matches:
-        logger.warning("root loose %s basename 命中多个 PAMT entry，已跳过", target_path)
+    logger.warning("root loose %s 未命中唯一 PAMT entry，已跳过", target_path)
     return None
 
 

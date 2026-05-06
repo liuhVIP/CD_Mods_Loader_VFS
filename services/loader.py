@@ -21,14 +21,19 @@ from cdmm.common.constants import (
 )
 from cdmm.common.models import LoaderResult
 from cdmm.io.transaction import Transaction, recover_interrupted
-from cdmm.services.format3_loader import build_format3_overlay_entries, collect_format3_warnings
-from cdmm.services.json_loader import build_json_overlay_entries
-from cdmm.services.loose_file_service import build_loose_overlay_entries
+from cdmm.services.format3_loader import (
+    build_format3_overlay_entries,
+    collect_format3_pamt_targets,
+    collect_format3_warnings,
+)
+from cdmm.services.json_loader import build_json_overlay_entries, collect_json_pamt_targets
+from cdmm.services.loose_file_service import build_loose_overlay_entries, collect_loose_pamt_targets
 from cdmm.services.overlay_service import (
     allocate_overlay_dir,
     build_overlay,
     overlay_rel_paths,
 )
+from cdmm.services.pamt_index_service import register_game_pamt_targets, save_game_pamt_target_cache
 from cdmm.services.papgt_service import build_papgt
 from cdmm.services.pathc_service import build_pathc_for_overlay
 from cdmm.services.scanner import MOD_TYPE_FORMAT3, MOD_TYPE_JSON_PATCH, scan_mods
@@ -49,6 +54,9 @@ def ensure_work_dirs(game_dir: Path) -> None:
     for name in (VANILLA_DIR_NAME, STAGING_DIR_NAME, LOGS_DIR_NAME):
         (game_dir / WORK_DIR_NAME / name).mkdir(parents=True, exist_ok=True)
     (game_dir / MODS_DIR_NAME).mkdir(parents=True, exist_ok=True)
+    old_full_index_cache = game_dir / WORK_DIR_NAME / "pamt_index_cache.json"
+    if old_full_index_cache.exists():
+        old_full_index_cache.unlink()
 
 
 def scan_loader(game_dir: Path) -> LoaderResult:
@@ -84,6 +92,12 @@ def apply_loader(game_dir: Path) -> LoaderResult:
     json_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_JSON_PATCH]
     format3_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_FORMAT3]
     warnings.extend(collect_format3_warnings(format3_mods))
+    pamt_targets = [
+        *collect_loose_pamt_targets(game_dir),
+        *collect_json_pamt_targets(json_mods),
+        *collect_format3_pamt_targets(format3_mods),
+    ]
+    register_game_pamt_targets(game_dir, pamt_targets)
 
     phase_started = perf_counter()
     vanilla_store = VanillaStore(game_dir)
@@ -193,6 +207,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
     transaction.cleanup_staging()
     _log_phase("事务写入游戏目录", phase_started)
 
+    save_game_pamt_target_cache(game_dir)
     save_state(
         game_dir,
         overlay_dir=overlay_dir,
