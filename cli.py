@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import json
 import logging
 import sys
@@ -38,11 +39,23 @@ from cdmm.services.scanner import (
 )
 from cdmm.storage.state_store import load_state
 
-# 控制台标题，集中定义避免菜单和命令行描述不一致。
-APP_TITLE = "红色沙漠独立轻量模组加载器(b站up改名开发)—版本v1.0"
+# 中文语言标识，写入用户界面配置文件。
+LANGUAGE_ZH = "zh-CN"
+
+# 英文语言标识，写入用户界面配置文件。
+LANGUAGE_EN = "en-US"
+
+# 默认用户界面语言，读取配置失败或命令行静默运行时使用。
+DEFAULT_LANGUAGE = LANGUAGE_ZH
 
 # 默认配置文件名，命令行没有传 --game-dir 时读取。
 DEFAULT_CONFIG_REL_PATH = Path("config") / "game_config.json"
+
+# 用户界面配置文件名，保存控制台显示语言，位于程序所在目录。
+UI_CONFIG_FILE_NAME = "cdloader_config.json"
+
+# 用户界面配置 schema 版本，后续结构变化时用于兼容迁移。
+UI_CONFIG_SCHEMA = 1
 
 # 命令行可执行动作，apply 是带 tqdm 的默认真实加载模式。
 COMMAND_APPLY = "apply"
@@ -66,106 +79,236 @@ SCAN_GROUP_ORDER = (
     "other",
 )
 
-# 扫描结果分组中文名称。
-SCAN_GROUP_TITLES = {
-    "json": "JSON 补丁",
-    "loose": "松散文件",
-    "standalone_meta": "独立文件 + meta",
-    "standalone": "独立文件",
-    "format3": "Format 3 语义补丁",
-    "other": "其他",
-}
-
-# 组件类型中文名称。
-MOD_TYPE_LABELS = {
-    MOD_TYPE_JSON_PATCH: "JSON 补丁",
-    MOD_TYPE_FORMAT3: "Format 3 语义补丁",
-    MOD_TYPE_LOOSE_FILES: "松散文件",
-    MOD_TYPE_DDS: "DDS 纹理",
-    MOD_TYPE_STANDALONE_ARCHIVE: "独立文件",
-    MOD_TYPE_META: "meta",
+# 控制台双语文案，所有用户可见文本尽量集中在这里，避免散落硬编码。
+UI_TEXTS = {
+    LANGUAGE_ZH: {
+        "app_title": "红色沙漠独立轻量模组加载器 v1.0",
+        "app_subtitle": "B站 UP「改名开发」制作 | 支持游戏 1.04.02 及以上版本",
+        "arg_description": "红色沙漠独立轻量模组加载器 v1.0（支持中文 / English）",
+        "arg_command_help": "apply=加载模组，scan=只扫描，revert=恢复上次写入",
+        "arg_game_dir_help": "游戏根目录；打包 exe 无参数时必须放在游戏根目录",
+        "feature_lines": (
+            "体积小、轻量化：专注独立加载，不依赖完整 GUI 管理器。",
+            "多线程 + 目标索引缓存：减少重复解析，提高模组扫描与构建速度。",
+            "分钟级加载体验：大型模组组合也尽量压缩到可等待的加载时间。",
+            "配合 UP 自制 N++ 模组管理器：红色沙漠模组一键安装、一键卸载，超省心！",
+            "N++ 下载地址：https://www.kdocs.cn/l/ck4sKeHQ48Wm",
+            "支持中文 / English：首次打开选择语言，之后会自动记住。",
+        ),
+        "language_prompt_title": "请选择界面语言 / Please select language:",
+        "language_prompt_zh": "1. 简体中文",
+        "language_prompt_en": "2. English",
+        "language_prompt_input": "请输入编号，直接回车默认中文",
+        "language_invalid": "无效选择，请输入 1 或 2。",
+        "select_action": "请选择要执行的操作：",
+        "menu_apply": "1. 开始加载模组",
+        "menu_scan": "2. 只扫描 mods，不写入游戏文件",
+        "menu_exit": "3. 退出",
+        "choice_prompt": "请输入编号，直接回车默认执行 1：",
+        "exit_done": "已退出。",
+        "invalid_choice": "无效选择，请重新输入。",
+        "not_game_root": "未识别到游戏根目录，请把本程序放到红色沙漠游戏根目录后再运行。",
+        "game_root_need": "游戏根目录需要包含：bin64\\CrimsonDesert.exe",
+        "game_root_example": "示例：G:\\SteamLibrary\\steamapps\\common\\Crimson Desert",
+        "using_local_game_dir": "已使用程序所在游戏根目录：{game_dir}",
+        "configured_game_dir": "已从配置读取游戏根目录：{game_dir}",
+        "config_read_failed": "配置文件读取失败，将改为手动输入：{error}",
+        "enter_game_dir": "请输入 Crimson Desert 游戏根目录：",
+        "empty_game_dir": "未输入游戏目录，已取消。",
+        "game_dir": "游戏目录：{game_dir}",
+        "mods_dir": "mods 目录：{mods_dir}",
+        "failed": "失败：{error}",
+        "error": "错误：{error}",
+        "scan_done": "扫描完成：发现 {count} 个可识别模组",
+        "revert_done": "恢复完成",
+        "load_done_overlay": "加载完成：overlay 已写入 {overlay_dir}",
+        "load_done_no_overlay": "加载完成：未生成 overlay",
+        "elapsed": "完成时间：{seconds:.2f}s",
+        "pause_menu": "按 Enter 返回菜单",
+        "pause_exit": "按 Enter 退出",
+        "apply_desc": "真实加载 mods",
+        "progress_unit": "阶段",
+        "scan_group_titles": {
+            "json": "JSON 补丁",
+            "loose": "松散文件",
+            "standalone_meta": "独立文件 + meta",
+            "standalone": "独立文件",
+            "format3": "Format 3 语义补丁",
+            "other": "其他",
+        },
+        "mod_type_labels": {
+            MOD_TYPE_JSON_PATCH: "JSON 补丁",
+            MOD_TYPE_FORMAT3: "Format 3 语义补丁",
+            MOD_TYPE_LOOSE_FILES: "松散文件",
+            MOD_TYPE_DDS: "DDS 纹理",
+            MOD_TYPE_STANDALONE_ARCHIVE: "独立文件",
+            MOD_TYPE_META: "meta",
+        },
+        "progress_phase_labels": {},
+    },
+    LANGUAGE_EN: {
+        "app_title": "Crimson Desert Lightweight Mod Loader v1.0",
+        "app_subtitle": "Made by Bilibili creator GaiMingDev | Supports game version 1.04.02+",
+        "arg_description": "Crimson Desert Lightweight Mod Loader v1.0 (Chinese / English)",
+        "arg_command_help": "apply=load mods, scan=scan only, revert=restore last write",
+        "arg_game_dir_help": "Game root directory; packaged exe without arguments must be placed in the game root",
+        "feature_lines": (
+            "Small and lightweight: focused standalone loading without the full GUI manager.",
+            "Multithreading + target index cache: less repeated parsing and faster mod builds.",
+            "Minute-level loading: large mod sets are kept within a practical wait time where possible.",
+            "Works with the creator-made N++ Mod Manager: one-click install and uninstall for Crimson Desert mods.",
+            "N++ download: https://github.com/liuhVIP/nexus-mods-update-warehouse/releases",
+            "Chinese / English support: choose once on first launch, then it is remembered.",
+        ),
+        "language_prompt_title": "请选择界面语言 / Please select language:",
+        "language_prompt_zh": "1. 简体中文",
+        "language_prompt_en": "2. English",
+        "language_prompt_input": "Enter a number, press Enter for Chinese",
+        "language_invalid": "Invalid choice. Please enter 1 or 2.",
+        "select_action": "Choose an action:",
+        "menu_apply": "1. Load mods",
+        "menu_scan": "2. Scan mods only, do not write game files",
+        "menu_exit": "3. Exit",
+        "choice_prompt": "Enter a number, press Enter to run 1 by default: ",
+        "exit_done": "Exited.",
+        "invalid_choice": "Invalid choice, please try again.",
+        "not_game_root": "Game root was not detected. Please place this program in the Crimson Desert game root and run it again.",
+        "game_root_need": "The game root must contain: bin64\\CrimsonDesert.exe",
+        "game_root_example": "Example: G:\\SteamLibrary\\steamapps\\common\\Crimson Desert",
+        "using_local_game_dir": "Using the game root where the program is located: {game_dir}",
+        "configured_game_dir": "Loaded game root from config: {game_dir}",
+        "config_read_failed": "Failed to read config, switching to manual input: {error}",
+        "enter_game_dir": "Enter the Crimson Desert game root: ",
+        "empty_game_dir": "No game directory entered, cancelled.",
+        "game_dir": "Game directory: {game_dir}",
+        "mods_dir": "mods directory: {mods_dir}",
+        "failed": "Failed: {error}",
+        "error": "Error: {error}",
+        "scan_done": "Scan complete: found {count} recognizable mods",
+        "revert_done": "Restore complete",
+        "load_done_overlay": "Load complete: overlay written to {overlay_dir}",
+        "load_done_no_overlay": "Load complete: no overlay generated",
+        "elapsed": "Elapsed: {seconds:.2f}s",
+        "pause_menu": "Press Enter to return to the menu",
+        "pause_exit": "Press Enter to exit",
+        "apply_desc": "Loading mods",
+        "progress_unit": "phase",
+        "scan_group_titles": {
+            "json": "JSON patches",
+            "loose": "Loose files",
+            "standalone_meta": "Standalone archives + meta",
+            "standalone": "Standalone archives",
+            "format3": "Format 3 semantic patches",
+            "other": "Other",
+        },
+        "mod_type_labels": {
+            MOD_TYPE_JSON_PATCH: "JSON patch",
+            MOD_TYPE_FORMAT3: "Format 3 semantic patch",
+            MOD_TYPE_LOOSE_FILES: "Loose files",
+            MOD_TYPE_DDS: "DDS texture",
+            MOD_TYPE_STANDALONE_ARCHIVE: "Standalone archive",
+            MOD_TYPE_META: "meta",
+        },
+        "progress_phase_labels": {
+            "初始化加载环境": "Initialize",
+            "扫描 mods": "Scan mods",
+            "准备 meta 读取": "Prepare meta",
+            "构建 loose overlay 输入": "Build loose overlay input",
+            "构建 JSON overlay 输入": "Build JSON overlay input",
+            "构建 Format 3 overlay 输入": "Build Format 3 overlay input",
+            "收集 standalone 归档": "Collect standalone archives",
+            "构建 overlay PAZ/PAMT": "Build overlay PAZ/PAMT",
+            "构建 PATHC": "Build PATHC",
+            "构建 PAPGT": "Build PAPGT",
+            "事务写入游戏目录": "Commit transaction",
+            "保存加载状态": "Save state",
+        },
+    },
 }
 
 
 def main(argv: list[str] | None = None) -> int:
     """执行 cdloader 控制台入口。"""
     configure_console_encoding()
+    set_console_title(text("app_title"))
     raw_argv = list(sys.argv[1:] if argv is None else argv)
+    language = read_ui_language(ui_config_path()) or DEFAULT_LANGUAGE
     if not raw_argv:
-        if not ensure_packaged_exe_game_root():
+        language = ensure_ui_language()
+        set_console_title(text("app_title", language))
+        if not ensure_packaged_exe_game_root(language):
             return 1
-        return run_interactive_menu()
+        return run_interactive_menu(language)
 
-    parser = build_parser()
+    parser = build_parser(language)
     args = parser.parse_args(raw_argv)
-    return run_command(args.command, args.game_dir)
+    return run_command(args.command, args.game_dir, language)
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(language: str = DEFAULT_LANGUAGE) -> argparse.ArgumentParser:
     """创建命令行参数解析器。"""
-    parser = argparse.ArgumentParser(prog="cdloader", description=APP_TITLE)
+    parser = argparse.ArgumentParser(prog="cdloader", description=text("arg_description", language))
     parser.add_argument(
         "command",
         choices=(COMMAND_APPLY, COMMAND_SCAN, COMMAND_REVERT),
-        help="apply=加载模组，scan=只扫描，revert=恢复上次写入",
+        help=text("arg_command_help", language),
     )
-    parser.add_argument("--game-dir", type=Path, default=None, help="游戏根目录；打包 exe 无参数时必须放在游戏根目录")
+    parser.add_argument("--game-dir", type=Path, default=None, help=text("arg_game_dir_help", language))
     return parser
 
 
-def run_interactive_menu() -> int:
+def run_interactive_menu(language: str) -> int:
     """显示双击运行时的控制台菜单。"""
     exit_code = 0
     while True:
-        print("")
-        print(APP_TITLE)
-        print("请选择要执行的操作：")
-        print("1. 开始加载模组")
-        print("2. 只扫描 mods，不写入游戏文件")
-        print("3. 退出")
-        choice = input("请输入编号，直接回车默认执行 1：").strip() or "1"
+        print_app_header(language)
+        print(text("select_action", language))
+        print(text("menu_apply", language))
+        print(text("menu_scan", language))
+        print(text("menu_exit", language))
+        choice = input(text("choice_prompt", language)).strip() or "1"
         command = MENU_ITEMS.get(choice)
         if command == "exit":
-            print("已退出。")
+            print(text("exit_done", language))
             return exit_code
         if command is None:
-            print("无效选择，请重新输入。")
+            print(text("invalid_choice", language))
             continue
-        exit_code = run_command(command, None, pause_on_exit=False)
-        input("按 Enter 返回菜单")
+        exit_code = run_command(command, None, language, pause_on_exit=False)
+        input(text("pause_menu", language))
 
 
-def ensure_packaged_exe_game_root() -> bool:
+def ensure_packaged_exe_game_root(language: str) -> bool:
     """打包 exe 无参数启动时，先确认程序是否位于游戏根目录。"""
     if not is_frozen_app():
         return True
     local_game_dir = executable_dir()
     if looks_like_game_dir(local_game_dir):
         return True
-    print("")
-    print(APP_TITLE)
-    print("未识别到游戏根目录，请把本程序放到红色沙漠游戏根目录后再运行。")
-    print("游戏根目录需要包含：bin64\\CrimsonDesert.exe")
-    print("示例：G:\\SteamLibrary\\steamapps\\common\\Crimson Desert")
-    pause_before_exit()
+    print_app_header(language)
+    print(text("not_game_root", language))
+    print(text("game_root_need", language))
+    print(text("game_root_example", language))
+    pause_before_exit(language)
     return False
 
 
 def run_command(
     command: str,
     game_dir_arg: Path | None,
+    language: str = DEFAULT_LANGUAGE,
     *,
     pause_on_exit: bool = False,
 ) -> int:
     """执行单个加载器命令。"""
-    game_dir = resolve_game_dir(game_dir_arg)
+    game_dir = resolve_game_dir(game_dir_arg, language)
     if game_dir is None:
-        return finish_console(1, pause_on_exit)
+        return finish_console(1, pause_on_exit, language)
 
     log_path = command_log_path(game_dir, command)
     configure_logging(log_path)
-    print(f"游戏目录：{game_dir}")
-    print(f"mods 目录：{game_dir / 'mods'}")
+    print(text("game_dir", language, game_dir=game_dir))
+    print(text("mods_dir", language, mods_dir=game_dir / "mods"))
     started = perf_counter()
     result: LoaderResult | None = None
     try:
@@ -174,16 +317,16 @@ def run_command(
         elif command == COMMAND_REVERT:
             result = revert_loader(game_dir)
         else:
-            result = run_apply_command(game_dir)
+            result = run_apply_command(game_dir, language)
     except Exception as exc:
         logging.exception("执行失败")
-        print(f"失败：{exc}", file=sys.stderr)
-        return finish_console(1, pause_on_exit)
+        print(text("failed", language, error=exc), file=sys.stderr)
+        return finish_console(1, pause_on_exit, language)
 
     elapsed_seconds = perf_counter() - started
     write_result_log(command, result, elapsed_seconds, log_path)
-    exit_code = print_result(command, result, elapsed_seconds)
-    return finish_console(exit_code, pause_on_exit)
+    exit_code = print_result(command, result, elapsed_seconds, language)
+    return finish_console(exit_code, pause_on_exit, language)
 
 
 def configure_logging(log_path: Path) -> None:
@@ -204,42 +347,42 @@ def configure_console_encoding() -> None:
             stream.reconfigure(encoding="utf-8")
 
 
-def resolve_game_dir(game_dir_arg: Path | None) -> Path | None:
+def resolve_game_dir(game_dir_arg: Path | None, language: str) -> Path | None:
     """解析游戏目录，打包后只允许命令行参数或 exe 所在目录。"""
     if game_dir_arg is not None:
         return game_dir_arg.resolve()
     local_game_dir = executable_dir()
     if looks_like_game_dir(local_game_dir):
-        print(f"已使用程序所在游戏根目录：{local_game_dir}")
+        print(text("using_local_game_dir", language, game_dir=local_game_dir))
         return local_game_dir
     if is_frozen_app():
-        print("未识别到游戏根目录，请把本程序放到红色沙漠游戏根目录后再运行。")
-        print("游戏根目录需要包含：bin64\\CrimsonDesert.exe")
-        print("示例：G:\\SteamLibrary\\steamapps\\common\\Crimson Desert")
+        print(text("not_game_root", language))
+        print(text("game_root_need", language))
+        print(text("game_root_example", language))
         return None
-    config_game_dir = read_configured_game_dir(default_config_path())
+    config_game_dir = read_configured_game_dir(default_config_path(), language)
     if config_game_dir is not None:
         return config_game_dir.resolve()
-    entered = input("请输入 Crimson Desert 游戏根目录：").strip().strip('"')
+    entered = input(text("enter_game_dir", language)).strip().strip('"')
     if not entered:
-        print("未输入游戏目录，已取消。")
+        print(text("empty_game_dir", language))
         return None
     return Path(entered).resolve()
 
 
-def read_configured_game_dir(config_path: Path) -> Path | None:
+def read_configured_game_dir(config_path: Path, language: str) -> Path | None:
     """从配置文件读取默认游戏目录。"""
     if not config_path.exists():
         return None
     try:
         config: Any = json.loads(config_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        print(f"配置文件读取失败，将改为手动输入：{exc}")
+        print(text("config_read_failed", language, error=exc))
         return None
     game_dir = config.get("game_dir") if isinstance(config, dict) else None
     if not isinstance(game_dir, str) or not game_dir.strip():
         return None
-    print(f"已从配置读取游戏根目录：{game_dir}")
+    print(text("configured_game_dir", language, game_dir=game_dir))
     return Path(game_dir.strip().strip('"'))
 
 
@@ -265,12 +408,12 @@ def default_config_path() -> Path:
     return Path(__file__).resolve().parent / DEFAULT_CONFIG_REL_PATH
 
 
-def run_apply_command(game_dir: Path) -> LoaderResult:
+def run_apply_command(game_dir: Path, language: str = DEFAULT_LANGUAGE) -> LoaderResult:
     """执行真实加载并显示 tqdm 进度条。"""
     with tqdm(
         total=len(APPLY_PROGRESS_PHASES),
-        desc="真实加载 mods",
-        unit="阶段",
+        desc=text("apply_desc", language),
+        unit=text("progress_unit", language),
         dynamic_ncols=True,
         leave=True,
     ) as progress_bar:
@@ -280,7 +423,7 @@ def run_apply_command(game_dir: Path) -> LoaderResult:
             if phase_name in completed_phases:
                 return
             completed_phases.add(phase_name)
-            progress_bar.set_postfix_str(phase_name)
+            progress_bar.set_postfix_str(progress_phase_label(phase_name, language))
             progress_bar.update(1)
 
         result = apply_loader(game_dir, progress_callback=update_progress)
@@ -289,28 +432,28 @@ def run_apply_command(game_dir: Path) -> LoaderResult:
         return result
 
 
-def print_result(command: str, result: LoaderResult, elapsed_seconds: float) -> int:
+def print_result(command: str, result: LoaderResult, elapsed_seconds: float, language: str) -> int:
     """统一输出精简控制台结果。"""
     for error in result.errors:
-        print(f"错误：{error}", file=sys.stderr)
+        print(text("error", language, error=error), file=sys.stderr)
     if result.errors:
         return 2
 
     if command == COMMAND_SCAN:
-        print(f"扫描完成：发现 {len(result.loaded_mods)} 个可识别模组")
-        print_scan_groups(result.loaded_mods)
+        print(text("scan_done", language, count=len(result.loaded_mods)))
+        print_scan_groups(result.loaded_mods, language)
     elif command == COMMAND_REVERT:
-        print("恢复完成")
+        print(text("revert_done", language))
     else:
         if result.overlay_dir:
-            print(f"加载完成：overlay 已写入 {result.overlay_dir}")
+            print(text("load_done_overlay", language, overlay_dir=result.overlay_dir))
         else:
-            print("加载完成：未生成 overlay")
-        print(f"完成时间：{elapsed_seconds:.2f}s")
+            print(text("load_done_no_overlay", language))
+        print(text("elapsed", language, seconds=elapsed_seconds))
     return 0
 
 
-def print_scan_groups(mods: Iterable[Any]) -> None:
+def print_scan_groups(mods: Iterable[Any], language: str) -> None:
     """按类型分组输出扫描结果。"""
     grouped: dict[str, list[Any]] = defaultdict(list)
     for mod in mods:
@@ -321,9 +464,9 @@ def print_scan_groups(mods: Iterable[Any]) -> None:
         if not group_mods:
             continue
         print("")
-        print(f"{SCAN_GROUP_TITLES[group_key]}（{len(group_mods)} 个）")
+        print(f"{scan_group_title(group_key, language)} ({len(group_mods)})")
         for mod in group_mods:
-            print(f"- {mod.name} [{mod_type_label(mod.mod_type)}]")
+            print(f"- {mod.name} [{mod_type_label(mod.mod_type, language)}]")
 
 
 def scan_group_key(mod_type: str) -> str:
@@ -342,9 +485,9 @@ def scan_group_key(mod_type: str) -> str:
     return "other"
 
 
-def mod_type_label(mod_type: str) -> str:
-    """把内部 mod_type 转成中文展示。"""
-    labels = [MOD_TYPE_LABELS.get(part, part) for part in mod_type.split("+")]
+def mod_type_label(mod_type: str, language: str) -> str:
+    """把内部 mod_type 转成当前语言展示。"""
+    labels = [typed_text("mod_type_labels", part, language, part) for part in mod_type.split("+")]
     return " + ".join(labels)
 
 
@@ -364,6 +507,137 @@ def write_result_log(command: str, result: LoaderResult, elapsed_seconds: float,
     logging.info("日志文件：%s", log_path)
 
 
+def ensure_ui_language() -> str:
+    """读取或初始化用户界面语言配置。"""
+    config_path = ui_config_path()
+    configured_language = read_ui_language(config_path)
+    if configured_language:
+        return configured_language
+    language = prompt_ui_language()
+    save_ui_language(config_path, language)
+    return language
+
+
+def read_ui_language(config_path: Path) -> str | None:
+    """从程序目录下读取界面语言配置。"""
+    if not config_path.exists():
+        return None
+    try:
+        config: Any = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    language = config.get("language") if isinstance(config, dict) else None
+    return normalize_language(language)
+
+
+def save_ui_language(config_path: Path, language: str) -> None:
+    """保存界面语言配置，失败时不影响加载器主体功能。"""
+    config = {
+        "schema": UI_CONFIG_SCHEMA,
+        "language": language,
+    }
+    try:
+        config_path.write_text(
+            json.dumps(config, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        logging.debug("界面语言配置写入失败：%s", config_path, exc_info=True)
+
+
+def prompt_ui_language() -> str:
+    """首次打开时让用户选择中文或英文。"""
+    print("")
+    print(text("language_prompt_title", DEFAULT_LANGUAGE))
+    print(text("language_prompt_zh", DEFAULT_LANGUAGE))
+    print(text("language_prompt_en", DEFAULT_LANGUAGE))
+    while True:
+        choice = input(text("language_prompt_input", DEFAULT_LANGUAGE)).strip()
+        if choice in {"", "1"}:
+            return LANGUAGE_ZH
+        if choice == "2":
+            return LANGUAGE_EN
+        print(text("language_invalid", DEFAULT_LANGUAGE))
+
+
+def normalize_language(value: Any) -> str | None:
+    """把配置中的语言值规整成受支持的语言标识。"""
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().lower().replace("_", "-")
+    if normalized in {"zh", "zh-cn", "cn", "chinese", "简体中文", "中文"}:
+        return LANGUAGE_ZH
+    if normalized in {"en", "en-us", "english"}:
+        return LANGUAGE_EN
+    return None
+
+
+def ui_config_path() -> Path:
+    """获取界面配置文件路径，打包后位于 exe 所在目录，源码运行时位于项目目录。"""
+    return executable_dir() / UI_CONFIG_FILE_NAME
+
+
+def print_app_header(language: str) -> None:
+    """输出更醒目的控制台标题和加载器优势说明。"""
+    title = text("app_title", language)
+    subtitle = text("app_subtitle", language)
+    feature_lines = tuple(typed_text("feature_lines", "", language, ()))
+    width = max(74, len(title), len(subtitle), *(len(line) for line in feature_lines)) + 6
+    print("")
+    print("=" * width)
+    print(center_console_text(title, width))
+    print(center_console_text(subtitle, width))
+    print("-" * width)
+    for line in feature_lines:
+        print(f"  {line}")
+    print("=" * width)
+
+
+def center_console_text(value: str, width: int) -> str:
+    """按控制台字符宽度居中显示，中文宽度按 2 个英文字符估算。"""
+    display_length = sum(2 if ord(char) > 127 else 1 for char in value)
+    left_padding = max(0, (width - display_length) // 2)
+    return f"{' ' * left_padding}{value}"
+
+
+def set_console_title(title: str) -> None:
+    """设置 Windows 控制台窗口标题，失败时静默忽略。"""
+    if sys.platform != "win32":
+        return
+    try:
+        ctypes.windll.kernel32.SetConsoleTitleW(title)
+    except Exception:
+        return
+
+
+def text(key: str, language: str = DEFAULT_LANGUAGE, **kwargs: Any) -> str:
+    """读取当前语言文案并进行格式化。"""
+    value = UI_TEXTS.get(language, UI_TEXTS[DEFAULT_LANGUAGE]).get(key)
+    if value is None:
+        value = UI_TEXTS[DEFAULT_LANGUAGE][key]
+    if not isinstance(value, str):
+        return str(value)
+    return value.format(**kwargs) if kwargs else value
+
+
+def typed_text(key: str, nested_key: str, language: str, default: Any) -> Any:
+    """读取当前语言的嵌套文案配置。"""
+    bucket = UI_TEXTS.get(language, UI_TEXTS[DEFAULT_LANGUAGE]).get(key)
+    if isinstance(bucket, dict):
+        return bucket.get(nested_key, default)
+    return bucket if bucket is not None else default
+
+
+def scan_group_title(group_key: str, language: str) -> str:
+    """返回扫描结果分组标题。"""
+    return typed_text("scan_group_titles", group_key, language, group_key)
+
+
+def progress_phase_label(phase_name: str, language: str) -> str:
+    """返回进度阶段的当前语言名称。"""
+    return typed_text("progress_phase_labels", phase_name, language, phase_name)
+
+
 def command_log_path(game_dir: Path, command: str) -> Path:
     """返回本次运行日志路径，真实加载只保留冷/热两个覆盖文件。"""
     logs_dir = game_dir / WORK_DIR_NAME / LOGS_DIR_NAME
@@ -375,17 +649,17 @@ def command_log_path(game_dir: Path, command: str) -> Path:
     return logs_dir / file_name
 
 
-def finish_console(exit_code: int, pause_on_exit: bool) -> int:
+def finish_console(exit_code: int, pause_on_exit: bool, language: str = DEFAULT_LANGUAGE) -> int:
     """双击交互模式结束时暂停窗口，命令行模式直接返回退出码。"""
     if pause_on_exit:
-        pause_before_exit()
+        pause_before_exit(language)
     return exit_code
 
 
-def pause_before_exit() -> None:
+def pause_before_exit(language: str = DEFAULT_LANGUAGE) -> None:
     """控制台双击场景退出前暂停，避免窗口一闪而过。"""
     try:
-        input("按 Enter 退出")
+        input(text("pause_exit", language))
     except EOFError:
         pass
 
