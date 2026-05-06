@@ -1,4 +1,4 @@
-"""vanilla 文件备份与读取。"""
+"""vanilla 文件读取与小型 meta 备份。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,11 @@ from cdmm.utils.path_utils import fs_rel_path
 
 
 class VanillaStore:
-    """管理独立加载器自己的干净文件备份。"""
+    """管理加载器需要读取的原始游戏文件。
+
+    当前加载器只负责加载模组，不负责恢复纯净游戏；因此大型 PAZ/PAMT
+    不再复制到 .cdloader/vanilla，避免首次加载生成数 GB 备份并拖慢加载。
+    """
 
     def __init__(self, game_dir: Path) -> None:
         self.game_dir = game_dir
@@ -25,21 +29,8 @@ class VanillaStore:
                 self.ensure_file_backup(rel)
 
     def ensure_entry_backup(self, entry: PazEntry) -> PazEntry:
-        """确保目标 entry 所在 PAZ/PAMT 已备份，并返回指向备份 PAZ 的 entry。"""
-        pamt_dir = Path(entry.paz_file).parent.name
-        paz_name = Path(entry.paz_file).name
-        self.ensure_file_backup(f"{pamt_dir}/0.pamt")
-        self.ensure_file_backup(f"{pamt_dir}/{paz_name}")
-        return PazEntry(
-            path=entry.path,
-            paz_file=str(self.root / pamt_dir / paz_name),
-            offset=entry.offset,
-            comp_size=entry.comp_size,
-            orig_size=entry.orig_size,
-            flags=entry.flags,
-            paz_index=entry.paz_index,
-            encrypted_override=entry.encrypted_override,
-        )
+        """返回原始游戏 entry，不再复制大型 PAZ/PAMT。"""
+        return entry
 
     def ensure_file_backup(self, rel_path: str) -> Path:
         """若备份不存在则从游戏目录复制文件。"""
@@ -57,5 +48,8 @@ class VanillaStore:
         return (self.root / fs_rel_path(rel_path)).exists()
 
     def read_file(self, rel_path: str) -> bytes:
-        """读取 vanilla 备份文件。"""
-        return (self.root / fs_rel_path(rel_path)).read_bytes()
+        """优先读取小型 meta 备份，不存在时读取游戏源文件。"""
+        backup = self.root / fs_rel_path(rel_path)
+        if backup.exists():
+            return backup.read_bytes()
+        return (self.game_dir / fs_rel_path(rel_path)).read_bytes()

@@ -88,7 +88,7 @@ def apply_loader(game_dir: Path) -> LoaderResult:
     phase_started = perf_counter()
     vanilla_store = VanillaStore(game_dir)
     vanilla_store.ensure_meta_backup()
-    _log_phase("准备 vanilla 备份", phase_started)
+    _log_phase("准备 meta 读取", phase_started)
 
     phase_started = perf_counter()
     loose_overlay_inputs = build_loose_overlay_entries(
@@ -128,6 +128,13 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         previous_items=previous_standalone_items,
     )
     _log_phase("收集 standalone 归档", phase_started)
+    removed_standalone_dirs = cleanup_stale_standalone_dirs(
+        game_dir,
+        previous_standalone_items,
+        standalone_archives,
+    )
+    if removed_standalone_dirs:
+        warnings.append(f"已清理不再使用的 standalone 输出目录：{', '.join(removed_standalone_dirs)}")
     if not overlay_inputs and not standalone_archives:
         save_state(
             game_dir,
@@ -185,13 +192,6 @@ def apply_loader(game_dir: Path) -> LoaderResult:
     transaction.commit()
     transaction.cleanup_staging()
     _log_phase("事务写入游戏目录", phase_started)
-    removed_standalone_dirs = cleanup_stale_standalone_dirs(
-        game_dir,
-        previous_standalone_items,
-        standalone_archives,
-    )
-    if removed_standalone_dirs:
-        warnings.append(f"已清理不再使用的 standalone 输出目录：{', '.join(removed_standalone_dirs)}")
 
     save_state(
         game_dir,

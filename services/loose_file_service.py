@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from time import perf_counter
 from pathlib import Path
 
 from cdmm.archive.pamt import derive_pamt_dir
@@ -33,20 +34,33 @@ def build_loose_overlay_entries(
     if not mods_dir.exists():
         return []
 
+    phase_started = perf_counter()
+    loose_files = _iter_loose_files(mods_dir)
+    enumerate_seconds = perf_counter() - phase_started
+    numbered_count = sum(1 for _mod_dir, pamt_dir, _rel_path, _loose_path in loose_files if pamt_dir is not None)
+    root_count = len(loose_files) - numbered_count
+
     entries: list[OverlayInputEntry] = []
-    for loose_file in _iter_loose_files(mods_dir):
+    match_seconds = 0.0
+    build_seconds = 0.0
+    skipped = 0
+    for loose_file in loose_files:
         mod_dir, pamt_dir, rel_path, loose_path = loose_file
         target_path = rel_path.as_posix()
         try:
+            match_started = perf_counter()
             source_entry = (
                 _find_entry_in_pamt_dir(game_dir, pamt_dir, target_path)
                 if pamt_dir is not None
                 else _find_entry_globally(game_dir, target_path)
             )
+            match_seconds += perf_counter() - match_started
             if pamt_dir is None and source_entry is None:
                 warnings.append(f"{mod_dir.name}: {target_path} 未在唯一 vanilla PAMT 中命中，已跳过")
+                skipped += 1
                 continue
             target_pamt_dir = pamt_dir or derive_pamt_dir(source_entry.paz_file)
+            build_started = perf_counter()
             entries.append(
                 _build_entry_from_loose_file(
                     mod_dir.name,
@@ -58,9 +72,20 @@ def build_loose_overlay_entries(
                     warnings,
                 )
             )
+            build_seconds += perf_counter() - build_started
         except Exception as exc:
             prefix = pamt_dir if pamt_dir is not None else "root"
             errors.append(f"{mod_dir.name}: {prefix}/{target_path} 加载失败：{exc}")
+    logger.info(
+        "loose 细分：枚举 %.2fs，目标匹配 %.2fs，读取/构建 %.2fs，文件 %d 个（编号 %d，根路径 %d，跳过 %d）",
+        enumerate_seconds,
+        match_seconds,
+        build_seconds,
+        len(loose_files),
+        numbered_count,
+        root_count,
+        skipped,
+    )
     return entries
 
 

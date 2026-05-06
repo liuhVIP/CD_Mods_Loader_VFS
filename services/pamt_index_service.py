@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cdmm.archive.pamt import derive_pamt_dir, parse_pamt
-from cdmm.common.constants import GAME_DIR_NAME_LENGTH, OVERLAY_PAMT_NAME
+from cdmm.common.constants import GAME_DIR_NAME_LENGTH, OVERLAY_PAMT_NAME, OVERLAY_START_DIR
 from cdmm.common.models import PazEntry
 from cdmm.utils.path_utils import lower_game_rel_path
 
@@ -97,10 +97,12 @@ def get_game_pamt_index(game_dir: Path) -> GamePamtIndex:
 
 
 def _pamt_signature(game_dir: Path) -> tuple[tuple[str, int, int], ...]:
-    """生成 PAMT 文件状态签名，用于缓存失效。"""
+    """生成原版 PAMT 文件状态签名，用于缓存失效。"""
     items: list[tuple[str, int, int]] = []
     for directory in sorted(game_dir.iterdir(), key=lambda item: item.name):
         if not _is_numbered_game_dir(directory):
+            continue
+        if int(directory.name) >= OVERLAY_START_DIR:
             continue
         pamt_path = directory / OVERLAY_PAMT_NAME
         if not pamt_path.exists():

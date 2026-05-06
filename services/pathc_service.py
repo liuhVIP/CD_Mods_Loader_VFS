@@ -29,13 +29,15 @@ def build_pathc_for_overlay(
     if not dds_sources:
         return None
 
-    pathc_rel = f"{META_DIR_NAME}/{PATHC_FILE_NAME}"
-    if not vanilla_store.has_file(pathc_rel):
+    source_path = vanilla_store.root / META_DIR_NAME / PATHC_FILE_NAME
+    if not source_path.exists():
+        source_path = game_dir / META_DIR_NAME / PATHC_FILE_NAME
+    if not source_path.exists():
         warnings.append("发现 DDS overlay，但未找到 vanilla meta/0.pathc，已跳过 PATHC 更新")
         return None
 
     try:
-        pathc = read_pathc(vanilla_store.root / META_DIR_NAME / PATHC_FILE_NAME)
+        pathc = read_pathc(source_path)
     except Exception as exc:
         warnings.append(f"meta/0.pathc 解析失败，已跳过 DDS 注册：{exc}")
         return None
