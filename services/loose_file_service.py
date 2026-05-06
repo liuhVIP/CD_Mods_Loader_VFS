@@ -70,8 +70,9 @@ def _iter_loose_files(mods_dir: Path) -> list[tuple[Path, str | None, Path, Path
         files_dir = mod_dir / LOOSE_FILES_DIR_NAME
         if files_dir.is_dir():
             result.extend(_iter_numbered_loose_dirs(mod_dir, files_dir))
+            result.extend(_iter_root_game_path_loose_files(mod_dir, files_dir))
         result.extend(_iter_numbered_loose_dirs(mod_dir, mod_dir))
-        result.extend(_iter_root_game_path_loose_files(mod_dir))
+        result.extend(_iter_root_game_path_loose_files(mod_dir, mod_dir))
     return result
 
 
@@ -95,14 +96,17 @@ def _iter_numbered_loose_dirs(
     return result
 
 
-def _iter_root_game_path_loose_files(mod_dir: Path) -> list[tuple[Path, str | None, Path, Path]]:
-    """枚举模组根部直接游戏路径 loose 文件，如 sequencer/...。"""
+def _iter_root_game_path_loose_files(
+    root_mod_dir: Path,
+    parent: Path,
+) -> list[tuple[Path, str | None, Path, Path]]:
+    """枚举直接游戏路径 loose 文件，如 gamedata/... 或 files/gamedata/...。"""
     result: list[tuple[Path, str | None, Path, Path]] = []
-    for child in sorted((item for item in mod_dir.iterdir() if item.is_dir()), key=_path_sort_key):
+    for child in sorted((item for item in parent.iterdir() if item.is_dir()), key=_path_sort_key):
         if child.name.lower() not in KNOWN_GAME_TOP_DIRS:
             continue
         for path in sorted((item for item in child.rglob("*") if item.is_file()), key=_path_sort_key):
-            result.append((mod_dir, None, path.relative_to(mod_dir), path))
+            result.append((root_mod_dir, None, path.relative_to(parent), path))
     return result
 
 
@@ -164,25 +168,65 @@ def _find_entry_in_pamt_dir(game_dir: Path, pamt_dir: str, target_path: str) -> 
 
 
 def _find_entry_globally(game_dir: Path, target_path: str) -> PazEntry | None:
-    """根路径 loose 没有 NNNN，只允许完整路径或唯一 basename 命中。"""
-    index = build_pamt_index(game_dir)
+    """根路径 loose 没有 NNNN，优先完整路径，其次安全 basename 命中。"""
     normalized = lower_game_rel_path(target_path)
-    exact = index.get(normalized)
+    basename = normalized.rsplit("/", 1)[-1]
+
+    exact_matches: list[PazEntry] = []
+    basename_matches: list[PazEntry] = []
+    for directory in sorted((item for item in game_dir.iterdir() if _is_game_archive_dir(item)), key=_path_sort_key):
+        pamt_path = directory / OVERLAY_PAMT_NAME
+        if not pamt_path.exists():
+            continue
+        try:
+            entries = parse_pamt(pamt_path, paz_dir=pamt_path.parent)
+        except Exception as exc:
+            logger.warning("跳过无法解析的 root loose 目标 PAMT：%s (%s)", pamt_path, exc)
+            continue
+        for entry in entries:
+            entry_key = lower_game_rel_path(entry.path)
+            if entry_key == normalized:
+                exact_matches.append(entry)
+            elif entry_key.rsplit("/", 1)[-1] == basename:
+                basename_matches.append(entry)
+
+    exact = _pick_best_global_match(exact_matches, normalized, basename)
     if exact is not None:
         return exact
-
-    basename = normalized.rsplit("/", 1)[-1]
-    matches: dict[str, PazEntry] = {}
-    for key, entry in index.items():
-        if "/" in key and key.rsplit("/", 1)[-1] == basename:
-            matches[entry.path.lower()] = entry
-    if len(matches) == 1:
-        entry = next(iter(matches.values()))
+    entry = _pick_best_global_match(basename_matches, normalized, basename)
+    if entry is not None:
         logger.info("按唯一 basename 匹配 root loose %s -> %s", target_path, entry.path)
         return entry
-    if len(matches) > 1:
+    if basename_matches:
         logger.warning("root loose %s basename 命中多个 PAMT entry，已跳过", target_path)
     return None
+
+
+def _pick_best_global_match(
+    matches: list[PazEntry],
+    normalized: str,
+    basename: str,
+) -> PazEntry | None:
+    """从 root loose 候选中选择最像 vanilla 的 entry，无法唯一判断则返回 None。"""
+    if not matches:
+        return None
+    scored = sorted(((_global_match_score(entry, normalized, basename), entry) for entry in matches), key=lambda item: item[0])
+    if len(scored) == 1 or scored[0][0] < scored[1][0]:
+        return scored[0][1]
+    return None
+
+
+def _global_match_score(entry: PazEntry, normalized: str, basename: str) -> tuple[int, int, int]:
+    """root loose 匹配排序：完整路径、gamedata 路径、低编号原版目录优先。"""
+    entry_key = lower_game_rel_path(entry.path)
+    try:
+        pamt_number = int(Path(entry.paz_file).parent.name)
+    except ValueError:
+        pamt_number = 9999
+    exact_score = 0 if entry_key == normalized else 1
+    gamedata_score = 0 if entry_key.startswith("gamedata/") else 1
+    basename_score = 0 if entry_key.rsplit("/", 1)[-1] == basename else 1
+    return exact_score, gamedata_score + basename_score, pamt_number
 
 
 def _is_game_archive_dir(path: Path) -> bool:

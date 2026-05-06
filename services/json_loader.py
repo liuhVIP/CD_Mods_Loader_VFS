@@ -7,8 +7,9 @@ import os
 import struct
 from pathlib import Path
 
-from cdmm.archive.pamt import derive_pamt_dir, find_pamt_entry
+from cdmm.archive.pamt import derive_pamt_dir, parse_pamt
 from cdmm.archive.paz_crypto import decrypt, lz4_decompress
+from cdmm.common.constants import GAME_DIR_NAME_LENGTH, OVERLAY_PAMT_NAME
 from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
 from cdmm.services.scanner import load_json_file
 from cdmm.storage.vanilla_store import VanillaStore
@@ -23,9 +24,11 @@ def build_json_overlay_entries(
     vanilla_store: VanillaStore,
     warnings: list[str],
     errors: list[str],
+    base_entries: list[OverlayInputEntry] | None = None,
 ) -> list[OverlayInputEntry]:
     """读取所有传统 JSON 模组，生成待写入 overlay 的 entry。"""
     grouped: dict[str, list[tuple[DiscoveredMod, dict]]] = {}
+    resolved_game_files: dict[str, str] = {}
     for mod in mods:
         try:
             data = load_json_file(mod.path)
@@ -36,13 +39,47 @@ def build_json_overlay_entries(
             if not _is_patch_block(patch):
                 continue
             game_file = str(patch["game_file"])
-            grouped.setdefault(lower_game_rel_path(game_file), []).append((mod, patch))
+            group_key = lower_game_rel_path(game_file)
+            resolved = _find_patch_target_entry(game_file, game_dir)
+            if resolved is not None:
+                group_key = lower_game_rel_path(resolved.path)
+                resolved_game_files[group_key] = resolved.path
+            grouped.setdefault(group_key, []).append((mod, patch))
 
+    return build_patch_overlay_entries(
+        game_dir,
+        grouped,
+        vanilla_store,
+        warnings,
+        errors,
+        base_entries,
+        resolved_game_files,
+    )
+
+
+def build_patch_overlay_entries(
+    game_dir: Path,
+    grouped: dict[str, list[tuple[DiscoveredMod, dict]]],
+    vanilla_store: VanillaStore,
+    warnings: list[str],
+    errors: list[str],
+    base_entries: list[OverlayInputEntry] | None = None,
+    resolved_game_files: dict[str, str] | None = None,
+) -> list[OverlayInputEntry]:
+    """把已经聚合好的 byte patch block 应用到 vanilla，并生成 overlay entry。"""
+    base_by_entry = {
+        entry.entry_path.lower(): entry
+        for entry in base_entries or []
+    }
     overlay_entries: list[OverlayInputEntry] = []
-    for _, patch_items in grouped.items():
+    for group_key, patch_items in grouped.items():
         first_patch = patch_items[0][1]
-        game_file = str(first_patch["game_file"])
-        entry = find_pamt_entry(game_file, game_dir)
+        original_game_file = str(first_patch["game_file"])
+        game_file = (resolved_game_files or {}).get(
+            group_key,
+            original_game_file,
+        )
+        entry = _find_patch_target_entry(game_file, game_dir)
         if entry is None:
             errors.append(f"{game_file}: 未在任何 PAMT 中找到目标文件")
             continue
@@ -54,10 +91,14 @@ def build_json_overlay_entries(
             errors.append(f"{game_file}: vanilla 提取失败：{exc}")
             continue
 
-        modified = bytearray(plaintext)
+        base_entry = base_by_entry.get(vanilla_entry.path.lower())
+        base_plaintext = base_entry.content if base_entry is not None else plaintext
+        modified = bytearray(base_plaintext)
+        name_offsets = _build_name_offsets(game_dir, vanilla_store, game_file, base_plaintext, errors)
         had_mismatch = False
         total_applied = 0
         total_mismatched = 0
+        already_patched = 0
         inserts_out: list[tuple[int, int]] = []
 
         for mod, patch in patch_items:
@@ -70,9 +111,11 @@ def build_json_overlay_entries(
                 signature=patch.get("signature"),
                 vanilla_data=plaintext,
                 inserts_out=inserts_out,
+                name_offsets=name_offsets,
             )
             total_applied += applied
             total_mismatched += mismatched
+            already_patched += _count_already_patched(changes, base_plaintext)
             if relocated:
                 logger.info("%s: %s 发生 %d 个偏移重定位", mod.name, game_file, relocated)
             if mismatched:
@@ -89,7 +132,7 @@ def build_json_overlay_entries(
         if total_applied == 0:
             warnings.append(f"{game_file}: 没有任何补丁成功应用")
             continue
-        if bytes(modified) == plaintext:
+        if bytes(modified) == base_plaintext and base_entry is None and already_patched <= 0:
             warnings.append(f"{game_file}: 补丁应用后内容未变化")
             continue
 
@@ -106,7 +149,14 @@ def build_json_overlay_entries(
 
         # 如果 .pabgb 发生 insert，必须同步修正 companion .pabgh 的指针。
         if inserts_out and game_file.lower().endswith(".pabgb"):
-            companion = _build_pabgh_companion(game_dir, vanilla_store, game_file, inserts_out, errors)
+            companion = _build_pabgh_companion(
+                game_dir,
+                vanilla_store,
+                game_file,
+                inserts_out,
+                errors,
+                base_by_entry,
+            )
             if companion is not None:
                 overlay_entries.append(companion)
 
@@ -169,6 +219,7 @@ def apply_byte_patches(
     signature: str | None = None,
     vanilla_data: bytes | None = None,
     inserts_out: list[tuple[int, int]] | None = None,
+    name_offsets: dict[str, int] | None = None,
 ) -> tuple[int, int, int]:
     """应用传统 JSON byte patch，返回 applied/mismatched/relocated 数量。"""
     original_snapshot = bytes(data) if signature else None
@@ -186,7 +237,7 @@ def apply_byte_patches(
 
     parsed_changes = []
     for change in changes:
-        offset = _parse_change_offset(change, base_offset)
+        offset = _parse_change_offset(change, base_offset, name_offsets)
         if offset is None:
             mismatched += 1
             continue
@@ -228,6 +279,9 @@ def apply_byte_patches(
             relocated += 1
         data[offset:offset + old_len] = patched_bytes
         writes.append((original_offset, len(patched_bytes) - old_len))
+        if inserts_out is not None and len(patched_bytes) != old_len:
+            # 长度变化的 replace 同样会移动后续 entry，需要修正 PABGH 指针。
+            inserts_out.append((original_offset, len(patched_bytes) - old_len))
         applied += 1
 
     if signature and applied == 0 and mismatched > 0 and original_snapshot is not None:
@@ -239,12 +293,13 @@ def apply_byte_patches(
             signature=None,
             vanilla_data=vanilla_data,
             inserts_out=inserts_out,
+            name_offsets=name_offsets,
         )
     return applied, mismatched, relocated
 
 
 def fixup_pabgh_after_inserts(pabgh: bytes, inserts: list[tuple[int, int]]) -> bytes:
-    """插入 PABGB 字节后修正 PABGH 指针表。"""
+    """PABGB 长度变化后修正 PABGH 指针表，支持正负 delta。"""
     if not inserts or len(pabgh) < 2:
         return pabgh
     data = bytearray(pabgh)
@@ -275,10 +330,11 @@ def _build_pabgh_companion(
     game_file: str,
     inserts: list[tuple[int, int]],
     errors: list[str],
+    base_by_entry: dict[str, OverlayInputEntry] | None = None,
 ) -> OverlayInputEntry | None:
     """构造 insert 场景需要同步输出的 .pabgh companion entry。"""
     pabgh_file = game_file.rsplit(".", 1)[0] + ".pabgh"
-    entry = find_pamt_entry(pabgh_file, game_dir)
+    entry = _find_patch_target_entry(pabgh_file, game_dir)
     if entry is None:
         errors.append(f"{game_file}: 存在 insert 但找不到 companion PABGH：{pabgh_file}")
         return None
@@ -288,6 +344,9 @@ def _build_pabgh_companion(
     except Exception as exc:
         errors.append(f"{pabgh_file}: 提取失败：{exc}")
         return None
+    base_entry = (base_by_entry or {}).get(vanilla_entry.path.lower())
+    if base_entry is not None:
+        plaintext = base_entry.content
     fixed = fixup_pabgh_after_inserts(plaintext, inserts)
     return OverlayInputEntry(
         content=fixed,
@@ -297,6 +356,188 @@ def _build_pabgh_companion(
         encrypted=vanilla_entry.encrypted,
         crypto_filename=os.path.basename(vanilla_entry.path),
     )
+
+
+def _count_already_patched(changes: list[dict], data: bytes) -> int:
+    """粗略统计当前内容中已经存在 patched bytes 的补丁数量。"""
+    count = 0
+    for change in changes:
+        patched = _bytes_from_hex(change.get("patched"))
+        if patched and patched in data:
+            count += 1
+    return count
+
+
+def _build_name_offsets(
+    game_dir: Path,
+    vanilla_store: VanillaStore,
+    game_file: str,
+    body: bytes,
+    errors: list[str],
+) -> dict[str, int] | None:
+    """构建 entry 名称到 name_end 的映射，用于 Format 3 的 entry+rel_offset。"""
+    if not game_file.lower().endswith(".pabgb"):
+        return None
+    pabgh_file = game_file.rsplit(".", 1)[0] + ".pabgh"
+    entry = _find_patch_target_entry(pabgh_file, game_dir)
+    if entry is None:
+        return None
+    try:
+        vanilla_entry = vanilla_store.ensure_entry_backup(entry)
+        header, _ = extract_plaintext(vanilla_entry)
+    except Exception as exc:
+        errors.append(f"{pabgh_file}: entry 名称索引构建失败：{exc}")
+        return None
+    table_name = Path(game_file.replace("\\", "/")).stem.lower()
+    key_size, offsets = _parse_pabgh_index(header, table_name)
+    if key_size not in (2, 4) or not offsets:
+        return None
+    names: dict[str, int] = {}
+    for offset in offsets.values():
+        parsed = _parse_entry_name_end(body, offset, key_size)
+        if parsed is None:
+            continue
+        name, name_end = parsed
+        if name:
+            names[name] = name_end
+            names[name.lower()] = name_end
+    return names
+
+
+def _find_patch_target_entry(game_file: str, game_dir: Path) -> PazEntry | None:
+    """查找 JSON patch 目标，优先低编号 vanilla 目录，避免命中旧 overlay。"""
+    normalized = lower_game_rel_path(game_file)
+    basename = normalized.rsplit("/", 1)[-1]
+    exact_matches: list[PazEntry] = []
+    basename_matches: list[PazEntry] = []
+    for directory in sorted((item for item in game_dir.iterdir() if _is_game_archive_dir(item)), key=_path_sort_key):
+        pamt_path = directory / OVERLAY_PAMT_NAME
+        if not pamt_path.exists():
+            continue
+        try:
+            entries = parse_pamt(pamt_path, paz_dir=pamt_path.parent)
+        except Exception as exc:
+            logger.warning("跳过无法解析的 JSON 目标 PAMT：%s (%s)", pamt_path, exc)
+            continue
+        for entry in entries:
+            entry_key = lower_game_rel_path(entry.path)
+            if entry_key == normalized:
+                exact_matches.append(entry)
+            elif entry_key.rsplit("/", 1)[-1] == basename:
+                basename_matches.append(entry)
+
+    match = _pick_best_patch_match(exact_matches, normalized, basename)
+    if match is not None:
+        return match
+    match = _pick_best_patch_match(basename_matches, normalized, basename)
+    if match is not None:
+        logger.info("按 basename 匹配 %s -> %s", game_file, match.path)
+        return match
+    return None
+
+
+def _pick_best_patch_match(
+    matches: list[PazEntry],
+    normalized: str,
+    basename: str,
+) -> PazEntry | None:
+    """从 JSON patch 候选中选择最像 vanilla 的 entry。"""
+    if not matches:
+        return None
+    scored = sorted(((_patch_match_score(entry, normalized, basename), entry) for entry in matches), key=lambda item: item[0])
+    if len(scored) == 1 or scored[0][0] < scored[1][0]:
+        return scored[0][1]
+    return None
+
+
+def _patch_match_score(entry: PazEntry, normalized: str, basename: str) -> tuple[int, int, int]:
+    """JSON patch 匹配排序：完整路径、gamedata 路径、低编号目录优先。"""
+    entry_key = lower_game_rel_path(entry.path)
+    try:
+        pamt_number = int(Path(entry.paz_file).parent.name)
+    except ValueError:
+        pamt_number = 9999
+    exact_score = 0 if entry_key == normalized else 1
+    gamedata_score = 0 if entry_key.startswith("gamedata/") else 1
+    basename_score = 0 if entry_key.rsplit("/", 1)[-1] == basename else 1
+    return exact_score, gamedata_score + basename_score, pamt_number
+
+
+def _is_game_archive_dir(path: Path) -> bool:
+    """判断路径是否为 NNNN 游戏数据目录。"""
+    return path.is_dir() and path.name.isdigit() and len(path.name) == GAME_DIR_NAME_LENGTH
+
+
+def _path_sort_key(path: Path) -> str:
+    """统一路径排序，保证匹配结果稳定。"""
+    return path.as_posix().lower()
+
+
+def _parse_pabgh_index(header: bytes, table_name: str) -> tuple[int, dict[int, int]]:
+    """解析 PABGH key -> PABGB offset，兼容常见 u16/u32 count。"""
+    uint_count_tables = {
+        "characterappearanceindexinfo",
+        "globalstagesequencerinfo",
+        "sequencerspawninfo",
+        "sheetmusicinfo",
+        "spawningpoolautospawninfo",
+        "itemuseinfo",
+        "terrainregionautospawninfo",
+        "textguideinfo",
+        "validscheduleaction",
+        "stageinfo",
+        "questinfo",
+        "gimmickeventtableinfo",
+        "reviepointinfo",
+        "aidialogstringinfo",
+        "dialogsetinfo",
+        "vibratepatterninfo",
+        "platformachievementinfo",
+        "levelgimmicksceneobjectinfo",
+        "fieldlevelnametableinfo",
+        "levelinfo",
+        "board",
+        "gameplaytrigger",
+        "characterchange",
+        "materialrelationinfo",
+    }
+    count_size = 4 if table_name.lower() in uint_count_tables else 2
+    if len(header) < count_size:
+        return 0, {}
+    count = struct.unpack_from("<I" if count_size == 4 else "<H", header, 0)[0]
+    if count <= 0:
+        return 0, {}
+    total_key_bytes = len(header) - count_size - count * 4
+    if total_key_bytes <= 0 or total_key_bytes % count:
+        return 0, {}
+    key_size = total_key_bytes // count
+    offsets: dict[int, int] = {}
+    pos = count_size
+    for _ in range(count):
+        if pos + key_size + 4 > len(header):
+            break
+        key = int.from_bytes(header[pos:pos + key_size], "little")
+        offsets[key] = struct.unpack_from("<I", header, pos + key_size)[0]
+        pos += key_size + 4
+    return key_size, offsets
+
+
+def _parse_entry_name_end(body: bytes, entry_offset: int, key_size: int) -> tuple[str, int] | None:
+    """解析 PABGB entry 名称，并返回 rel_offset 使用的 name_end 锚点。"""
+    eid_size = 2 if key_size == 2 else 4
+    head_size = eid_size + 4
+    if entry_offset < 0 or entry_offset + head_size > len(body):
+        return None
+    name_len = struct.unpack_from("<I", body, entry_offset + eid_size)[0]
+    if name_len > 500 or entry_offset + head_size + name_len > len(body):
+        return None
+    name_start = entry_offset + head_size
+    name_end = name_start + name_len
+    try:
+        name = body[name_start:name_end].decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    return name, name_end
 
 
 def _resolve_signature_base(data: bytearray, signature: str | None) -> int | None:
@@ -315,18 +556,36 @@ def _resolve_signature_base(data: bytearray, signature: str | None) -> int | Non
     return position + len(sig_bytes)
 
 
-def _parse_change_offset(change: dict, base_offset: int) -> int | None:
-    """解析补丁 offset，支持十进制 int、十进制字符串和 0x/hex 字符串。"""
+def _parse_change_offset(
+    change: dict,
+    base_offset: int,
+    name_offsets: dict[str, int] | None = None,
+) -> int | None:
+    """解析补丁 offset，支持绝对 offset 以及 Format 3 entry+rel_offset。"""
+    entry_name = change.get("entry")
+    if name_offsets is not None and isinstance(entry_name, str):
+        rel = change.get("rel_offset")
+        rel_value = _parse_int_like(rel)
+        anchor = name_offsets.get(entry_name) or name_offsets.get(entry_name.lower())
+        if rel_value is not None and anchor is not None:
+            return anchor + rel_value
+
     raw = change.get("offset")
     if raw is None:
         raw = change.get("rel_offset")
     if raw is None:
         return None
+    value = _parse_int_like(raw)
+    return None if value is None else base_offset + value
+
+
+def _parse_int_like(value: object) -> int | None:
+    """解析 JSON 里可能出现的整数、十进制字符串或 hex 字符串。"""
     try:
-        return base_offset + (int(raw, 0) if isinstance(raw, str) else int(raw))
+        return int(value, 0) if isinstance(value, str) else int(value)
     except (TypeError, ValueError):
         try:
-            return base_offset + int(str(raw), 16)
+            return int(str(value), 16)
         except (TypeError, ValueError):
             return None
 
@@ -398,4 +657,5 @@ def _is_patch_block(value: object) -> bool:
         and isinstance(value.get("game_file"), str)
         and isinstance(value.get("changes"), list)
     )
+
 

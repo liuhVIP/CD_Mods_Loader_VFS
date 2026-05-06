@@ -20,7 +20,7 @@ from cdmm.common.constants import (
 )
 from cdmm.common.models import LoaderResult
 from cdmm.io.transaction import Transaction, recover_interrupted
-from cdmm.services.format3_loader import collect_format3_warnings
+from cdmm.services.format3_loader import build_format3_overlay_entries, collect_format3_warnings
 from cdmm.services.json_loader import build_json_overlay_entries
 from cdmm.services.loose_file_service import build_loose_overlay_entries
 from cdmm.services.overlay_service import (
@@ -89,9 +89,17 @@ def apply_loader(game_dir: Path) -> LoaderResult:
         vanilla_store,
         warnings,
         errors,
+        loose_overlay_inputs,
     )
-    # loose 先写、JSON 后写；同 entry_path 时 build_overlay 会保留最后写入结果。
-    overlay_inputs = [*loose_overlay_inputs, *json_overlay_inputs]
+    format3_overlay_inputs = build_format3_overlay_entries(
+        game_dir,
+        format3_mods,
+        vanilla_store,
+        warnings,
+        errors,
+    )
+    # loose 先写、JSON 再写、Format 3 最后写；同 entry_path 时 build_overlay 会保留最后写入结果。
+    overlay_inputs = [*loose_overlay_inputs, *json_overlay_inputs, *format3_overlay_inputs]
     if errors:
         return LoaderResult(overlay_dir=None, loaded_mods=mods, warnings=warnings, errors=errors)
     standalone_archives = collect_standalone_archives(game_dir)
