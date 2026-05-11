@@ -9,6 +9,7 @@ import argparse
 import ctypes
 import json
 import logging
+import os
 import sys
 from collections import defaultdict
 from collections.abc import Iterable
@@ -55,6 +56,9 @@ UI_CONFIG_FILE_NAME = "cdloader_config.json"
 
 # 用户界面配置 schema 版本，后续结构变化时用于兼容迁移。
 UI_CONFIG_SCHEMA = 1
+
+# pyc 发布包启动脚本写入的启动目录环境变量，用于恢复“程序所在目录”语义。
+LAUNCH_DIR_ENV_NAME = "CDLOADER_LAUNCH_DIR"
 
 # 命令行可执行动作，apply 是带 tqdm 的默认真实加载模式。
 COMMAND_APPLY = "apply"
@@ -373,7 +377,10 @@ def resolve_game_dir(game_dir_arg: Path | None, language: str) -> Path | None:
     if not entered:
         print(text("empty_game_dir", language))
         return None
-    return Path(entered).resolve()
+    game_dir = Path(entered).resolve()
+    if looks_like_game_dir(game_dir):
+        save_configured_game_dir(default_config_path(), game_dir)
+    return game_dir
 
 
 def read_configured_game_dir(config_path: Path, language: str) -> Path | None:
@@ -392,6 +399,21 @@ def read_configured_game_dir(config_path: Path, language: str) -> Path | None:
     return Path(game_dir.strip().strip('"'))
 
 
+def save_configured_game_dir(config_path: Path, game_dir: Path) -> None:
+    """保存用户手动输入的默认游戏目录。"""
+    config = {
+        "game_dir": str(game_dir),
+    }
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            json.dumps(config, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        logging.debug("默认游戏目录配置写入失败：%s", config_path, exc_info=True)
+
+
 def looks_like_game_dir(path: Path) -> bool:
     """判断目录是否像 Crimson Desert 游戏根目录。"""
     return (path / GAME_BIN_DIR_NAME / GAME_EXECUTABLE_NAME).exists()
@@ -401,7 +423,18 @@ def executable_dir() -> Path:
     """获取当前程序所在目录，兼容源码运行和 PyInstaller 单体 exe。"""
     if is_frozen_app():
         return Path(sys.executable).resolve().parent
+    launch_dir = launch_script_dir()
+    if launch_dir is not None:
+        return launch_dir
     return Path(__file__).resolve().parent
+
+
+def launch_script_dir() -> Path | None:
+    """读取 pyc 发布脚本传入的启动目录。"""
+    value = os.environ.get(LAUNCH_DIR_ENV_NAME, "").strip().strip('"')
+    if not value:
+        return None
+    return Path(value).resolve()
 
 
 def is_frozen_app() -> bool:
@@ -411,6 +444,9 @@ def is_frozen_app() -> bool:
 
 def default_config_path() -> Path:
     """获取开发阶段默认配置路径，打包后不再读取配置。"""
+    launch_dir = launch_script_dir()
+    if launch_dir is not None:
+        return launch_dir / "cdmm" / DEFAULT_CONFIG_REL_PATH
     return Path(__file__).resolve().parent / DEFAULT_CONFIG_REL_PATH
 
 
