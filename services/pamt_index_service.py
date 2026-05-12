@@ -139,8 +139,12 @@ class GamePamtIndex:
         normalized = lower_game_rel_path(target)
         if suffix and not normalized.endswith(suffix):
             normalized += suffix
+        basename = os.path.basename(normalized)
+        if normalized in self.desired_exact and basename in self.desired_basenames:
+            return
         self.desired_exact.add(normalized)
-        self.desired_basenames.add(os.path.basename(normalized))
+        self.desired_basenames.add(basename)
+        self._reload_loaded_dirs_for_target(normalized, basename)
 
     def register_targets(self, targets: list[str]) -> None:
         """批量登记本次运行将查询的目标。"""
@@ -196,6 +200,58 @@ class GamePamtIndex:
             basename_index.setdefault(os.path.basename(entry_key), []).append(entry)
         self.by_dir_exact[pamt_dir] = exact
         self.by_dir_basename[pamt_dir] = basename_index
+
+    def _reload_loaded_dirs_for_target(self, normalized: str, basename: str) -> None:
+        """为新登记目标补扫已解析目录，避免长进程内预筛选缓存漏目标。
+
+        交互菜单会在同一个 Python 进程里多次 scan/apply。第一次 apply 可能只
+        按当时的目标 basename 预筛选过所有 PAMT，后续用户新增 JSON 目标时，
+        这些目录已经标记为已解析，但缓存里没有新目标，导致真实存在的文件被
+        误报为“未在任何 PAMT 中找到”。这里仅为新增目标重扫已加载目录，保持
+        按需索引的性能，同时保证目标集合可增长。
+        """
+        if self.game_dir is None:
+            return
+        loaded_dirs = list(self.by_dir)
+        if not loaded_dirs:
+            return
+        for pamt_dir in loaded_dirs:
+            additions = _parse_filtered_entries_in_dir(
+                self.game_dir,
+                pamt_dir,
+                {basename},
+                {normalized},
+            )
+            if not additions:
+                continue
+            existing_keys = {
+                (
+                    lower_game_rel_path(entry.path),
+                    entry.paz_file,
+                    entry.offset,
+                    entry.comp_size,
+                    entry.orig_size,
+                    entry.flags,
+                )
+                for entry in self.by_dir.get(pamt_dir, [])
+            }
+            changed = False
+            for entry in additions:
+                key = (
+                    lower_game_rel_path(entry.path),
+                    entry.paz_file,
+                    entry.offset,
+                    entry.comp_size,
+                    entry.orig_size,
+                    entry.flags,
+                )
+                if key in existing_keys:
+                    continue
+                self.by_dir.setdefault(pamt_dir, []).append(entry)
+                existing_keys.add(key)
+                changed = True
+            if changed:
+                self._index_dir(pamt_dir)
 
 
 _GAME_INDEX_CACHE: dict[tuple[str, tuple[tuple[str, int, int], ...]], GamePamtIndex] = {}

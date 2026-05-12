@@ -1,3 +1,8 @@
 build/
 dist/
 dist_nuitka/
+
+# Python 运行缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
