@@ -1,0 +1,1 @@
+cdloader is a lightweight, self-contained mod loader, successor to JMM. Fully supports mods DMM can't handle, while fully compatible with all pre-JMM formats. Supports all Crimson Desert mod types. Multithreading + cache indexing ensures extremely fast loading every time
