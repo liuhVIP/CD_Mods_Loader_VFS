@@ -311,7 +311,11 @@ def apply_byte_patches(
                 applied += 1
                 continue
             new_offset = _pattern_scan(data, original_offset, original_bytes, vanilla_data)
-            if new_offset is None:
+            if (
+                new_offset is None
+                or new_offset + old_len > len(data)
+                or data[new_offset:new_offset + old_len] != original_bytes
+            ):
                 mismatched += 1
                 continue
             offset = new_offset
