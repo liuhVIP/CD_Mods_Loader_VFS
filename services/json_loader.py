@@ -18,6 +18,8 @@ from cdmm.utils.path_utils import lower_game_rel_path
 
 logger = logging.getLogger(__name__)
 
+DATA_TABLE_SUFFIXES = (".pabgb", ".pabgh", ".pamt")
+
 
 def build_json_overlay_entries(
     game_dir: Path,
@@ -39,6 +41,8 @@ def build_json_overlay_entries(
         for patch in data.get("patches", []):
             if not _is_patch_block(patch):
                 continue
+            patch = dict(patch)
+            patch["_allow_partial_apply"] = _allow_partial_apply(data)
             game_file = str(patch["game_file"])
             group_key = lower_game_rel_path(game_file)
             resolved = _find_patch_target_entry(game_file, game_dir)
@@ -152,6 +156,13 @@ def build_patch_overlay_entries(
                     f"{mod.name}: {game_file} 有 {mismatched}/{applied + mismatched} 个补丁未匹配"
                 )
 
+        if total_mismatched > 0 and _should_reject_partial_data_table(game_file, patch_items):
+            allowed_names = ", ".join(sorted({mod.name for mod, _patch in patch_items}))
+            warnings.append(
+                f"{game_file}: 数据表补丁存在 {total_mismatched}/{total_applied + total_mismatched} "
+                f"个未匹配，已跳过整个目标以避免游戏闪退；相关模组：{allowed_names}"
+            )
+            continue
         if had_mismatch:
             allowed_names = ", ".join(sorted({mod.name for mod, _patch in patch_items}))
             warnings.append(
@@ -296,6 +307,9 @@ def apply_byte_patches(
             if offset > len(data):
                 mismatched += 1
                 continue
+            if original_bytes is not None and data[offset:offset + old_len] != original_bytes:
+                mismatched += 1
+                continue
             data[offset:offset] = patched_bytes
             writes.append((original_offset, len(patched_bytes)))
             if inserts_out is not None:
@@ -347,7 +361,9 @@ def _parse_patch_change(change: dict) -> tuple[bytes, bytes | None, int] | None:
         insert_bytes = _bytes_from_hex(change.get("bytes"))
         if insert_bytes is None:
             return None
-        return insert_bytes, None, 0
+        original_bytes = _bytes_from_hex(change.get("original"))
+        old_len = len(original_bytes) if original_bytes is not None else 0
+        return insert_bytes, original_bytes, old_len
     patched_bytes = _bytes_from_hex(change.get("patched"))
     if patched_bytes is None:
         return None
@@ -699,5 +715,25 @@ def _is_patch_block(value: object) -> bool:
         and isinstance(value.get("game_file"), str)
         and isinstance(value.get("changes"), list)
     )
+
+
+def _allow_partial_apply(data: object) -> bool:
+    """读取 JSON 顶层或 modinfo 中的半应用显式许可。"""
+    if not isinstance(data, dict):
+        return False
+    if data.get("allow_partial_apply") is True:
+        return True
+    modinfo = data.get("modinfo")
+    return isinstance(modinfo, dict) and modinfo.get("allow_partial_apply") is True
+
+
+def _should_reject_partial_data_table(
+    game_file: str,
+    patch_items: list[tuple[DiscoveredMod, dict]],
+) -> bool:
+    """数据表默认不允许半应用，避免游戏读取错位表后闪退。"""
+    if not game_file.lower().endswith(DATA_TABLE_SUFFIXES):
+        return False
+    return not any(bool(patch.get("_allow_partial_apply")) for _mod, patch in patch_items)
 
 
