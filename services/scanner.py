@@ -8,6 +8,8 @@ from pathlib import Path
 
 from cdmm.common.constants import (
     ARCHIVE_SUFFIXES,
+    DISABLED_MODS_FILE_NAME,
+    DISABLED_MOD_TYPES_FILE_NAME,
     DDS_SUFFIX,
     GAME_DIR_NAME_LENGTH,
     GAME_FILES_DIR_NAME,
@@ -60,6 +62,8 @@ def scan_mods(game_dir: Path) -> tuple[list[DiscoveredMod], list[str]]:
         return [], warnings
 
     candidates = _collect_loadable_candidates(_collect_candidates(mods_dir, warnings))
+    candidates = _filter_disabled_type_candidates(game_dir, candidates, warnings)
+    candidates = _filter_disabled_candidates(game_dir, mods_dir, candidates, warnings)
     ordered = _sync_and_apply_load_order(game_dir, mods_dir, candidates, warnings)
     discovered: list[DiscoveredMod] = []
     seen_hashes: set[str] = set()
@@ -92,6 +96,130 @@ def scan_mods(game_dir: Path) -> tuple[list[DiscoveredMod], list[str]]:
 def _collect_loadable_candidates(candidates: list[Path]) -> list[Path]:
     """过滤 manifest/modinfo 等不会参与加载的候选，只保留真实可加载模组。"""
     return [candidate for candidate in candidates if detect_mod_type(candidate) is not None]
+
+
+def _filter_disabled_candidates(
+    game_dir: Path,
+    mods_dir: Path,
+    candidates: list[Path],
+    warnings: list[str],
+) -> list[Path]:
+    """按 .cdloader/disabled_mods.json 跳过临时禁用的模组。"""
+    disabled_path = game_dir / WORK_DIR_NAME / DISABLED_MODS_FILE_NAME
+    if not disabled_path.exists():
+        return candidates
+    try:
+        raw_items = json.loads(disabled_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        warnings.append(f"{disabled_path}: 禁用模组文件无法解析，已忽略")
+        return candidates
+    if not isinstance(raw_items, list):
+        warnings.append(f"{disabled_path}: 禁用模组文件不是 JSON 数组，已忽略")
+        return candidates
+
+    disabled_items = [item for item in raw_items if isinstance(item, str)]
+    by_key = _candidate_lookup(mods_dir, candidates)
+    disabled: set[Path] = set()
+    synced_disabled: list[str] = []
+    for item in disabled_items:
+        matches = by_key.get(game_rel_path(item).lower())
+        if not matches:
+            continue
+        disabled.update(matches)
+        synced_disabled.append(item)
+
+    _write_disabled_mods(disabled_path, synced_disabled, warnings)
+    if disabled:
+        warnings.append(f"已按 disabled_mods.json 跳过 {len(disabled)} 个模组")
+    return [candidate for candidate in candidates if candidate not in disabled]
+
+
+def _filter_disabled_type_candidates(
+    game_dir: Path,
+    candidates: list[Path],
+    warnings: list[str],
+) -> list[Path]:
+    """按 .cdloader/disabled_mod_types.json 跳过某类模组。"""
+    disabled_types_path = game_dir / WORK_DIR_NAME / DISABLED_MOD_TYPES_FILE_NAME
+    if not disabled_types_path.exists():
+        return candidates
+    disabled_types = _read_disabled_types(disabled_types_path, warnings)
+    if not disabled_types:
+        return candidates
+
+    enabled: list[Path] = []
+    skipped = 0
+    for candidate in candidates:
+        mod_type = detect_mod_type(candidate)
+        if mod_type is not None and _type_matches_disabled(mod_type, disabled_types):
+            skipped += 1
+            continue
+        enabled.append(candidate)
+    if skipped:
+        warnings.append(
+            f"已按 disabled_mod_types.json 跳过 {skipped} 个模组，类型：{', '.join(sorted(disabled_types))}"
+        )
+    return enabled
+
+
+def _read_disabled_types(path: Path, warnings: list[str]) -> set[str]:
+    """读取并规范化禁用类型列表。"""
+    try:
+        raw_items = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        warnings.append(f"{path}: 禁用类型文件无法解析，已忽略")
+        return set()
+    if not isinstance(raw_items, list):
+        warnings.append(f"{path}: 禁用类型文件不是 JSON 数组，已忽略")
+        return set()
+    normalized = {
+        item.strip().lower()
+        for item in raw_items
+        if isinstance(item, str) and item.strip()
+    }
+    _write_disabled_types(path, sorted(normalized), warnings)
+    return normalized
+
+
+def _write_disabled_types(path: Path, disabled_types: list[str], warnings: list[str]) -> None:
+    """规范化 disabled_mod_types.json。"""
+    try:
+        content = json.dumps(disabled_types, ensure_ascii=False, indent=2) + "\n"
+        if path.read_text(encoding="utf-8-sig") == content:
+            return
+        path.write_text(content, encoding="utf-8")
+    except OSError as exc:
+        warnings.append(f"{path}: 禁用类型文件写入失败：{exc}")
+
+
+def _type_matches_disabled(mod_type: str, disabled_types: set[str]) -> bool:
+    """组合类型按组件匹配，loose_files+dds 可被任一组件禁用。"""
+    parts = {part.strip().lower() for part in mod_type.split("+") if part.strip()}
+    return bool(parts & disabled_types)
+
+
+def _candidate_lookup(mods_dir: Path, candidates: list[Path]) -> dict[str, set[Path]]:
+    """建立候选模组的多 key 查找表，支持名称、相对路径和顶层目录。"""
+    by_key: dict[str, set[Path]] = {}
+    for candidate in candidates:
+        rel = candidate.relative_to(mods_dir).as_posix()
+        keys = {rel.lower(), candidate.name.lower()}
+        if rel:
+            keys.add(rel.split("/", 1)[0].lower())
+        for key in keys:
+            by_key.setdefault(key, set()).add(candidate)
+    return by_key
+
+
+def _write_disabled_mods(path: Path, disabled_items: list[str], warnings: list[str]) -> None:
+    """清理 disabled_mods.json 中已经不存在的项。"""
+    try:
+        content = json.dumps(disabled_items, ensure_ascii=False, indent=2) + "\n"
+        if path.read_text(encoding="utf-8-sig") == content:
+            return
+        path.write_text(content, encoding="utf-8")
+    except OSError as exc:
+        warnings.append(f"{path}: 禁用模组文件写入失败：{exc}")
 
 
 def detect_mod_type(path: Path) -> str | None:
@@ -205,13 +333,15 @@ def _scan_deferred_components(mod_dir: Path, warnings: list[str]) -> set[str]:
             component_types.update(_scan_loose_container(mod_dir, child, warnings, reported))
             continue
         if child.is_dir() and _is_game_archive_dir(child.name):
-            component_types.add(_scan_numbered_dir(mod_dir, child, warnings, reported))
+            component_type = _scan_numbered_dir(mod_dir, child, warnings, reported)
+            if component_type is not None:
+                component_types.add(component_type)
             continue
         if child.is_dir() and lower_name == META_DIR_NAME:
             if _scan_meta_dir(mod_dir, child, warnings, reported):
                 component_types.add(MOD_TYPE_META)
             continue
-        if child.is_dir() and lower_name in KNOWN_GAME_TOP_DIRS:
+        if child.is_dir() and lower_name in KNOWN_GAME_TOP_DIRS and _has_any_file(child):
             _append_once(
                 warnings,
                 reported,
@@ -235,14 +365,14 @@ def _scan_loose_container(
     for child in sorted(container.iterdir(), key=lambda p: p.name.lower()):
         if not child.is_dir():
             continue
-        if _is_game_archive_dir(child.name):
+        if _is_game_archive_dir(child.name) and _has_any_file(child):
             _append_once(
                 warnings,
                 reported,
                 f"发现 loose files 组件（将尝试加载）：{mod_dir.name}/{container.name}/{child.name}",
             )
             component_types.add(MOD_TYPE_LOOSE_FILES)
-        elif child.name.lower() in KNOWN_GAME_TOP_DIRS:
+        elif child.name.lower() in KNOWN_GAME_TOP_DIRS and _has_any_file(child):
             _append_once(
                 warnings,
                 reported,
@@ -257,7 +387,7 @@ def _scan_numbered_dir(
     numbered_dir: Path,
     warnings: list[str],
     reported: set[str],
-) -> None:
+) -> str | None:
     """区分 standalone 归档目录和根部 NNNN loose files 目录。"""
     has_archive_pair = (numbered_dir / OVERLAY_PAZ_NAME).is_file() and (
         numbered_dir / OVERLAY_PAMT_NAME
@@ -269,6 +399,8 @@ def _scan_numbered_dir(
             f"发现 standalone PAZ/PAMT 组件（将尝试加载）：{mod_dir.name}/{numbered_dir.name}",
         )
         return MOD_TYPE_STANDALONE_ARCHIVE
+    if not _has_any_file(numbered_dir):
+        return None
     _append_once(
         warnings,
         reported,
@@ -302,13 +434,16 @@ def _detect_directory_component_types(mod_dir: Path) -> set[str]:
             continue
         if child.is_dir() and _is_game_archive_dir(child.name):
             has_archive_pair = (child / OVERLAY_PAZ_NAME).is_file() and (child / OVERLAY_PAMT_NAME).is_file()
-            component_types.add(MOD_TYPE_STANDALONE_ARCHIVE if has_archive_pair else MOD_TYPE_LOOSE_FILES)
+            if has_archive_pair:
+                component_types.add(MOD_TYPE_STANDALONE_ARCHIVE)
+            elif _has_any_file(child):
+                component_types.add(MOD_TYPE_LOOSE_FILES)
             continue
         if child.is_dir() and lower_name == META_DIR_NAME:
             if (child / PAPGT_FILE_NAME).is_file() or (child / PATHC_FILE_NAME).is_file():
                 component_types.add(MOD_TYPE_META)
             continue
-        if child.is_dir() and lower_name in KNOWN_GAME_TOP_DIRS:
+        if child.is_dir() and lower_name in KNOWN_GAME_TOP_DIRS and _has_any_file(child):
             component_types.add(MOD_TYPE_LOOSE_FILES)
     if any(path.suffix.lower() == DDS_SUFFIX for path in mod_dir.rglob("*") if path.is_file()):
         component_types.add(MOD_TYPE_DDS)
@@ -318,9 +453,16 @@ def _detect_directory_component_types(mod_dir: Path) -> set[str]:
 def _has_loose_container_entries(container: Path) -> bool:
     """判断 files/ 或 game_files/ 下是否有可加载 loose 路径。"""
     return any(
-        child.is_dir() and (_is_game_archive_dir(child.name) or child.name.lower() in KNOWN_GAME_TOP_DIRS)
+        child.is_dir()
+        and (_is_game_archive_dir(child.name) or child.name.lower() in KNOWN_GAME_TOP_DIRS)
+        and _has_any_file(child)
         for child in container.iterdir()
     )
+
+
+def _has_any_file(path: Path) -> bool:
+    """判断目录树内是否存在真实文件，空壳 loose 目录不参与加载。"""
+    return any(item.is_file() for item in path.rglob("*"))
 
 
 def _format_directory_mod_type(component_types: set[str]) -> str:

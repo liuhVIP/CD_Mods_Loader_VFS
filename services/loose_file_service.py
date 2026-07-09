@@ -180,7 +180,7 @@ def _iter_ordered_mod_dirs(
 ) -> list[Path]:
     """按 scan_mods 解析出的加载顺序枚举目录型模组，其余目录按名称补齐。"""
     all_dirs = sorted((item for item in mods_dir.iterdir() if item.is_dir()), key=_path_sort_key)
-    if not ordered_mods:
+    if ordered_mods is None:
         return all_dirs
 
     by_resolved = {path.resolve(): path for path in all_dirs}
@@ -195,7 +195,6 @@ def _iter_ordered_mod_dirs(
             continue
         ordered.append(mod_dir)
         used.add(mod_dir)
-    ordered.extend(path for path in all_dirs if path not in used)
     return ordered
 
 

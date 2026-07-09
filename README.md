@@ -127,7 +127,7 @@ Set-Location 'T:\python_pro\cdmm'
 --patch-asi-modules
 ```
 
-默认行为已经按红色沙漠当前验证结果处理：允许缺失目标、跳过 ASI 模块 IAT patch、不启用 NT OpenFile Hook。
+默认行为已经按红色沙漠当前验证结果处理：允许缺失目标、跳过 ASI 模块 IAT patch、不启用 NT OpenFile Hook。启动前会直接清理上一轮残留的 VFS 辅助进程和游戏目录下的 `crashpad_handler.exe`；如果清理失败，会提示用户手动结束对应 PID。
 
 ## VFS 加载原理
 

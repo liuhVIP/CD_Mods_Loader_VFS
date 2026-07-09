@@ -55,24 +55,32 @@ VFS_MAPPING_FILE_NAME = "vfs_mapping_tree.json"
 # VFS 构建摘要文件名，用于排障时确认本次映射了哪些文件。
 VFS_STATE_FILE_NAME = "vfs_state.json"
 
+# VFS 状态结构版本。分包策略变化时必须提升，避免复用旧 mapping。
+VFS_STATE_SCHEMA = 2
+
 # DMM 已验证的高风险表分包名。这里用 ASCII 常量，避免后续脚本编码踩坑。
+NPP_V3_STATUSINFO_PACKAGE = "nppv3_statusinfo"
 NPP_V3_EQUIPSLOTINFO_PACKAGE = "nppv3_equipslotinfo"
 NPP_V3_STRINGINFO_PACKAGE = "nppv3_stringinfo"
 NPP_V3_ITEMINFO_PACKAGE = "nppv3_iteminfo"
+NPP_VOICE_PACKAGE = "nppvoice"
 NPP_JSON_PACKAGE = "nppgen"
 NPP_LOOSE_PACKAGE = "nppsa"
 
 # DMM-like VFS 的 PAPGT 前置顺序，越靠前优先级越高。
 NPP_LIKE_PACKAGE_ORDER = [
-    NPP_V3_EQUIPSLOTINFO_PACKAGE,
+    NPP_V3_STATUSINFO_PACKAGE,
     NPP_V3_STRINGINFO_PACKAGE,
+    NPP_V3_EQUIPSLOTINFO_PACKAGE,
     NPP_V3_ITEMINFO_PACKAGE,
+    NPP_VOICE_PACKAGE,
     NPP_JSON_PACKAGE,
     NPP_LOOSE_PACKAGE,
 ]
 
 # Format 3 已实现 writer 的高风险表按 DMM 现场拆成独立包。
 NPP_V3_PACKAGE_BY_TABLE = {
+    "statusinfo": NPP_V3_STATUSINFO_PACKAGE,
     "equipslotinfo": NPP_V3_EQUIPSLOTINFO_PACKAGE,
     "stringinfo": NPP_V3_STRINGINFO_PACKAGE,
     "iteminfo": NPP_V3_ITEMINFO_PACKAGE,
@@ -99,6 +107,7 @@ class VfsBuildResult:
     warnings: list[str]
     errors: list[str]
     mapped_files: list[str]
+    cache_hit: bool = False
 
 
 def build_vfs_package(
@@ -116,6 +125,17 @@ def build_vfs_package(
     _notify_progress(progress_callback, "扫描 mods 并同步加载顺序")
     mods, scan_warnings = scan_mods(game_dir)
     warnings.extend(scan_warnings)
+    current_fingerprint = fingerprint_mods(mods)
+    cached_result = _try_reuse_vfs_package(
+        game_dir,
+        mods,
+        warnings,
+        current_fingerprint,
+        allow_missing_targets,
+    )
+    if cached_result is not None:
+        _notify_progress(progress_callback, "VFS 缓存命中，复用已构建包")
+        return cached_result
 
     _notify_progress(progress_callback, "统计 JSON / Format 3 / loose 目标")
     json_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_JSON_PATCH]
@@ -256,6 +276,7 @@ def build_vfs_package(
         mods,
         warnings,
         mapped_files,
+        allow_missing_targets,
     )
     save_game_pamt_target_cache(game_dir)
     _notify_progress(progress_callback, "VFS 构建完成")
@@ -301,6 +322,59 @@ def _empty_result(
         warnings=warnings,
         errors=errors,
         mapped_files=[],
+        cache_hit=False,
+    )
+
+
+def _try_reuse_vfs_package(
+    game_dir: Path,
+    mods: list[DiscoveredMod],
+    warnings: list[str],
+    current_fingerprint: str,
+    allow_missing_targets: bool,
+) -> VfsBuildResult | None:
+    """模组未变化且 VFS 产物完整时，直接复用上次构建结果。"""
+    state_path = game_dir / WORK_DIR_NAME / VFS_STATE_FILE_NAME
+    if not state_path.exists():
+        return None
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(state, dict) or state.get("schema") != VFS_STATE_SCHEMA:
+        return None
+    if state.get("last_fingerprint") != current_fingerprint:
+        return None
+    if bool(state.get("allow_missing_targets")) != bool(allow_missing_targets):
+        return None
+
+    vfs_root = Path(str(state.get("vfs_root") or game_dir / WORK_DIR_NAME / VFS_ACTIVE_DIR_NAME))
+    mapping_path = Path(str(state.get("mapping_path") or game_dir / WORK_DIR_NAME / VFS_MAPPING_FILE_NAME))
+    mapped_files = state.get("mapped_files")
+    if not vfs_root.is_dir() or not mapping_path.is_file() or not isinstance(mapped_files, list):
+        return None
+    normalized_files = [item for item in mapped_files if isinstance(item, str)]
+    if len(normalized_files) != len(mapped_files) or not normalized_files:
+        return None
+    for relative_path in normalized_files:
+        if not (vfs_root / relative_path.replace("/", "\\")).is_file():
+            return None
+
+    overlay_packages = state.get("overlay_packages")
+    if not isinstance(overlay_packages, list):
+        overlay_packages = []
+    overlay_dir = state.get("overlay_dir")
+    logger.info("VFS cache hit: %s", mapping_path)
+    return VfsBuildResult(
+        game_dir=game_dir,
+        vfs_root=vfs_root,
+        mapping_path=mapping_path,
+        overlay_dir=overlay_dir if isinstance(overlay_dir, str) else None,
+        loaded_mods=mods,
+        warnings=warnings,
+        errors=[],
+        mapped_files=normalized_files,
+        cache_hit=True,
     )
 
 
@@ -329,8 +403,10 @@ def _build_dmm_like_overlay_packages(
         for entry in [*json_overlay_inputs, *format3_overlay_inputs]
     }
     for entry in loose_overlay_inputs:
-        if _entry_key(entry) not in composed_targets:
-            grouped[NPP_LOOSE_PACKAGE].append(entry)
+        if _entry_key(entry) in composed_targets:
+            continue
+        package_name = NPP_VOICE_PACKAGE if _is_voice_entry(entry) else NPP_LOOSE_PACKAGE
+        grouped[package_name].append(entry)
 
     grouped[NPP_JSON_PACKAGE].extend(json_overlay_inputs)
     for entry in format3_overlay_inputs:
@@ -347,6 +423,12 @@ def _build_dmm_like_overlay_packages(
 def _entry_key(entry: OverlayInputEntry) -> str:
     """返回 overlay entry 的稳定合成 key。"""
     return entry.entry_path.replace("\\", "/").lower()
+
+
+def _is_voice_entry(entry: OverlayInputEntry) -> bool:
+    """判断 loose 资源是否应拆入语音包。"""
+    normalized = entry.entry_path.replace("\\", "/").lower()
+    return normalized.endswith(".wem")
 
 
 def _format3_package_name(entry: OverlayInputEntry) -> str | None:
@@ -418,16 +500,18 @@ def _write_vfs_state(
     mods: list[DiscoveredMod],
     warnings: list[str],
     mapped_files: list[str],
+    allow_missing_targets: bool,
 ) -> None:
     """写入 VFS 构建摘要，便于后续排障。"""
     payload = {
-        "schema": 1,
+        "schema": VFS_STATE_SCHEMA,
         "game_dir": str(game_dir),
         "vfs_root": str(vfs_root),
         "mapping_path": str(mapping_path),
         "overlay_dir": overlay_dir,
         "overlay_packages": overlay_packages,
         "last_fingerprint": fingerprint_mods(mods),
+        "allow_missing_targets": bool(allow_missing_targets),
         "loaded_mods": [mod.name for mod in mods],
         "warnings": warnings,
         "mapped_files": mapped_files,

@@ -415,6 +415,7 @@ class VfsBuildProgressPrinter:
 def start_game_with_vfs(game_dir: Path, runtime_dir: Path, args: argparse.Namespace) -> int:
     """通过项目内置 VFS runtime 启动 Crimson Desert。"""
     ensure_no_running_target(game_dir, args.allow_running_target)
+    cleanup_stale_helper_processes(game_dir, runtime_dir)
     configure_vfs_environment(args)
     clear_native_runtime_logs(runtime_dir)
     command = build_vfs_command(game_dir, runtime_dir, args)
@@ -441,6 +442,51 @@ def start_game_with_vfs(game_dir: Path, runtime_dir: Path, args: argparse.Namesp
     if args.no_keep_running:
         stop_processes(process.pid, game_pid)
     return 0
+
+
+def cleanup_stale_helper_processes(game_dir: Path, runtime_dir: Path) -> None:
+    """启动前直接结束上一轮残留辅助进程，失败时提示用户手动处理。"""
+    helper_paths = [
+        runtime_dir / VFS_LAUNCHER_EXE_NAME,
+        game_dir / GAME_BIN_DIR_NAME / "crashpad_handler.exe",
+    ]
+    stale_pids = find_processes_by_exact_paths(helper_paths)
+    if not stale_pids:
+        return
+    print(f"检测到上一轮辅助进程残留，正在结束：{', '.join(str(pid) for pid in stale_pids)}")
+    stop_processes(*stale_pids)
+    still_running = [pid for pid in stale_pids if is_process_running(pid)]
+    if still_running:
+        pids_text = ", ".join(str(pid) for pid in still_running)
+        raise RuntimeError(f"无法结束上一轮辅助进程 PID: {pids_text}。请在任务管理器手动结束后再启动。")
+
+
+def find_processes_by_exact_paths(paths: list[Path]) -> list[int]:
+    """按完整路径查找进程 PID，避免误杀其他软件同名进程。"""
+    normalized_paths = [str(path.resolve()).lower() for path in paths if path.exists()]
+    if not normalized_paths:
+        return []
+    ps_paths = "@(" + ",".join(powershell_single_quote(path) for path in normalized_paths) + ")"
+    command = [
+        str(POWERSHELL_EXE),
+        "-NoLogo",
+        "-NoProfile",
+        "-Command",
+        (
+            f"$targets = {ps_paths}; "
+            "$items = Get-CimInstance Win32_Process | "
+            "Where-Object { $_.ExecutablePath -and "
+            "$targets -contains ([System.IO.Path]::GetFullPath($_.ExecutablePath).ToLowerInvariant()) }; "
+            "if ($items) { ($items | ForEach-Object { $_.ProcessId }) -join ',' }"
+        ),
+    ]
+    completed = subprocess.run(command, capture_output=True, check=False, text=True)
+    return [int(part) for part in completed.stdout.strip().split(",") if part.strip().isdigit()]
+
+
+def powershell_single_quote(value: str) -> str:
+    """生成 PowerShell 单引号字符串。"""
+    return "'" + value.replace("'", "''") + "'"
 
 
 def ensure_no_running_target(game_dir: Path, allow_running_target: bool) -> None:

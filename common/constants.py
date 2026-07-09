@@ -38,6 +38,12 @@ PAMT_INDEX_WORKER_COUNT = 4
 # 可选加载顺序文件名。优先读取 .cdloader/load_order.json，兼容旧的 mods/load_order.json。
 LOAD_ORDER_FILE_NAME = "load_order.json"
 
+# 可选禁用模组文件名，位于 .cdloader 下，用于二分排查时临时跳过部分模组。
+DISABLED_MODS_FILE_NAME = "disabled_mods.json"
+
+# 可选禁用模组类型文件名，位于 .cdloader 下，用于按类型二分排查。
+DISABLED_MOD_TYPES_FILE_NAME = "disabled_mod_types.json"
+
 # 游戏元数据目录名。
 META_DIR_NAME = "meta"
 

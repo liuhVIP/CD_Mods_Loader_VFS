@@ -36,7 +36,10 @@ def main() -> int:
     if result.errors:
         return 2
 
-    print(f"VFS 构建完成：映射文件 {result.mapping_path}")
+    if result.cache_hit:
+        print(f"VFS 缓存命中：直接使用现有映射文件 {result.mapping_path}")
+    else:
+        print(f"VFS 构建完成：映射文件 {result.mapping_path}")
     print(f"VFS 输出目录：{result.vfs_root}")
     print(f"已映射文件数：{len(result.mapped_files)}")
     if result.overlay_dir:
