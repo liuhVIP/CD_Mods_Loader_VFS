@@ -24,6 +24,10 @@ from cdmm.services.format3_iteminfo_whole_writer import (
     should_use_iteminfo_whole_table,
     _coerce_prefab_data_list,
 )
+from cdmm.services.format3_iteminfo_record_writer import (
+    build_iteminfo_record_result,
+    should_use_iteminfo_record_writer,
+)
 from cdmm.services.iteminfo_native_parser import (
     parse_iteminfo_drop_default_data,
     parse_iteminfo_prefab_data_list,
@@ -271,6 +275,8 @@ def build_iteminfo_prefab_result(
     """按字段能力自动分流到窄 writer 或 whole-table writer。"""
     if intents and all(intent.field == "prefab_data_list" for intent in intents):
         return _build_iteminfo_prefab_list_result(context, intents)
+    if should_use_iteminfo_record_writer(intents):
+        return build_iteminfo_record_result(context, intents)
     if should_use_iteminfo_whole_table(intents):
         return build_iteminfo_whole_table_result(context, intents)
 

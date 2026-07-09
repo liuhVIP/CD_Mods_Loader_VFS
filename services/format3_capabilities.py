@@ -73,7 +73,7 @@ _ITEMINFO_CAPABILITY = Format3TableCapability(
             pattern=re.compile(
                 "^("
                 + "|".join(re.escape(field) for field in sorted(ITEMINFO_WHOLE_TABLE_DIRECT_FIELDS))
-                + ")$"
+                + r"|docking_child_data\.gimmick_info_key)$"
             ),
             reason_when_miss=(
                 "iteminfo 当前仅支持 prefab_data_list[N].tribe_gender_list、"

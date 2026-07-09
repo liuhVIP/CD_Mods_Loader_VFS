@@ -445,6 +445,21 @@ def _format3_intents_to_result(
             skipped=match_skipped + skipped_result.skipped,
         )
     supported_intents, capability_skipped = partition_supported_intents(table_name, intents)
+    if capability_skipped:
+        guarded_skips = tuple(
+            Format3SkippedIntent(
+                intent=intent,
+                reason=(
+                    f"{table_name} 目标包含未支持字段，已跳过整个目标以避免半应用；"
+                    "请先实现完整 writer"
+                ),
+            )
+            for intent in supported_intents
+        )
+        return Format3DispatchResult(
+            changes=(),
+            skipped=match_skipped + capability_skipped + guarded_skips,
+        )
     if not supported_intents:
         return Format3DispatchResult(
             changes=(),
