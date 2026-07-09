@@ -216,9 +216,17 @@ def _pack_payload(
         comp_type = 1
 
     if comp_type == 2:
-        payload = lz4_compress(entry.content)
-        flags = 2
-        decomp_size = len(entry.content)
+        compressed = lz4_compress(entry.content)
+        if len(compressed) < len(entry.content):
+            payload = compressed
+            flags = 2
+            decomp_size = len(entry.content)
+        else:
+            # 游戏会把 comp_size > orig_size 的普通 LZ4 entry 判为读取缓冲区异常。
+            # 遇到压缩后不省空间的数据时直接写原始 payload，保持 PAMT size 自洽。
+            payload = entry.content
+            flags = 0
+            decomp_size = len(payload)
         m_values = None
         last4 = 0
     elif comp_type == 1:
