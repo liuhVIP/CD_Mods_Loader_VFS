@@ -24,6 +24,7 @@ from cdmm.services.format3_capabilities import partition_supported_intents
 from cdmm.services.format3_characterinfo_writer import build_characterinfo_byte_patch_result
 from cdmm.services.format3_dropset_writer import build_dropsetinfo_result
 from cdmm.services.format3_equipslotinfo_writer import build_equipslotinfo_result
+from cdmm.services.format3_interactioninfo_writer import build_interactioninfo_result
 from cdmm.services.format3_iteminfo_writer import build_iteminfo_prefab_result
 from cdmm.services.format3_multichangeinfo_writer import build_multichangeinfo_result
 from cdmm.services.format3_skill_writer import build_skill_whole_table_result
@@ -62,6 +63,7 @@ _FORMAT3_WRITERS: dict[str, Format3Writer] = {
     "characterinfo": build_characterinfo_byte_patch_result,
     "dropsetinfo": build_dropsetinfo_result,
     "equipslotinfo": build_equipslotinfo_result,
+    "interactioninfo": build_interactioninfo_result,
     "iteminfo": build_iteminfo_prefab_result,
     "multichangeinfo": build_multichangeinfo_result,
     "skill": build_skill_whole_table_result,

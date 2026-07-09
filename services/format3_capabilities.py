@@ -93,6 +93,22 @@ _ITEMINFO_CAPABILITY = Format3TableCapability(
 
 _CAPABILITIES: dict[str, Format3TableCapability] = {
     "iteminfo": _ITEMINFO_CAPABILITY,
+    "interactioninfo": Format3TableCapability(
+        table_name="interactioninfo",
+        field_rules=(
+            Format3FieldRule(
+                pattern=re.compile(
+                    r"^(interaction_type|_interactionType|"
+                    r"interaction_pivot_list\[0]\.(raw_a|raw_b))$"
+                ),
+                reason_when_miss=(
+                    "interactioninfo 当前仅支持 interaction_type / _interactionType，"
+                    "以及 interaction_pivot_list[0].raw_a/raw_b 字段"
+                ),
+            ),
+        ),
+        supports_whole_table=False,
+    ),
     "skill": Format3TableCapability(
         table_name="skill",
         field_rules=(
