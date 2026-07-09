@@ -12,6 +12,7 @@ from cdmm.common.constants import (
     OVERLAY_PAZ_NAME,
     OVERLAY_START_DIR,
 )
+from cdmm.common.models import DiscoveredMod
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ def collect_standalone_archives(
     game_dir: Path,
     reserved_dirs: set[str] | None = None,
     previous_items: list[dict[str, str]] | None = None,
+    ordered_mods: list[DiscoveredMod] | None = None,
 ) -> list[StandaloneArchive]:
     """收集 standalone PAZ/PAMT，并优先复用上次分配目录。"""
     mods_dir = game_dir / MODS_DIR_NAME
@@ -41,7 +43,7 @@ def collect_standalone_archives(
     previous_by_source = _previous_assigned_dirs(game_dir, previous_items or [])
 
     result: list[StandaloneArchive] = []
-    for source_dir in _iter_standalone_dirs(mods_dir):
+    for source_dir in _iter_standalone_dirs(mods_dir, ordered_mods):
         source_key = _source_key(game_dir, source_dir)
         assigned_dir = previous_by_source.get(source_key)
         if assigned_dir is None or not _can_reuse_assigned_dir(game_dir, assigned_dir, used_dirs):
@@ -94,10 +96,13 @@ def standalone_state_items(archives: list[StandaloneArchive]) -> list[dict[str, 
     ]
 
 
-def _iter_standalone_dirs(mods_dir: Path) -> list[Path]:
+def _iter_standalone_dirs(
+    mods_dir: Path,
+    ordered_mods: list[DiscoveredMod] | None = None,
+) -> list[Path]:
     """按稳定顺序枚举 standalone archive 目录。"""
     result: list[Path] = []
-    for mod_dir in sorted((item for item in mods_dir.iterdir() if item.is_dir()), key=_path_sort_key):
+    for mod_dir in _iter_ordered_mod_dirs(mods_dir, ordered_mods):
         for child in sorted(
             (item for item in mod_dir.iterdir() if item.is_dir() and _is_dir_name(item.name)),
             key=_path_sort_key,
@@ -105,6 +110,30 @@ def _iter_standalone_dirs(mods_dir: Path) -> list[Path]:
             if (child / OVERLAY_PAZ_NAME).is_file() and (child / OVERLAY_PAMT_NAME).is_file():
                 result.append(child)
     return result
+
+
+def _iter_ordered_mod_dirs(
+    mods_dir: Path,
+    ordered_mods: list[DiscoveredMod] | None,
+) -> list[Path]:
+    """按 scan_mods 解析出的加载顺序枚举目录型模组，其余目录按名称补齐。"""
+    all_dirs = sorted((item for item in mods_dir.iterdir() if item.is_dir()), key=_path_sort_key)
+    if not ordered_mods:
+        return all_dirs
+
+    by_resolved = {path.resolve(): path for path in all_dirs}
+    ordered: list[Path] = []
+    used: set[Path] = set()
+    for mod in ordered_mods:
+        if not mod.path.is_dir():
+            continue
+        mod_dir = by_resolved.get(mod.path.resolve())
+        if mod_dir is None or mod_dir in used:
+            continue
+        ordered.append(mod_dir)
+        used.add(mod_dir)
+    ordered.extend(path for path in all_dirs if path not in used)
+    return ordered
 
 
 def _collect_used_dirs(game_dir: Path) -> set[int]:

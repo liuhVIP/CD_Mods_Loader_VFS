@@ -16,7 +16,7 @@ from cdmm.common.constants import (
     OVERLAY_PAMT_NAME,
     OVERLAY_PAZ_NAME,
 )
-from cdmm.common.models import OverlayInputEntry, PazEntry
+from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
 from cdmm.services.pamt_index_service import get_game_pamt_index
 from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.path_utils import lower_game_rel_path
@@ -29,6 +29,7 @@ def build_loose_overlay_entries(
     vanilla_store: VanillaStore,
     warnings: list[str],
     errors: list[str],
+    ordered_mods: list[DiscoveredMod] | None = None,
 ) -> list[OverlayInputEntry]:
     """收集 files/NNNN 和根部 NNNN loose 文件并生成 overlay entry。"""
     mods_dir = game_dir / MODS_DIR_NAME
@@ -36,13 +37,15 @@ def build_loose_overlay_entries(
         return []
 
     phase_started = perf_counter()
-    loose_files = _iter_loose_files(mods_dir)
+    loose_files = _iter_loose_files(mods_dir, ordered_mods)
     enumerate_seconds = perf_counter() - phase_started
     numbered_count = sum(1 for _mod_dir, pamt_dir, _rel_path, _loose_path in loose_files if pamt_dir is not None)
     root_count = len(loose_files) - numbered_count
+    root_match_started = perf_counter()
+    root_match_cache, root_sibling_hints = _prepare_root_loose_matches(game_dir, loose_files)
 
     entries: list[OverlayInputEntry] = []
-    match_seconds = 0.0
+    match_seconds = perf_counter() - root_match_started
     build_seconds = 0.0
     skipped = 0
     exact_matches: Counter[str] = Counter()
@@ -59,13 +62,23 @@ def build_loose_overlay_entries(
             if pamt_dir is not None:
                 source_entry, matched_by_basename = _find_entry_in_pamt_dir(game_dir, pamt_dir, target_path)
             else:
-                source_entry, matched_by_basename = _find_entry_globally(game_dir, target_path)
+                source_entry, matched_by_basename = root_match_cache.get(
+                    loose_path,
+                    (None, False),
+                )
             match_seconds += perf_counter() - match_started
             if pamt_dir is None and source_entry is None:
-                root_skips[mod_dir.name] += 1
-                skipped += 1
-                continue
-            target_pamt_dir = pamt_dir or derive_pamt_dir(source_entry.paz_file)
+                hint = root_sibling_hints.get(
+                    (mod_dir, rel_path.parent.as_posix().lower())
+                )
+                if hint is None:
+                    root_skips[mod_dir.name] += 1
+                    skipped += 1
+                    continue
+                target_pamt_dir, inferred_parent = hint
+                target_path = f"{inferred_parent}/{rel_path.name}" if inferred_parent else rel_path.name
+            else:
+                target_pamt_dir = pamt_dir or derive_pamt_dir(source_entry.paz_file)
             if source_entry is None:
                 raw_path_writes[f"{mod_dir.name}/{target_pamt_dir}"] += 1
             elif matched_by_basename:
@@ -103,18 +116,55 @@ def build_loose_overlay_entries(
     return entries
 
 
-def collect_loose_pamt_targets(game_dir: Path) -> list[str]:
+def _prepare_root_loose_matches(
+    game_dir: Path,
+    loose_files: list[tuple[Path, str | None, Path, Path]],
+) -> tuple[dict[Path, tuple[PazEntry | None, bool]], dict[tuple[Path, str], tuple[str, str]]]:
+    """预匹配 root loose，并为同目录新增文件准备安全 sibling 推断。"""
+    match_cache: dict[Path, tuple[PazEntry | None, bool]] = {}
+    hint_candidates: dict[tuple[Path, str], set[tuple[str, str]]] = {}
+    for mod_dir, pamt_dir, rel_path, loose_path in loose_files:
+        if pamt_dir is not None:
+            continue
+        target_path = rel_path.as_posix()
+        source_entry, matched_by_basename = _find_entry_globally(game_dir, target_path)
+        match_cache[loose_path] = (source_entry, matched_by_basename)
+        if source_entry is None or not matched_by_basename:
+            continue
+        entry_parent = _posix_parent(source_entry.path)
+        hint_key = (mod_dir, rel_path.parent.as_posix().lower())
+        hint_candidates.setdefault(hint_key, set()).add(
+            (derive_pamt_dir(source_entry.paz_file), entry_parent)
+        )
+
+    hints: dict[tuple[Path, str], tuple[str, str]] = {}
+    for hint_key, candidates in hint_candidates.items():
+        if len(candidates) == 1:
+            hints[hint_key] = next(iter(candidates))
+    return match_cache, hints
+
+
+def collect_loose_pamt_targets(
+    game_dir: Path,
+    ordered_mods: list[DiscoveredMod] | None = None,
+) -> list[str]:
     """收集 loose 阶段会按 PAMT 查询的目标路径，用于冷启动预筛选。"""
     mods_dir = game_dir / MODS_DIR_NAME
     if not mods_dir.exists():
         return []
-    return [rel_path.as_posix() for _mod_dir, _pamt_dir, rel_path, _loose_path in _iter_loose_files(mods_dir)]
+    return [
+        rel_path.as_posix()
+        for _mod_dir, _pamt_dir, rel_path, _loose_path in _iter_loose_files(mods_dir, ordered_mods)
+    ]
 
 
-def _iter_loose_files(mods_dir: Path) -> list[tuple[Path, str | None, Path, Path]]:
+def _iter_loose_files(
+    mods_dir: Path,
+    ordered_mods: list[DiscoveredMod] | None = None,
+) -> list[tuple[Path, str | None, Path, Path]]:
     """按模组目录顺序枚举 files/NNNN 与根部 NNNN 下的实际文件。"""
     result: list[tuple[Path, str | None, Path, Path]] = []
-    for mod_dir in sorted((item for item in mods_dir.iterdir() if item.is_dir()), key=_path_sort_key):
+    for mod_dir in _iter_ordered_mod_dirs(mods_dir, ordered_mods):
         files_dir = mod_dir / LOOSE_FILES_DIR_NAME
         if files_dir.is_dir():
             result.extend(_iter_numbered_loose_dirs(mod_dir, files_dir))
@@ -122,6 +172,31 @@ def _iter_loose_files(mods_dir: Path) -> list[tuple[Path, str | None, Path, Path
         result.extend(_iter_numbered_loose_dirs(mod_dir, mod_dir))
         result.extend(_iter_root_game_path_loose_files(mod_dir, mod_dir))
     return result
+
+
+def _iter_ordered_mod_dirs(
+    mods_dir: Path,
+    ordered_mods: list[DiscoveredMod] | None,
+) -> list[Path]:
+    """按 scan_mods 解析出的加载顺序枚举目录型模组，其余目录按名称补齐。"""
+    all_dirs = sorted((item for item in mods_dir.iterdir() if item.is_dir()), key=_path_sort_key)
+    if not ordered_mods:
+        return all_dirs
+
+    by_resolved = {path.resolve(): path for path in all_dirs}
+    ordered: list[Path] = []
+    used: set[Path] = set()
+    for mod in ordered_mods:
+        if not mod.path.is_dir():
+            continue
+        resolved = mod.path.resolve()
+        mod_dir = by_resolved.get(resolved)
+        if mod_dir is None or mod_dir in used:
+            continue
+        ordered.append(mod_dir)
+        used.add(mod_dir)
+    ordered.extend(path for path in all_dirs if path not in used)
+    return ordered
 
 
 def _iter_numbered_loose_dirs(
@@ -247,6 +322,14 @@ def _log_loose_match_summary(
 def _format_counter(counter: Counter[str]) -> str:
     """格式化计数器，保持汇总日志短小。"""
     return ", ".join(f"{key}={count}" for key, count in sorted(counter.items()))
+
+
+def _posix_parent(path: str) -> str:
+    """返回游戏 entry 的 POSIX 父目录，根部文件返回空字符串。"""
+    normalized = path.replace("\\", "/")
+    if "/" not in normalized:
+        return ""
+    return normalized.rsplit("/", 1)[0]
 
 
 def _is_game_archive_dir(path: Path) -> bool:

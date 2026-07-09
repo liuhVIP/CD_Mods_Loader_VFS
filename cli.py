@@ -54,6 +54,12 @@ DEFAULT_CONFIG_REL_PATH = Path("config") / "game_config.json"
 # 用户界面配置文件名，保存控制台显示语言，位于程序所在目录。
 UI_CONFIG_FILE_NAME = "cdloader_config.json"
 
+# 版本文件名，标题和命令行说明统一从这里读取版本号。
+VERSION_FILE_NAME = "version.txt"
+
+# 版本文件缺失或读取失败时使用的兜底版本号。
+DEFAULT_APP_VERSION = "v1.0"
+
 # 用户界面配置 schema 版本，后续结构变化时用于兼容迁移。
 UI_CONFIG_SCHEMA = 1
 
@@ -85,12 +91,15 @@ SCAN_GROUP_ORDER = (
 # 只扫描模式下最多直接展示的空目录数量，避免异常目录过多刷屏。
 MAX_VISIBLE_EMPTY_MOD_DIRS = 50
 
+# 应用版本缓存，避免菜单循环中重复读取 version.txt。
+_APP_VERSION_CACHE: str | None = None
+
 # 控制台双语文案，所有用户可见文本尽量集中在这里，避免散落硬编码。
 UI_TEXTS = {
     LANGUAGE_ZH: {
-        "app_title": "红色沙漠独立轻量模组加载器 v1.0",
-        "app_subtitle": "B站 UP「改名开发」制作 | 支持游戏 1.04.02 及以上版本",
-        "arg_description": "红色沙漠独立轻量模组加载器 v1.0（支持中文 / English）",
+        "app_title": "红色沙漠独立轻量模组加载器 {app_version}",
+        "app_subtitle": "B站 UP「改名开发」制作 | 支持游戏 1.13 以下版本",
+        "arg_description": "红色沙漠独立轻量模组加载器 {app_version}（支持中文 / English）",
         "arg_command_help": "apply=加载模组，scan=只扫描，revert=恢复上次写入",
         "arg_game_dir_help": "游戏根目录；打包 exe 无参数时必须放在游戏根目录",
         "feature_lines": (
@@ -155,9 +164,9 @@ UI_TEXTS = {
         "progress_phase_labels": {},
     },
     LANGUAGE_EN: {
-        "app_title": "Crimson Desert Lightweight Mod Loader v1.0",
+        "app_title": "Crimson Desert Lightweight Mod Loader {app_version}",
         "app_subtitle": "Made by Bilibili creator GaiMingDev | Supports game version 1.04.02+",
-        "arg_description": "Crimson Desert Lightweight Mod Loader v1.0 (Chinese / English)",
+        "arg_description": "Crimson Desert Lightweight Mod Loader {app_version} (Chinese / English)",
         "arg_command_help": "apply=load mods, scan=scan only, revert=restore last write",
         "arg_game_dir_help": "Game root directory; packaged exe without arguments must be placed in the game root",
         "feature_lines": (
@@ -639,6 +648,36 @@ def ui_config_path() -> Path:
     return executable_dir() / UI_CONFIG_FILE_NAME
 
 
+def version_file_path() -> Path:
+    """获取版本文件路径，打包后优先读取程序所在目录的 version.txt。"""
+    return executable_dir() / VERSION_FILE_NAME
+
+
+def bundled_resource_path(file_name: str) -> Path:
+    """获取 PyInstaller/Nuitka 单文件运行时解包资源路径。"""
+    bundle_dir = getattr(sys, "_MEIPASS", "")
+    if bundle_dir:
+        return Path(bundle_dir) / file_name
+    return Path(__file__).resolve().parent / file_name
+
+
+def app_version() -> str:
+    """读取应用版本号，供标题和命令行描述统一使用。"""
+    global _APP_VERSION_CACHE
+    if _APP_VERSION_CACHE is not None:
+        return _APP_VERSION_CACHE
+    version = ""
+    for version_path in (version_file_path(), bundled_resource_path(VERSION_FILE_NAME)):
+        try:
+            version = version_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if version:
+            break
+    _APP_VERSION_CACHE = version or DEFAULT_APP_VERSION
+    return _APP_VERSION_CACHE
+
+
 def print_app_header(language: str) -> None:
     """输出更醒目的控制台标题和加载器优势说明。"""
     title = text("app_title", language)
@@ -679,7 +718,8 @@ def text(key: str, language: str = DEFAULT_LANGUAGE, **kwargs: Any) -> str:
         value = UI_TEXTS[DEFAULT_LANGUAGE][key]
     if not isinstance(value, str):
         return str(value)
-    return value.format(**kwargs) if kwargs else value
+    format_kwargs = {"app_version": app_version(), **kwargs}
+    return value.format(**format_kwargs)
 
 
 def typed_text(key: str, nested_key: str, language: str, default: Any) -> Any:

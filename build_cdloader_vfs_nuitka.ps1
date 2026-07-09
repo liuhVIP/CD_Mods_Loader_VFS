@@ -1,12 +1,13 @@
-# cdloader Nuitka 单体 exe 打包脚本。
+# cdloader VFS 专用 Nuitka 单体 exe 打包脚本。
 param(
     [string]$PythonPath = "",
     [string]$DistDir = "dist_nuitka",
-    [string]$OutputName = "cdloader",
+    [string]$OutputName = "cdloader-VFS-v1",
     [string]$RequiredPython = "3.10"
 )
 
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # 固定项目根目录，避免从其他位置调用脚本时输出路径漂移。
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -15,19 +16,22 @@ if ([string]::IsNullOrWhiteSpace($PythonPath)) {
     $PythonPath = Join-Path $ScriptDir ".venv-nuitka\Scripts\python.exe"
 }
 
-# Nuitka 构建产物目录，和 PyInstaller 的 dist/build 完全隔离，便于区分。
+# VFS 专用输出目录和临时入口，和普通 cdloader 打包产物隔离。
 $OutputDir = Join-Path $ScriptDir $DistDir
-$BuildDir = Join-Path $ScriptDir "build\nuitka"
-$EntryFile = Join-Path $BuildDir "cdloader_nuitka_entry.py"
-$GameConfigFile = Join-Path $ScriptDir "config\game_config.json"
-$VersionFile = Join-Path $ScriptDir "version.txt"
+$BuildDir = Join-Path $ScriptDir "build\nuitka-vfs"
+$EntryFile = Join-Path $BuildDir "cdloader_vfs_nuitka_entry.py"
 $NuitkaVenvDir = Join-Path $ScriptDir ".venv-nuitka"
+$VfsRuntimeDir = Join-Path $ScriptDir "private\vfs_runtime"
+$VfsLauncherFile = Join-Path $VfsRuntimeDir "nppvfs_launcher.exe"
+$VfsRuntimeDll = Join-Path $VfsRuntimeDir "vfs_runtime.dll"
 
-# Nuitka 构建依赖，集中维护，避免散落在命令参数里。
+# Nuitka 构建依赖集中维护。
 $NuitkaBuildPackages = @(
     "nuitka>=2.6",
     "ordered-set>=4.1",
-    "zstandard>=0.22"
+    "zstandard>=0.22",
+    "cryptography>=42",
+    "lz4>=4.3"
 )
 
 function Find-UvExecutable {
@@ -81,7 +85,7 @@ function Test-PythonVersion {
         [string]$VersionPrefix
     )
 
-    # 校验 Python 小版本，避免 Nuitka 因 Python 3.12 编译器要求触发 MinGW 大下载。
+    # 校验 Python 小版本，避免 Nuitka 因版本不匹配触发额外编译器下载。
     & $TargetPython -c "import sys; raise SystemExit(0 if sys.version.startswith('$VersionPrefix.') else 1)" > $null 2>&1
     return $LASTEXITCODE -eq 0
 }
@@ -139,22 +143,27 @@ function Ensure-NuitkaPython {
     return $TargetPython
 }
 
-if (-not (Test-Path -LiteralPath (Join-Path $ScriptDir "cli.py"))) {
-    Write-Host "未找到项目入口文件：$(Join-Path $ScriptDir "cli.py")" -ForegroundColor Red
+if (-not (Test-Path -LiteralPath (Join-Path $ScriptDir "tools\vfs_launcher.py"))) {
+    Write-Host "未找到 VFS 专用入口文件：$(Join-Path $ScriptDir "tools\vfs_launcher.py")" -ForegroundColor Red
+    exit 1
+}
+if (-not (Test-Path -LiteralPath $VfsLauncherFile)) {
+    Write-Host "未找到闭源 VFS launcher：$VfsLauncherFile" -ForegroundColor Red
+    exit 1
+}
+if (-not (Test-Path -LiteralPath $VfsRuntimeDll)) {
+    Write-Host "未找到闭源 VFS runtime：$VfsRuntimeDll" -ForegroundColor Red
     exit 1
 }
 
 $PythonPath = Ensure-NuitkaPython -TargetPython $PythonPath -VersionPrefix $RequiredPython -CustomPythonPath $HasCustomPythonPath
 
-Write-Host "开始准备 Nuitka 打包环境..." -ForegroundColor Cyan
+Write-Host "开始准备 VFS 专用 Nuitka 打包环境..." -ForegroundColor Cyan
 $InstallExitCode = Install-PythonPackages -TargetPython $PythonPath -Packages $NuitkaBuildPackages
 if ($InstallExitCode -ne 0) {
     exit $InstallExitCode
 }
 
-if (Test-Path -LiteralPath $OutputDir) {
-    Remove-Item -LiteralPath $OutputDir -Recurse -Force
-}
 if (Test-Path -LiteralPath $BuildDir) {
     Remove-Item -LiteralPath $BuildDir -Recurse -Force
 }
@@ -164,12 +173,12 @@ New-Item -ItemType Directory -Path $BuildDir -Force | Out-Null
 
 # 使用独立临时入口，保持 cdmm 包的绝对导入语义稳定。
 @"
-from cdmm.cli import main
+from cdmm.tools.vfs_launcher import main
 
 raise SystemExit(main())
 "@ | Set-Content -LiteralPath $EntryFile -Encoding UTF8
 
-# 项目源码位于包目录本身，Nuitka 从父目录启动才能按 cdmm 包名解析绝对导入。
+# 项目源码位于 cdmm 包目录本身，Nuitka 从父目录启动才能按 cdmm 包名解析绝对导入。
 $ParentDir = Split-Path -Parent $ScriptDir
 Set-Location $ParentDir
 
@@ -184,11 +193,10 @@ $NuitkaArgs = @(
     "--remove-output",
     "--windows-console-mode=force",
     "--company-name=cdmm",
-    "--product-name=Crimson Desert Lightweight Mod Loader",
-    "--file-description=Crimson Desert Lightweight Mod Loader",
+    "--product-name=Crimson Desert VFS Mod Loader",
+    "--file-description=Crimson Desert VFS Mod Loader",
     "--file-version=1.0.0.0",
     "--product-version=1.0.0.0",
-    "--include-package=cdmm",
     "--nofollow-import-to=pytest",
     "--nofollow-import-to=ruff",
     "--nofollow-import-to=PyInstaller",
@@ -201,22 +209,16 @@ $NuitkaArgs = @(
     "--nofollow-import-to=pandas",
     "--nofollow-import-to=numpy",
     "--nofollow-import-to=tqdm",
+    "--include-package=cryptography",
+    "--include-package=lz4",
+    "--include-data-file=$VfsLauncherFile=cdmm/private/vfs_runtime/nppvfs_launcher.exe",
+    "--include-data-file=$VfsRuntimeDll=cdmm/private/vfs_runtime/vfs_runtime.dll",
     "--jobs=$([Environment]::ProcessorCount)"
 )
 
-if (Test-Path -LiteralPath $GameConfigFile) {
-    # 开发阶段无 --game-dir 时仍可读取默认配置；成品放游戏根目录运行时不依赖它。
-    $NuitkaArgs += "--include-data-file=$GameConfigFile=cdmm/config/game_config.json"
-}
-
-if (Test-Path -LiteralPath $VersionFile) {
-    # 版本号随单文件 exe 一起打包，避免复制 exe 后旁边没有 version.txt 时回退到默认版本。
-    $NuitkaArgs += "--include-data-file=$VersionFile=cdmm/version.txt"
-}
-
 $NuitkaArgs += $EntryFile
 
-Write-Host "开始使用 Nuitka 打包 cdloader，不使用 UPX 压缩..." -ForegroundColor Cyan
+Write-Host "开始使用 Nuitka 打包 cdloader-VFS-v1，不使用 UPX 压缩..." -ForegroundColor Cyan
 & $PythonPath @NuitkaArgs
 try {
     if ($LASTEXITCODE -ne 0) {
@@ -234,5 +236,5 @@ if (-not (Test-Path -LiteralPath $ExePath)) {
 }
 
 $ExeSize = (Get-Item -LiteralPath $ExePath).Length / 1MB
-Write-Host ("Nuitka 打包完成：{0}（{1:N2} MB）" -f $ExePath, $ExeSize) -ForegroundColor Green
-Write-Host "未使用 UPX，输出目录与 PyInstaller 版分离。" -ForegroundColor Green
+Write-Host ("VFS 专用 Nuitka 打包完成：{0}（{1:N2} MB）" -f $ExePath, $ExeSize) -ForegroundColor Green
+Write-Host "复制 cdloader-VFS-v1.exe 到游戏根目录后双击，即默认构建 VFS 并启动游戏。" -ForegroundColor Green

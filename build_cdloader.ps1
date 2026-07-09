@@ -23,6 +23,7 @@ Set-Location $RepoRoot
 $OutputDir = Join-Path $ScriptDir $DistDir
 $WorkDir = Join-Path $ScriptDir "build\pyinstaller"
 $SpecDir = Join-Path $ScriptDir "build"
+$VersionFile = Join-Path $ScriptDir "version.txt"
 
 # PyInstaller 会跟随部分可选依赖，把测试、打包、交互环境模块一起收进单文件。
 # 这些模块不参与 cdloader 运行，集中排除可以降低成品 exe 体积。
@@ -59,6 +60,7 @@ $PyInstallerArgs = @(
     "--specpath", $SpecDir,
     "--optimize", "2",
     "--add-data", "$ScriptDir\config\game_config.json;config",
+    "--add-data", "$VersionFile;.",
     "$ScriptDir\cli.py"
 )
 

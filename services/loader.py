@@ -100,7 +100,7 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
     format3_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_FORMAT3]
     warnings.extend(collect_format3_warnings(format3_mods))
     pamt_targets = [
-        *collect_loose_pamt_targets(game_dir),
+        *collect_loose_pamt_targets(game_dir, mods),
         *collect_json_pamt_targets(json_mods),
         *collect_format3_pamt_targets(format3_mods),
     ]
@@ -118,6 +118,7 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
         vanilla_store,
         warnings,
         errors,
+        mods,
     )
     _log_phase("构建 loose overlay 输入", phase_started)
     _notify_progress(progress_callback, "构建 loose overlay 输入")
@@ -151,6 +152,7 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
     standalone_archives = collect_standalone_archives(
         game_dir,
         previous_items=previous_standalone_items,
+        ordered_mods=mods,
     )
     _log_phase("收集 standalone 归档", phase_started)
     _notify_progress(progress_callback, "收集 standalone 归档")

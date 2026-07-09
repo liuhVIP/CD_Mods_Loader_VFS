@@ -35,7 +35,7 @@ PAMT_TARGET_CACHE_SCHEMA = 2
 # 冷启动构建 PAMT 索引时并行解析的线程数，只读原版 0.pamt，不参与游戏文件写入。
 PAMT_INDEX_WORKER_COUNT = 4
 
-# 可选加载顺序文件名，位于 mods 目录下。
+# 可选加载顺序文件名。优先读取 .cdloader/load_order.json，兼容旧的 mods/load_order.json。
 LOAD_ORDER_FILE_NAME = "load_order.json"
 
 # 游戏元数据目录名。

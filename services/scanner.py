@@ -21,6 +21,7 @@ from cdmm.common.constants import (
     OVERLAY_PAZ_NAME,
     PAPGT_FILE_NAME,
     PATHC_FILE_NAME,
+    WORK_DIR_NAME,
 )
 from cdmm.common.models import DiscoveredMod
 from cdmm.utils.hash_utils import fingerprint_path
@@ -54,11 +55,12 @@ def scan_mods(game_dir: Path) -> tuple[list[DiscoveredMod], list[str]]:
     warnings: list[str] = []
     if not mods_dir.exists():
         mods_dir.mkdir(parents=True, exist_ok=True)
+        _sync_and_apply_load_order(game_dir, mods_dir, [], warnings)
         warnings.append(f"mods 目录不存在，已创建：{mods_dir}")
         return [], warnings
 
-    candidates = _collect_candidates(mods_dir, warnings)
-    ordered = _apply_load_order(mods_dir, candidates)
+    candidates = _collect_loadable_candidates(_collect_candidates(mods_dir, warnings))
+    ordered = _sync_and_apply_load_order(game_dir, mods_dir, candidates, warnings)
     discovered: list[DiscoveredMod] = []
     seen_hashes: set[str] = set()
 
@@ -79,7 +81,17 @@ def scan_mods(game_dir: Path) -> tuple[list[DiscoveredMod], list[str]]:
                 fingerprint=fingerprint,
             )
         )
+    _write_primary_load_order(
+        game_dir,
+        [mod.path.relative_to(mods_dir).as_posix() for mod in discovered],
+        warnings,
+    )
     return discovered, warnings
+
+
+def _collect_loadable_candidates(candidates: list[Path]) -> list[Path]:
+    """过滤 manifest/modinfo 等不会参与加载的候选，只保留真实可加载模组。"""
+    return [candidate for candidate in candidates if detect_mod_type(candidate) is not None]
 
 
 def detect_mod_type(path: Path) -> str | None:
@@ -330,36 +342,89 @@ def _append_once(warnings: list[str], reported: set[str], message: str) -> None:
     warnings.append(message)
 
 
-def _apply_load_order(mods_dir: Path, candidates: list[Path]) -> list[Path]:
-    """按 mods/load_order.json 调整加载顺序，其余按路径升序追加。"""
-    load_order_path = mods_dir / LOAD_ORDER_FILE_NAME
-    if not load_order_path.exists():
-        return candidates
+def _sync_and_apply_load_order(
+    game_dir: Path,
+    mods_dir: Path,
+    candidates: list[Path],
+    warnings: list[str],
+) -> list[Path]:
+    """同步 .cdloader/load_order.json，并返回实际加载顺序。"""
+    configured_order = _read_existing_load_order(game_dir, mods_dir, warnings)
+    synced_order, ordered_candidates = _normalize_load_order(mods_dir, candidates, configured_order)
+    _write_primary_load_order(game_dir, synced_order, warnings)
+    return ordered_candidates
+
+
+def _read_existing_load_order(game_dir: Path, mods_dir: Path, warnings: list[str]) -> list[str]:
+    """读取现有加载顺序；优先 .cdloader，兼容旧 mods 目录。"""
+    load_order_path = _resolve_load_order_path(game_dir, mods_dir)
+    if load_order_path is None:
+        return []
     try:
         order = json.loads(load_order_path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError):
-        logger.warning("load_order.json 无法解析，改用文件名升序")
-        return candidates
+        warnings.append(f"{load_order_path}: 加载顺序文件无法解析，已按当前 mods 自动重建")
+        return []
     if not isinstance(order, list):
-        return candidates
+        warnings.append(f"{load_order_path}: 加载顺序文件不是 JSON 数组，已按当前 mods 自动重建")
+        return []
+    return [item for item in order if isinstance(item, str)]
 
+
+def _normalize_load_order(
+    mods_dir: Path,
+    candidates: list[Path],
+    configured_order: list[str],
+) -> tuple[list[str], list[Path]]:
+    """删除过期排序项、补齐新增模组，并返回排序后的候选。"""
     by_key: dict[str, Path] = {}
     for candidate in candidates:
         rel = candidate.relative_to(mods_dir).as_posix()
         by_key[rel.lower()] = candidate
         by_key[candidate.name.lower()] = candidate
 
+    synced_order: list[str] = []
     ordered: list[Path] = []
     used: set[Path] = set()
-    for item in order:
-        if not isinstance(item, str):
-            continue
+    for item in configured_order:
         match = by_key.get(game_rel_path(item).lower())
         if match is not None and match not in used:
             ordered.append(match)
             used.add(match)
-    ordered.extend(candidate for candidate in candidates if candidate not in used)
-    return ordered
+            synced_order.append(match.relative_to(mods_dir).as_posix())
+
+    for candidate in candidates:
+        if candidate in used:
+            continue
+        ordered.append(candidate)
+        used.add(candidate)
+        synced_order.append(candidate.relative_to(mods_dir).as_posix())
+
+    return synced_order, ordered
+
+
+def _write_primary_load_order(game_dir: Path, synced_order: list[str], warnings: list[str]) -> None:
+    """把规范化后的加载顺序写回 .cdloader/load_order.json。"""
+    load_order_path = game_dir / WORK_DIR_NAME / LOAD_ORDER_FILE_NAME
+    try:
+        load_order_path.parent.mkdir(parents=True, exist_ok=True)
+        content = json.dumps(synced_order, ensure_ascii=False, indent=2) + "\n"
+        if load_order_path.exists() and load_order_path.read_text(encoding="utf-8-sig") == content:
+            return
+        load_order_path.write_text(content, encoding="utf-8")
+    except OSError as exc:
+        warnings.append(f"{load_order_path}: 加载顺序文件写入失败：{exc}")
+
+
+def _resolve_load_order_path(game_dir: Path, mods_dir: Path) -> Path | None:
+    """优先使用 .cdloader/load_order.json，兼容旧的 mods/load_order.json。"""
+    loader_order_path = game_dir / WORK_DIR_NAME / LOAD_ORDER_FILE_NAME
+    if loader_order_path.exists():
+        return loader_order_path
+    legacy_order_path = mods_dir / LOAD_ORDER_FILE_NAME
+    if legacy_order_path.exists():
+        return legacy_order_path
+    return None
 
 
 def _inside_game_archive_tree(rel_path: Path) -> bool:

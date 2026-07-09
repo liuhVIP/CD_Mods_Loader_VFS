@@ -1,0 +1,2 @@
+[lint]
+per-file-ignores = { "services/characterinfo_full_parser.py" = ["E702"], "services/iteminfo_native_parser.py" = ["E702", "F841"], "services/skill_native_parser.py" = ["E701", "E702", "F401"] }

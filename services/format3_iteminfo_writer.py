@@ -1,9 +1,9 @@
 """Format 3 ItemInfo 专用字节补丁生成器。
 
 当前独立加载器先支持真实常见的
-``prefab_data_list[N].tribe_gender_list`` 写入，不依赖完整管理器的数据库
-或 crimson_rs 整表解析器，直接在 vanilla PABGB entry 内定位数组并生成
-传统 byte patch。
+``prefab_data_list[N].tribe_gender_list`` 以及 `drop_default_data` 中少量
+原始字段写入，不依赖完整管理器的数据库或 crimson_rs 整表解析器，直接在
+vanilla PABGB entry 内定位目标并生成传统 byte patch。
 """
 
 from __future__ import annotations
@@ -12,9 +12,43 @@ import re
 import struct
 from typing import Any
 
+from cdmm.services.format3_parser import Format3Intent
+from cdmm.services.format3_runtime import (
+    Format3DispatchResult,
+    Format3RuntimeContext,
+    Format3SkippedIntent,
+)
+from cdmm.services.format3_iteminfo_whole_writer import (
+    build_iteminfo_whole_table_result,
+    shape_matches,
+    should_use_iteminfo_whole_table,
+    _coerce_prefab_data_list,
+)
+from cdmm.services.iteminfo_native_parser import (
+    parse_iteminfo_prefab_data_list,
+    serialize_iteminfo_prefab_data_list,
+)
+
 # Format 3 字段路径：装备可穿戴种族/性别数组。
 PREFAB_TRIBE_GENDER_FIELD_RE = re.compile(
     r"^prefab_data_list\[(?P<index>\d+)]\.tribe_gender_list$"
+)
+
+DROP_DEFAULT_FIELD_RE = re.compile(
+    r"^drop_default_data\.(?P<field>drop_enchant_level|socket_item_list|"
+    r"add_socket_material_item_list|default_sub_item|"
+    r"socket_valid_count|use_socket)$"
+)
+
+ITEMINFO_SUPPORTED_FIELD_REASON = (
+    "iteminfo 仅支持 prefab_data_list[N].tribe_gender_list、"
+    "drop_default_data.drop_enchant_level、"
+    "drop_default_data.socket_item_list、"
+    "drop_default_data.add_socket_material_item_list、"
+    "drop_default_data.default_sub_item、"
+    "drop_default_data.socket_valid_count、"
+    "drop_default_data.use_socket，"
+    "以及已迁入的 whole-table 字段（如 cooltime、equipable_hash 等）"
 )
 
 # 单个 entry 内数组数量的安全上限，用于快速拒绝错位读取。
@@ -22,6 +56,13 @@ MAX_REASONABLE_ARRAY_COUNT = 1_000_000
 
 # 扫描 fallback 只接受较小的 PrefabData 数量，降低误命中普通 u32 的风险。
 MAX_PREFAB_SCAN_COUNT = 128
+
+# DMM V3 导出的 Equip Everything V6 使用的尾部 prefab 结构。
+# 真实字节形态为 count + 多个 legacy element，element 以三个 1.0f scale 开头。
+LEGACY_PREFAB_SCALE_NEEDLE = struct.pack("<fff", 1.0, 1.0, 1.0)
+
+# 只在单条 ItemInfo 记录尾部小窗口内扫描 legacy prefab，避免误命中普通数据。
+LEGACY_PREFAB_SCAN_TAIL_BYTES = 8192
 
 # ItemInfo 从 payload 起点走到 _prefabDataList 前需要消费的字段。
 ITEMINFO_FIELDS_BEFORE_PREFAB: tuple[str, ...] = (
@@ -90,6 +131,45 @@ ITEMINFO_FIELDS_BEFORE_PREFAB: tuple[str, ...] = (
     "u8",
     "DropDefaultData",
 )
+
+# DropDefaultData 位于 prefab_data_list 前一位，后续继续迁 iteminfo
+# nested path / whole-table writer 时可以复用这里的边界定义。
+ITEMINFO_FIELDS_BEFORE_DROP_DEFAULT = ITEMINFO_FIELDS_BEFORE_PREFAB[:-1]
+
+DROP_DEFAULT_FIELD_LAYOUTS: dict[str, tuple[tuple[str, ...], str]] = {
+    "drop_enchant_level": ((), "u16"),
+    "socket_item_list": (
+        ("u16",),
+        "CArray<u32>",
+    ),
+    "add_socket_material_item_list": (
+        ("u16", "CArray<u32>"),
+        "CArray<SocketMaterialItem>",
+    ),
+    "default_sub_item": (
+        ("u16", "CArray<u32>", "CArray<SocketMaterialItem>"),
+        "SubItem",
+    ),
+    "socket_valid_count": (
+        (
+            "u16",
+            "CArray<u32>",
+            "CArray<SocketMaterialItem>",
+            "SubItem",
+        ),
+        "u8",
+    ),
+    "use_socket": (
+        (
+            "u16",
+            "CArray<u32>",
+            "CArray<SocketMaterialItem>",
+            "SubItem",
+            "u8",
+        ),
+        "u8",
+    ),
+}
 
 PRIMITIVE_WIDTHS: dict[str, int] = {
     "u8": 1,
@@ -169,12 +249,320 @@ def build_iteminfo_prefab_changes(
     changes: list[dict] = []
     skipped = 0
     for intent in intents:
-        change = _build_single_change(vanilla_body, key_size, entry_bounds, intent)
+        change, _reason = _build_single_change_with_reason(
+            vanilla_body,
+            key_size,
+            entry_bounds,
+            intent,
+        )
         if change is None:
             skipped += 1
         else:
             changes.append(change)
     return changes, skipped
+
+
+def build_iteminfo_prefab_result(
+    context: Format3RuntimeContext,
+    intents: list[Format3Intent],
+) -> Format3DispatchResult:
+    """按字段能力自动分流到窄 writer 或 whole-table writer。"""
+    if intents and all(intent.field == "prefab_data_list" for intent in intents):
+        return _build_iteminfo_prefab_list_result(context, intents)
+    if should_use_iteminfo_whole_table(intents):
+        return build_iteminfo_whole_table_result(context, intents)
+
+    changes: list[dict] = []
+    skipped: list[Format3SkippedIntent] = []
+    for intent in intents:
+        change, reason = _build_single_change_with_reason(
+            context.body,
+            context.key_size,
+            context.entry_bounds,
+            intent.to_legacy_dict(),
+        )
+        if change is None:
+            skipped.append(
+                Format3SkippedIntent(
+                    intent=intent,
+                    reason=reason or "writer 未生成补丁",
+                )
+            )
+            continue
+        changes.append(change)
+    return Format3DispatchResult(
+        changes=tuple(changes),
+        skipped=tuple(skipped),
+    )
+
+
+def _build_iteminfo_prefab_list_result(
+    context: Format3RuntimeContext,
+    intents: list[Format3Intent],
+) -> Format3DispatchResult:
+    """快速处理 DMM 扁平导出的整条 prefab_data_list intent。
+
+    Equip Everything 这类模组会一次性提交数千条 `prefab_data_list`
+    set intent。整表 whole-table roundtrip 会非常慢，这里只解析被命中的
+    单条 ItemInfo 记录，并复用 native parser 保留 prefab 内未知 tribe 块。
+    """
+    changes: list[dict] = []
+    skipped: list[Format3SkippedIntent] = []
+    for intent in intents:
+        if intent.op != "set":
+            skipped.append(Format3SkippedIntent(intent=intent, reason="iteminfo prefab_data_list 仅支持 op=set"))
+            continue
+        bounds, resolve_reason = _resolve_entry_bounds(context.entry_bounds, intent.to_legacy_dict())
+        if bounds is None:
+            skipped.append(Format3SkippedIntent(intent=intent, reason=resolve_reason or "目标 entry 未命中"))
+            continue
+
+        entry_off, entry_end, entry_name, name_end = bounds
+        entry_bytes = context.body[entry_off:entry_end]
+        legacy_change, legacy_reason = _build_legacy_prefab_list_change(
+            entry_bytes,
+            entry_off,
+            entry_name,
+            name_end,
+            intent,
+        )
+        if legacy_change is not None:
+            changes.append(legacy_change)
+            continue
+        if legacy_reason is not None:
+            # 不是 DMM V3 尾部 legacy prefab 结构时继续尝试 native parser。
+            # 真正失败原因由 native 分支统一暴露，避免对其他 Format 3
+            # iteminfo 模组产生过早跳过。
+            pass
+
+        try:
+            existing, field_start, field_end = parse_iteminfo_prefab_data_list(entry_bytes)
+        except Exception as exc:
+            skipped.append(Format3SkippedIntent(intent=intent, reason=f"iteminfo prefab_data_list 定位失败：{exc}"))
+            continue
+
+        new_value, reason = _coerce_prefab_data_list(existing, intent.new)
+        if reason is not None:
+            skipped.append(Format3SkippedIntent(intent=intent, reason=reason))
+            continue
+        if not shape_matches(existing, new_value):
+            skipped.append(Format3SkippedIntent(intent=intent, reason="prefab_data_list 新值结构不匹配"))
+            continue
+
+        try:
+            patched = serialize_iteminfo_prefab_data_list(new_value)
+        except Exception as exc:
+            skipped.append(Format3SkippedIntent(intent=intent, reason=f"iteminfo prefab_data_list 序列化失败：{exc}"))
+            continue
+        original = entry_bytes[field_start:field_end]
+        if patched == original:
+            skipped.append(Format3SkippedIntent(intent=intent, reason="目标字节已是期望值"))
+            continue
+
+        changes.append(
+            {
+                "entry": entry_name or str(intent.entry or intent.key),
+                "rel_offset": entry_off + field_start - name_end,
+                "original": original.hex(),
+                "patched": patched.hex(),
+                "label": f"{intent.entry or intent.key}.prefab_data_list",
+            }
+        )
+    return Format3DispatchResult(
+        changes=tuple(changes),
+        skipped=tuple(skipped),
+    )
+
+
+def _build_legacy_prefab_list_change(
+    entry_bytes: bytes,
+    entry_off: int,
+    entry_name: str,
+    name_end: int,
+    intent: Format3Intent,
+) -> tuple[dict | None, str | None]:
+    """生成 DMM V3 legacy prefab-list 的整段替换补丁。"""
+    patched = _pack_legacy_prefab_data_list(intent.new)
+    if patched is None:
+        return None, "prefab_data_list 不是 DMM V3 legacy 结构"
+
+    block = _locate_legacy_prefab_data_list(entry_bytes, intent.new)
+    if block is None:
+        return None, "未定位到 DMM V3 legacy prefab_data_list 尾部块"
+
+    start, end = block
+    original = entry_bytes[start:end]
+    if original == patched:
+        return None, "目标字节已是期望值"
+
+    return {
+        "entry": entry_name or str(intent.entry or intent.key),
+        "rel_offset": entry_off + start - name_end,
+        "original": original.hex(),
+        "patched": patched.hex(),
+        "label": f"{intent.entry or intent.key}.prefab_data_list",
+    }, None
+
+
+def _pack_legacy_prefab_data_list(value: object) -> bytes | None:
+    """按 DMM V3 / Equip Everything V6 的 legacy prefab 尾部结构打包。"""
+    if not isinstance(value, list):
+        return None
+
+    out = bytearray(struct.pack("<I", len(value)))
+    for item in value:
+        if not isinstance(item, dict):
+            return None
+        prefab_names = item.get("prefab_names") or []
+        equip_slots = item.get("equip_slot_list") or []
+        tribe_genders = item.get("tribe_gender_list") or []
+        craft_material = item.get("is_craft_material", 0)
+        if not _is_u32_list(prefab_names):
+            return None
+        if not _is_u16_list(equip_slots):
+            return None
+        if not _is_u32_list(tribe_genders):
+            return None
+        if (
+            isinstance(craft_material, bool)
+            or not isinstance(craft_material, int)
+            or craft_material < 0
+            or craft_material > 0xFF
+        ):
+            return None
+
+        out += LEGACY_PREFAB_SCALE_NEEDLE
+        out += _pack_u32_array(prefab_names)
+        # 当前 DMM V3 产物在 prefab_names 后固定写一个空 CArray<u32>。
+        out += _pack_u32_array([])
+        out += _pack_u16_array(equip_slots)
+        out += _pack_u32_array(tribe_genders)
+        out += struct.pack("<B", craft_material)
+        # DMM V3 的 element 尾部有 2 字节 padding；漏写会导致游戏启动失败。
+        out += b"\x00\x00"
+    return bytes(out)
+
+
+def _locate_legacy_prefab_data_list(
+    entry_bytes: bytes,
+    new_value: object,
+) -> tuple[int, int] | None:
+    """在单条 ItemInfo 记录尾部定位 DMM V3 legacy prefab 块。"""
+    if not entry_bytes.endswith(b"\xFF\x00"):
+        return None
+
+    first_hash = _first_prefab_hash(new_value)
+    new_count = len(new_value) if isinstance(new_value, list) else 0
+    scan_start = max(0, len(entry_bytes) - LEGACY_PREFAB_SCAN_TAIL_BYTES)
+    strong_candidates: list[int] = []
+    candidates: list[int] = []
+    relaxed_strong_candidates: list[int] = []
+    relaxed_candidates: list[int] = []
+    limit = len(entry_bytes) - len(LEGACY_PREFAB_SCALE_NEEDLE) - 4
+    for offset in range(scan_start, max(scan_start, limit + 1)):
+        if not _looks_like_legacy_prefab_scale_start(entry_bytes, offset):
+            continue
+        if _has_legacy_prefab_strict_prefix(entry_bytes, offset):
+            candidates.append(offset)
+            if first_hash is not None and _candidate_first_prefab_hash_matches(
+                entry_bytes,
+                offset,
+                first_hash,
+            ):
+                strong_candidates.append(offset)
+        elif _is_relaxed_legacy_prefab_candidate(entry_bytes, offset, new_count):
+            relaxed_candidates.append(offset)
+            if first_hash is not None and _candidate_first_prefab_hash_matches(
+                entry_bytes,
+                offset,
+                first_hash,
+            ):
+                relaxed_strong_candidates.append(offset)
+
+    if len(strong_candidates) == 1:
+        return strong_candidates[0], len(entry_bytes) - 2
+    if not strong_candidates and len(candidates) == 1:
+        return candidates[0], len(entry_bytes) - 2
+    if candidates:
+        return None
+    if len(relaxed_strong_candidates) == 1:
+        return relaxed_strong_candidates[0], len(entry_bytes) - 2
+    if not relaxed_strong_candidates and len(relaxed_candidates) == 1:
+        return relaxed_candidates[0], len(entry_bytes) - 2
+    return None
+
+
+def _looks_like_legacy_prefab_scale_start(entry_bytes: bytes, offset: int) -> bool:
+    """判断 offset 是否具备 legacy prefab-list 的 count + scale 起点形态。"""
+    if offset < 4 or offset + 16 > len(entry_bytes):
+        return False
+    count = struct.unpack_from("<I", entry_bytes, offset)[0]
+    if count == 0 or count > MAX_PREFAB_SCAN_COUNT:
+        return False
+    return entry_bytes[offset + 4:offset + 16] == LEGACY_PREFAB_SCALE_NEEDLE
+
+
+def _has_legacy_prefab_strict_prefix(entry_bytes: bytes, offset: int) -> bool:
+    """判断 legacy prefab-list 起点前是否带常见 ff/zero 尾部标记。"""
+    prefix = entry_bytes[max(0, offset - 16):offset]
+    return entry_bytes[offset - 4:offset] == b"\x00\x00\x00\x00" and b"\xFF\xFF" in prefix
+
+
+def _is_relaxed_legacy_prefab_candidate(
+    entry_bytes: bytes,
+    offset: int,
+    new_count: int,
+) -> bool:
+    """处理少数没有 ff 前缀、但仍是唯一尾部 prefab 块的记录。"""
+    if new_count <= 0:
+        return False
+    count = struct.unpack_from("<I", entry_bytes, offset)[0]
+    if count > new_count + 5:
+        return False
+    # 这批特殊记录的 prefab 块前仍紧邻全零字段，内部误命中通常没有该特征。
+    return entry_bytes[offset - 4:offset] == b"\x00\x00\x00\x00"
+
+
+def _candidate_first_prefab_hash_matches(
+    entry_bytes: bytes,
+    offset: int,
+    first_hash: int,
+) -> bool:
+    """校验候选块第一个 prefab hash 是否与新值一致。"""
+    prefab_count_offset = offset + 4 + len(LEGACY_PREFAB_SCALE_NEEDLE)
+    if prefab_count_offset + 8 > len(entry_bytes):
+        return False
+    prefab_count = struct.unpack_from("<I", entry_bytes, prefab_count_offset)[0]
+    if prefab_count == 0 or prefab_count > MAX_PREFAB_SCAN_COUNT:
+        return False
+    current_hash = struct.unpack_from("<I", entry_bytes, prefab_count_offset + 4)[0]
+    return current_hash == first_hash
+
+
+def _first_prefab_hash(value: object) -> int | None:
+    """从 Format 3 prefab_data_list 新值中取第一个 prefab hash。"""
+    if not isinstance(value, list):
+        return None
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        prefab_names = item.get("prefab_names")
+        if not isinstance(prefab_names, list) or not prefab_names:
+            continue
+        first = prefab_names[0]
+        if isinstance(first, int) and not isinstance(first, bool) and 0 <= first <= 0xFFFFFFFF:
+            return first
+    return None
+
+
+def _pack_u32_array(values: list[int]) -> bytes:
+    """打包 CArray<u32>。"""
+    return struct.pack("<I", len(values)) + b"".join(struct.pack("<I", item) for item in values)
+
+
+def _pack_u16_array(values: list[int]) -> bytes:
+    """打包 CArray<u16>。"""
+    return struct.pack("<I", len(values)) + b"".join(struct.pack("<H", item) for item in values)
 
 
 def _build_single_change(
@@ -184,30 +572,78 @@ def _build_single_change(
     intent: dict[str, Any],
 ) -> dict | None:
     """定位单条 intent 的 tribe_gender_list 并生成 replace change。"""
+    change, _reason = _build_single_change_with_reason(body, key_size, entry_bounds, intent)
+    return change
+
+
+def _build_single_change_with_reason(
+    body: bytes,
+    key_size: int,
+    entry_bounds: dict[int, tuple[int, int, str, int]],
+    intent: dict[str, Any],
+) -> tuple[dict | None, str | None]:
+    """定位单条 intent，并在失败时返回明确原因。"""
     if intent.get("op", "set") != "set":
-        return None
+        return None, "仅支持 op=set"
     field = intent.get("field")
     if not isinstance(field, str):
-        return None
-    match = PREFAB_TRIBE_GENDER_FIELD_RE.match(field)
-    if match is None:
-        return None
-    values = intent.get("new")
-    if not _is_u32_list(values):
-        return None
+        return None, "field 不是字符串"
+    prefab_match = PREFAB_TRIBE_GENDER_FIELD_RE.match(field)
+    drop_default_match = DROP_DEFAULT_FIELD_RE.match(field)
+    if prefab_match is None and drop_default_match is None:
+        return None, ITEMINFO_SUPPORTED_FIELD_REASON
     key = intent.get("key")
     if isinstance(key, bool) or not isinstance(key, int):
-        return None
-    bounds = entry_bounds.get(key)
+        return None, "key 不是整数"
+    bounds, resolve_reason = _resolve_entry_bounds(entry_bounds, intent)
     if bounds is None:
-        return None
+        return None, resolve_reason or "目标 entry 未命中"
 
     entry_off, entry_end, entry_name, name_end = bounds
     payload_off = _payload_offset(body, entry_off, key_size)
     if payload_off is None:
-        return None
+        return None, "entry payload 定位失败"
+    if prefab_match is not None:
+        values = intent.get("new")
+        if not _is_u32_list(values):
+            return None, "new 不是 u32 数组"
+        return _build_prefab_change(
+            body,
+            entry_end,
+            entry_name,
+            name_end,
+            payload_off,
+            prefab_match,
+            values,
+            intent,
+        )
+
+    if drop_default_match is not None:
+        return _build_drop_default_change(
+            body,
+            entry_end,
+            entry_name,
+            name_end,
+            payload_off,
+            drop_default_match.group("field"),
+            intent,
+        )
+    return None, ITEMINFO_SUPPORTED_FIELD_REASON
+
+
+def _build_prefab_change(
+    body: bytes,
+    entry_end: int,
+    entry_name: str,
+    name_end: int,
+    payload_off: int,
+    prefab_match: re.Match[str],
+    values: list[int],
+    intent: dict[str, Any],
+) -> tuple[dict | None, str | None]:
+    """生成 prefab_data_list[N].tribe_gender_list 的 byte patch。"""
     prefab_list_off = _walk_fields(body, payload_off, entry_end, ITEMINFO_FIELDS_BEFORE_PREFAB)
-    prefab_index = int(match.group("index"))
+    prefab_index = int(prefab_match.group("index"))
     tribe_range = None
     if prefab_list_off is not None:
         tribe_range = _locate_prefab_tribe_gender_list(
@@ -228,20 +664,96 @@ def _build_single_change(
             values,
         )
     if tribe_range is None:
-        return None
+        return None, "prefab_data_list 目标字段定位失败"
 
     start, end = tribe_range
     patched = struct.pack("<I", len(values)) + b"".join(struct.pack("<I", item) for item in values)
     original = body[start:end]
     if original == patched:
-        return None
+        return None, "目标字节已是期望值"
+    field = intent.get("field")
+    key = intent.get("key")
     return {
         "entry": entry_name or str(intent.get("entry") or ""),
         "rel_offset": start - name_end,
         "original": original.hex(),
         "patched": patched.hex(),
         "label": f"{intent.get('entry', key)}.{field}",
-    }
+    }, None
+
+
+def _build_drop_default_change(
+    body: bytes,
+    entry_end: int,
+    entry_name: str,
+    name_end: int,
+    payload_off: int,
+    field_name: str,
+    intent: dict[str, Any],
+) -> tuple[dict | None, str | None]:
+    """生成 drop_default_data 原始字段的 entry+rel_offset patch。"""
+    drop_default_off = _walk_fields(
+        body,
+        payload_off,
+        entry_end,
+        ITEMINFO_FIELDS_BEFORE_DROP_DEFAULT,
+    )
+    if drop_default_off is None:
+        return None, "drop_default_data 起点定位失败"
+
+    prefix_fields, target_descriptor = DROP_DEFAULT_FIELD_LAYOUTS[field_name]
+    target_off = drop_default_off
+    if prefix_fields:
+        target_off = _walk_fields(body, drop_default_off, entry_end, prefix_fields)
+        if target_off is None:
+            return None, f"{field_name} 前置字段定位失败"
+
+    width = _consume_bytes(target_descriptor, body, target_off, entry_end)
+    if width is None:
+        return None, f"{field_name} 长度解析失败"
+    patched = _pack_descriptor_value(intent.get("new"), target_descriptor)
+    if patched is None:
+        return None, f"{field_name} 的 new 值类型不合法"
+
+    original = body[target_off:target_off + width]
+    if len(original) != width:
+        return None, f"{field_name} 原始字节范围越界"
+    if original == patched:
+        return None, "目标字节已是期望值"
+    return {
+        "entry": entry_name or str(intent.get("entry") or ""),
+        "rel_offset": target_off - name_end,
+        "original": original.hex(),
+        "patched": patched.hex(),
+        "label": f"{intent.get('entry', intent.get('key'))}.drop_default_data.{field_name}",
+    }, None
+
+
+def _resolve_entry_bounds(
+    entry_bounds: dict[int, tuple[int, int, str, int]],
+    intent: dict[str, Any],
+) -> tuple[tuple[int, int, str, int] | None, str | None]:
+    """优先按稳定 key 命中，缺省或未命中时回退到 entry 名称。"""
+    key = intent.get("key")
+    if isinstance(key, int) and not isinstance(key, bool):
+        bounds = entry_bounds.get(key)
+        if bounds is not None:
+            return bounds, None
+
+    entry_name = intent.get("entry")
+    if not isinstance(entry_name, str) or not entry_name:
+        return None, "目标 entry key 未命中"
+
+    matches = [
+        bounds
+        for bounds in entry_bounds.values()
+        if bounds[2] == entry_name
+    ]
+    if len(matches) == 1:
+        return matches[0], None
+    if not matches:
+        return None, "目标 entry key/名称 都未命中"
+    return None, "目标 entry 名称命中多个记录，存在歧义"
 
 
 def _payload_offset(body: bytes, entry_off: int, key_size: int) -> int | None:
@@ -482,3 +994,91 @@ def _is_u32_list(value: object) -> bool:
         isinstance(item, int) and not isinstance(item, bool) and 0 <= item <= 0xFFFFFFFF
         for item in value
     )
+
+
+def _is_u16_list(value: object) -> bool:
+    """判断新值是否为可写入 CArray<u16> 的列表。"""
+    return isinstance(value, list) and all(
+        isinstance(item, int) and not isinstance(item, bool) and 0 <= item <= 0xFFFF
+        for item in value
+    )
+
+
+def _pack_descriptor_value(value: object, descriptor: str) -> bytes | None:
+    """把支持的 Format 3 新值打包成目标描述对应的字节。"""
+    if descriptor in {"u8", "u16"}:
+        return _pack_unsigned_primitive(value, descriptor)
+    if descriptor == "CArray<u32>":
+        if not _is_u32_list(value):
+            return None
+        return struct.pack("<I", len(value)) + b"".join(struct.pack("<I", item) for item in value)
+    if descriptor == "CArray<SocketMaterialItem>":
+        return _pack_socket_material_item_array(value)
+    if descriptor == "SubItem":
+        return _pack_sub_item(value)
+    return None
+
+
+def _pack_unsigned_primitive(value: object, descriptor: str) -> bytes | None:
+    """把 primitive 新值打包成固定宽度字节。"""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    if descriptor == "u8" and 0 <= value <= 0xFF:
+        return struct.pack("<B", value)
+    if descriptor == "u16" and 0 <= value <= 0xFFFF:
+        return struct.pack("<H", value)
+    return None
+
+
+def _pack_socket_material_item_array(value: object) -> bytes | None:
+    """把 add_socket_material_item_list 打包为 CArray<SocketMaterialItem>。"""
+    if not isinstance(value, list):
+        return None
+
+    packed_items: list[bytes] = []
+    for item in value:
+        if not isinstance(item, dict):
+            return None
+        raw_item = item.get("item")
+        raw_value = item.get("value")
+        if (
+            isinstance(raw_item, bool)
+            or not isinstance(raw_item, int)
+            or raw_item < 0
+            or raw_item > 0xFFFFFFFF
+        ):
+            return None
+        if (
+            isinstance(raw_value, bool)
+            or not isinstance(raw_value, int)
+            or raw_value < 0
+            or raw_value > 0xFFFFFFFFFFFFFFFF
+        ):
+            return None
+        packed_items.append(struct.pack("<I", raw_item) + struct.pack("<Q", raw_value))
+
+    return struct.pack("<I", len(packed_items)) + b"".join(packed_items)
+
+
+def _pack_sub_item(value: object) -> bytes | None:
+    """把 drop_default_data.default_sub_item 打包为 SubItem tagged variant。"""
+    if not isinstance(value, dict):
+        return None
+
+    raw_type_id = value.get("type_id")
+    if isinstance(raw_type_id, bool) or not isinstance(raw_type_id, int):
+        return None
+    if raw_type_id == 14:
+        return struct.pack("<B", raw_type_id)
+    if raw_type_id not in {0, 3, 9}:
+        return None
+
+    raw_sub_value = value.get("value")
+    if (
+        isinstance(raw_sub_value, bool)
+        or not isinstance(raw_sub_value, int)
+        or raw_sub_value < 0
+        or raw_sub_value > 0xFFFFFFFF
+    ):
+        return None
+    return struct.pack("<B", raw_type_id) + struct.pack("<I", raw_sub_value)

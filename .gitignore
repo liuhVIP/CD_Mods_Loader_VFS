@@ -2,6 +2,16 @@ build/
 dist/
 dist_nuitka/
 
+# 本地敏感/内部资料，不上传 GitHub
+AGENTS.md
+.codex/
+docs/
+test/
+
+# 闭源 VFS runtime 二进制，仅本地打包使用，不随开源仓库发布
+private/vfs_runtime/*
+!private/vfs_runtime/README.md
+
 # Python 运行缓存文件
 __pycache__/
 *.py[cod]

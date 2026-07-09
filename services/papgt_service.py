@@ -19,8 +19,14 @@ ENTRY_SIZE = 12
 DEFAULT_LANG_TYPE = 0x3FFF
 
 
-def build_papgt(game_dir: Path, vanilla_store: VanillaStore, modified_pamts: dict[str, bytes]) -> bytes:
-    """基于 vanilla PAPGT 重建目录索引，并把新 overlay 目录插到最前。"""
+def build_papgt(
+    game_dir: Path,
+    vanilla_store: VanillaStore,
+    modified_pamts: dict[str, bytes],
+    prepend_order: list[str] | None = None,
+    normalize_existing_flags: bool = False,
+) -> bytes:
+    """基于 vanilla PAPGT 重建目录索引，并把新 overlay 目录按指定顺序插到最前。"""
     base_rel = f"{META_DIR_NAME}/{PAPGT_FILE_NAME}"
     vanilla_store.ensure_file_backup(base_rel)
     papgt = bytearray(vanilla_store.read_file(base_rel))
@@ -44,11 +50,13 @@ def build_papgt(game_dir: Path, vanilla_store: VanillaStore, modified_pamts: dic
 
     modified_names = set(modified_pamts)
     existing = {name for name, _flags, _hash in parsed_entries}
-    new_dirs = [name for name in sorted(modified_names) if name not in existing]
+    new_dirs = _order_new_dirs(modified_names, existing, prepend_order)
 
     live_entries: list[tuple[str, int]] = []
     for name, flags, _old_hash in parsed_entries:
         if name in modified_names or _should_keep_existing(game_dir, name):
+            if normalize_existing_flags:
+                flags = encode_flags()
             live_entries.append((name, flags))
 
     all_entries: list[tuple[str, int]] = []
@@ -80,6 +88,22 @@ def build_papgt(game_dir: Path, vanilla_store: VanillaStore, modified_pamts: dic
     result += string_table
     struct.pack_into("<I", result, 4, compute_papgt_hash(bytes(result)))
     return bytes(result)
+
+
+def _order_new_dirs(
+    modified_names: set[str],
+    existing_names: set[str],
+    prepend_order: list[str] | None,
+) -> list[str]:
+    """按调用方指定顺序排列新增目录，剩余目录保持稳定字母序。"""
+    unordered = {name for name in modified_names if name not in existing_names}
+    ordered: list[str] = []
+    if prepend_order:
+        for name in prepend_order:
+            if name in unordered and name not in ordered:
+                ordered.append(name)
+    remaining = sorted(name for name in unordered if name not in set(ordered))
+    return [*ordered, *remaining]
 
 
 def encode_flags(is_optional: int = 0, lang_type: int = DEFAULT_LANG_TYPE, zero: int = 0) -> int:
