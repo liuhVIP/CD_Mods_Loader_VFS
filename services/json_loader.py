@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import struct
+from bisect import bisect_right
 from pathlib import Path
 
 from cdmm.archive.pamt import derive_pamt_dir
@@ -504,10 +505,18 @@ def fixup_pabgh_after_inserts(pabgh: bytes, inserts: list[tuple[int, int]]) -> b
         prefix = 4
     count = min(count, (len(data) - prefix) // 8)
     sorted_inserts = sorted(inserts, key=lambda item: item[0])
+    insert_offsets: list[int] = []
+    cumulative_deltas: list[int] = []
+    running_delta = 0
+    for insert_offset, size in sorted_inserts:
+        running_delta += size
+        insert_offsets.append(insert_offset)
+        cumulative_deltas.append(running_delta)
     for index in range(count):
         pos = prefix + index * 8
         pointer = struct.unpack_from("<I", data, pos + 4)[0]
-        delta = sum(size for insert_offset, size in sorted_inserts if insert_offset <= pointer)
+        delta_index = bisect_right(insert_offsets, pointer) - 1
+        delta = cumulative_deltas[delta_index] if delta_index >= 0 else 0
         if delta:
             struct.pack_into("<I", data, pos + 4, pointer + delta)
     return bytes(data)

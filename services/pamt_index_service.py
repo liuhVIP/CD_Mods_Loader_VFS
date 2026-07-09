@@ -255,14 +255,21 @@ class GamePamtIndex:
 
 
 _GAME_INDEX_CACHE: dict[tuple[str, tuple[tuple[str, int, int], ...]], GamePamtIndex] = {}
+_GAME_INDEX_BY_DIR: dict[str, GamePamtIndex] = {}
 
 
 def get_game_pamt_index(game_dir: Path) -> GamePamtIndex:
     """获取当前游戏目录的按需 PAMT 查询上下文。"""
+    resolved_dir = str(game_dir.resolve())
+    cached_by_dir = _GAME_INDEX_BY_DIR.get(resolved_dir)
+    if cached_by_dir is not None:
+        return cached_by_dir
+
     signature = _pamt_signature(game_dir)
-    cache_key = (str(game_dir.resolve()), signature)
+    cache_key = (resolved_dir, signature)
     cached = _GAME_INDEX_CACHE.get(cache_key)
     if cached is not None:
+        _GAME_INDEX_BY_DIR[resolved_dir] = cached
         return cached
 
     target_cache = _load_target_cache(game_dir, signature)
@@ -279,14 +286,14 @@ def get_game_pamt_index(game_dir: Path) -> GamePamtIndex:
         desired_exact=set(),
     )
     _GAME_INDEX_CACHE[cache_key] = index
+    _GAME_INDEX_BY_DIR[resolved_dir] = index
     return index
 
 
 def save_game_pamt_target_cache(game_dir: Path) -> None:
     """保存当前运行内新增的 PAMT 目标命中缓存。"""
-    signature = _pamt_signature(game_dir)
-    cache_key = (str(game_dir.resolve()), signature)
-    index = _GAME_INDEX_CACHE.get(cache_key)
+    resolved_dir = str(game_dir.resolve())
+    index = _GAME_INDEX_BY_DIR.get(resolved_dir)
     if index is not None:
         index.save_target_cache()
 

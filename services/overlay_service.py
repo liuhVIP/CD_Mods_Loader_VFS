@@ -149,13 +149,14 @@ def build_overlay(overlay_dir: str, entries: list[OverlayInputEntry], game_dir: 
     paz_buffer = bytearray()
     built_entries: list[BuiltOverlayEntry] = []
     seen: dict[str, OverlayInputEntry] = {}
+    path_map_cache: dict[str, dict[str, str]] = {}
     for entry in entries:
         # 同一 entry_path 采用最后写入结果，匹配低序号先加载、后续覆盖的组合语义。
         seen[entry.entry_path.lower()] = entry
 
     for entry in seen.values():
         filename = entry.entry_path.rsplit("/", 1)[-1]
-        dir_path = _resolve_dir_path(entry.entry_path, entry.pamt_dir, game_dir)
+        dir_path = _resolve_dir_path(entry.entry_path, entry.pamt_dir, game_dir, path_map_cache)
         paz_offset = len(paz_buffer)
         if paz_offset > 0xFFFFFFFF:
             raise ValueError("overlay PAZ 超过 4GiB，当前第一阶段不支持拆分输出")
@@ -453,9 +454,19 @@ def _build_multi_pamt(entries: list[BuiltOverlayEntry], paz_data_len: int) -> by
     return bytes(bytearray(4) + body)
 
 
-def _resolve_dir_path(entry_path: str, pamt_dir: str, game_dir: Path) -> str:
+def _resolve_dir_path(
+    entry_path: str,
+    pamt_dir: str,
+    game_dir: Path,
+    path_map_cache: dict[str, dict[str, str]] | None = None,
+) -> str:
     """从 vanilla PAMT 尽量恢复完整目录路径，失败时使用 entry_path 父目录。"""
-    path_map = _build_full_path_map(game_dir / pamt_dir / OVERLAY_PAMT_NAME)
+    if path_map_cache is not None and pamt_dir in path_map_cache:
+        path_map = path_map_cache[pamt_dir]
+    else:
+        path_map = _build_full_path_map(game_dir / pamt_dir / OVERLAY_PAMT_NAME)
+        if path_map_cache is not None:
+            path_map_cache[pamt_dir] = path_map
     if entry_path in path_map:
         return path_map[entry_path]
     return entry_path.rsplit("/", 1)[0] if "/" in entry_path else ""

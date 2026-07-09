@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+from hashlib import sha256
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,7 +26,7 @@ from cdmm.common.constants import (
     VANILLA_DIR_NAME,
     WORK_DIR_NAME,
 )
-from cdmm.common.models import BuiltOverlayEntry, DiscoveredMod, OverlayInputEntry
+from cdmm.common.models import BuiltOverlayEntry, DiscoveredMod, OverlayBuildResult, OverlayInputEntry
 from cdmm.services.format3_loader import (
     build_format3_overlay_entries,
     collect_format3_pamt_targets,
@@ -54,6 +55,10 @@ VFS_MAPPING_FILE_NAME = "vfs_mapping_tree.json"
 
 # VFS 构建摘要文件名，用于排障时确认本次映射了哪些文件。
 VFS_STATE_FILE_NAME = "vfs_state.json"
+
+# VFS 分包缓存目录。模组集合变化时，未变化的分包可直接复用，避免重新
+# 打包大 PAZ 并计算纯 Python hashlittle。
+VFS_PACKAGE_CACHE_DIR_NAME = "vfs_package_cache"
 
 # VFS 状态结构版本。分包策略变化时必须提升，避免复用旧 mapping。
 VFS_STATE_SCHEMA = 3
@@ -215,7 +220,7 @@ def build_vfs_package(
 
     for package in overlay_packages:
         _notify_progress(progress_callback, f"写入 VFS overlay 包：{package.name}")
-        overlay = build_overlay(package.name, package.entries, game_dir)
+        overlay = _build_or_reuse_overlay_package(game_dir, package)
         paz_rel, pamt_rel = overlay_rel_paths(package.name)
         _write_vfs_file(vfs_root, paz_rel, overlay.paz_bytes)
         _write_vfs_file(vfs_root, pamt_rel, overlay.pamt_bytes)
@@ -442,6 +447,130 @@ def _format3_package_name(entry: OverlayInputEntry) -> str | None:
     basename = Path(entry.entry_path.replace("\\", "/")).name.lower()
     stem = basename.rsplit(".", 1)[0]
     return NPP_V3_PACKAGE_BY_TABLE.get(stem)
+
+
+def _build_or_reuse_overlay_package(game_dir: Path, package: VfsOverlayPackage) -> OverlayBuildResult:
+    """构建或复用单个 VFS overlay 分包。"""
+    cache_key = _overlay_package_cache_key(package)
+    cache_dir = _overlay_package_cache_dir(game_dir, package.name, cache_key)
+    cached = _read_overlay_package_cache(package.name, cache_dir)
+    if cached is not None:
+        logger.info("VFS package cache hit: %s", package.name)
+        return cached
+
+    overlay = build_overlay(package.name, package.entries, game_dir)
+    _write_overlay_package_cache(cache_dir, overlay)
+    return overlay
+
+
+def _overlay_package_cache_key(package: VfsOverlayPackage) -> str:
+    """按分包输入内容生成稳定缓存 key。"""
+    digest = sha256()
+    digest.update(package.name.encode("utf-8"))
+    digest.update(b"\0")
+    seen: dict[str, OverlayInputEntry] = {}
+    for entry in package.entries:
+        seen[entry.entry_path.lower()] = entry
+    for key, entry in seen.items():
+        digest.update(key.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(entry.entry_path.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(entry.pamt_dir.encode("ascii", errors="ignore"))
+        digest.update(b"\0")
+        digest.update(str(entry.compression_type).encode("ascii"))
+        digest.update(b"\0")
+        digest.update(b"1" if entry.encrypted else b"0")
+        digest.update(b"\0")
+        digest.update((entry.crypto_filename or "").encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(len(entry.content).to_bytes(8, "little"))
+        digest.update(entry.content)
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _overlay_package_cache_dir(game_dir: Path, package_name: str, cache_key: str) -> Path:
+    """返回 VFS 分包缓存目录。"""
+    safe_name = package_name.replace("/", "_").replace("\\", "_")
+    return game_dir / WORK_DIR_NAME / VFS_PACKAGE_CACHE_DIR_NAME / f"{safe_name}-{cache_key[:24]}"
+
+
+def _read_overlay_package_cache(package_name: str, cache_dir: Path) -> OverlayBuildResult | None:
+    """读取分包缓存，结构异常时返回 None 并走正常构建。"""
+    paz_path = cache_dir / OVERLAY_PAZ_NAME
+    pamt_path = cache_dir / OVERLAY_PAMT_NAME
+    meta_path = cache_dir / "entries.json"
+    if not paz_path.is_file() or not pamt_path.is_file() or not meta_path.is_file():
+        return None
+    try:
+        raw_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        entries = [_built_entry_from_json(item) for item in raw_meta.get("entries", [])]
+        if any(entry is None for entry in entries):
+            return None
+        return OverlayBuildResult(
+            overlay_dir=package_name,
+            paz_bytes=paz_path.read_bytes(),
+            pamt_bytes=pamt_path.read_bytes(),
+            entries=[entry for entry in entries if entry is not None],
+        )
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+
+
+def _write_overlay_package_cache(cache_dir: Path, overlay: OverlayBuildResult) -> None:
+    """写入分包缓存，失败不影响本次 VFS 构建。"""
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        (cache_dir / OVERLAY_PAZ_NAME).write_bytes(overlay.paz_bytes)
+        (cache_dir / OVERLAY_PAMT_NAME).write_bytes(overlay.pamt_bytes)
+        payload = {
+            "schema": 1,
+            "overlay_dir": overlay.overlay_dir,
+            "entries": [_built_entry_to_json(entry) for entry in overlay.entries],
+        }
+        (cache_dir / "entries.json").write_text(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        logger.warning("VFS package cache write failed: %s", exc)
+
+
+def _built_entry_to_json(entry: BuiltOverlayEntry) -> dict[str, object]:
+    """序列化 BuiltOverlayEntry 缓存元数据。"""
+    return {
+        "entry_path": entry.entry_path,
+        "dir_path": entry.dir_path,
+        "filename": entry.filename,
+        "paz_offset": entry.paz_offset,
+        "comp_size": entry.comp_size,
+        "decomp_size": entry.decomp_size,
+        "flags": entry.flags,
+        "dds_m_values": list(entry.dds_m_values) if entry.dds_m_values is not None else None,
+        "dds_last4": entry.dds_last4,
+    }
+
+
+def _built_entry_from_json(raw: object) -> BuiltOverlayEntry | None:
+    """反序列化 BuiltOverlayEntry 缓存元数据。"""
+    if not isinstance(raw, dict):
+        return None
+    try:
+        dds_m_values = raw.get("dds_m_values")
+        return BuiltOverlayEntry(
+            entry_path=str(raw["entry_path"]),
+            dir_path=str(raw["dir_path"]),
+            filename=str(raw["filename"]),
+            paz_offset=int(raw["paz_offset"]),
+            comp_size=int(raw["comp_size"]),
+            decomp_size=int(raw["decomp_size"]),
+            flags=int(raw["flags"]),
+            dds_m_values=tuple(dds_m_values) if isinstance(dds_m_values, list) else None,  # type: ignore[arg-type]
+            dds_last4=int(raw.get("dds_last4", 0)),
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def _reset_vfs_active_dir(game_dir: Path) -> Path:

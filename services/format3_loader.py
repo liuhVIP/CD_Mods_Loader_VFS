@@ -334,13 +334,13 @@ def _apply_dynamic_body_changes(
     applied_total = 0
     mismatched_total = 0
     current_header: bytearray | None = header if game_file.lower().endswith(".pabgb") else None
+    name_offsets: dict[str, int] | None = None
+    if current_header is not None:
+        key_size, offsets = parse_pabgh_index(bytes(current_header), table_name)
+        entry_bounds = build_entry_bounds(bytes(body), key_size, offsets) if offsets else {}
+        name_offsets = _name_offsets_from_bounds(entry_bounds)
 
     for change in changes:
-        name_offsets: dict[str, int] | None = None
-        if current_header is not None:
-            key_size, offsets = parse_pabgh_index(bytes(current_header), table_name)
-            entry_bounds = build_entry_bounds(bytes(body), key_size, offsets) if offsets else {}
-            name_offsets = _name_offsets_from_bounds(entry_bounds)
         local_inserts: list[tuple[int, int]] = []
         applied, mismatched, _relocated = apply_byte_patches(
             body,
@@ -352,8 +352,25 @@ def _apply_dynamic_body_changes(
         mismatched_total += mismatched
         if current_header is not None and local_inserts:
             current_header = bytearray(fixup_pabgh_after_inserts(bytes(current_header), local_inserts))
+            if name_offsets is not None:
+                _shift_name_offsets_after_inserts(name_offsets, local_inserts)
 
     return body, current_header, applied_total, mismatched_total
+
+
+def _shift_name_offsets_after_inserts(
+    name_offsets: dict[str, int],
+    inserts: list[tuple[int, int]],
+) -> None:
+    """按已应用的长度变化增量更新 entry name_end 锚点。"""
+    if not inserts:
+        return
+    for insert_offset, delta in inserts:
+        if delta == 0:
+            continue
+        for name, name_end in list(name_offsets.items()):
+            if name_end >= insert_offset:
+                name_offsets[name] = name_end + delta
 
 
 def _name_offsets_from_bounds(

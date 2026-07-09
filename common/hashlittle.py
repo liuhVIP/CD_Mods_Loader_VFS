@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import struct
 
 from cdmm.common.constants import HASH_SEED
@@ -19,34 +20,69 @@ def hashlittle(data: bytes, initval: int = 0) -> int:
 
     length = len(data)
     a = b = c = (0xDEADBEEF + length + initval) & 0xFFFFFFFF
-    offset = 0
+    block_count = (length - 1) // 12 if length > 12 else 0
+    offset = block_count * 12
 
-    while length > 12:
-        a = (a + struct.unpack_from("<I", data, offset)[0]) & 0xFFFFFFFF
-        b = (b + struct.unpack_from("<I", data, offset + 4)[0]) & 0xFFFFFFFF
-        c = (c + struct.unpack_from("<I", data, offset + 8)[0]) & 0xFFFFFFFF
+    if block_count and sys.byteorder == "little":
+        # Windows/Crimson Desert 目标环境是小端；用 memoryview 批量按 u32 读，
+        # 避免大型 PAZ/PAMT hash 每 4 字节都走一次 struct.unpack_from。
+        words = memoryview(data)[:offset].cast("I")
+        word_index = 0
+        for _index in range(block_count):
+            a = (a + words[word_index]) & 0xFFFFFFFF
+            b = (b + words[word_index + 1]) & 0xFFFFFFFF
+            c = (c + words[word_index + 2]) & 0xFFFFFFFF
+            word_index += 3
 
-        a = (a - c) & 0xFFFFFFFF
-        a ^= ((c << 4) | (c >> 28)) & 0xFFFFFFFF
-        c = (c + b) & 0xFFFFFFFF
-        b = (b - a) & 0xFFFFFFFF
-        b ^= ((a << 6) | (a >> 26)) & 0xFFFFFFFF
-        a = (a + c) & 0xFFFFFFFF
-        c = (c - b) & 0xFFFFFFFF
-        c ^= ((b << 8) | (b >> 24)) & 0xFFFFFFFF
-        b = (b + a) & 0xFFFFFFFF
-        a = (a - c) & 0xFFFFFFFF
-        a ^= ((c << 16) | (c >> 16)) & 0xFFFFFFFF
-        c = (c + b) & 0xFFFFFFFF
-        b = (b - a) & 0xFFFFFFFF
-        b ^= ((a << 19) | (a >> 13)) & 0xFFFFFFFF
-        a = (a + c) & 0xFFFFFFFF
-        c = (c - b) & 0xFFFFFFFF
-        c ^= ((b << 4) | (b >> 28)) & 0xFFFFFFFF
-        b = (b + a) & 0xFFFFFFFF
+            a = (a - c) & 0xFFFFFFFF
+            a ^= ((c << 4) | (c >> 28)) & 0xFFFFFFFF
+            c = (c + b) & 0xFFFFFFFF
+            b = (b - a) & 0xFFFFFFFF
+            b ^= ((a << 6) | (a >> 26)) & 0xFFFFFFFF
+            a = (a + c) & 0xFFFFFFFF
+            c = (c - b) & 0xFFFFFFFF
+            c ^= ((b << 8) | (b >> 24)) & 0xFFFFFFFF
+            b = (b + a) & 0xFFFFFFFF
+            a = (a - c) & 0xFFFFFFFF
+            a ^= ((c << 16) | (c >> 16)) & 0xFFFFFFFF
+            c = (c + b) & 0xFFFFFFFF
+            b = (b - a) & 0xFFFFFFFF
+            b ^= ((a << 19) | (a >> 13)) & 0xFFFFFFFF
+            a = (a + c) & 0xFFFFFFFF
+            c = (c - b) & 0xFFFFFFFF
+            c ^= ((b << 4) | (b >> 28)) & 0xFFFFFFFF
+            b = (b + a) & 0xFFFFFFFF
+    else:
+        slow_offset = 0
+        slow_length = length
+        while slow_length > 12:
+            a = (a + struct.unpack_from("<I", data, slow_offset)[0]) & 0xFFFFFFFF
+            b = (b + struct.unpack_from("<I", data, slow_offset + 4)[0]) & 0xFFFFFFFF
+            c = (c + struct.unpack_from("<I", data, slow_offset + 8)[0]) & 0xFFFFFFFF
 
-        offset += 12
-        length -= 12
+            a = (a - c) & 0xFFFFFFFF
+            a ^= ((c << 4) | (c >> 28)) & 0xFFFFFFFF
+            c = (c + b) & 0xFFFFFFFF
+            b = (b - a) & 0xFFFFFFFF
+            b ^= ((a << 6) | (a >> 26)) & 0xFFFFFFFF
+            a = (a + c) & 0xFFFFFFFF
+            c = (c - b) & 0xFFFFFFFF
+            c ^= ((b << 8) | (b >> 24)) & 0xFFFFFFFF
+            b = (b + a) & 0xFFFFFFFF
+            a = (a - c) & 0xFFFFFFFF
+            a ^= ((c << 16) | (c >> 16)) & 0xFFFFFFFF
+            c = (c + b) & 0xFFFFFFFF
+            b = (b - a) & 0xFFFFFFFF
+            b ^= ((a << 19) | (a >> 13)) & 0xFFFFFFFF
+            a = (a + c) & 0xFFFFFFFF
+            c = (c - b) & 0xFFFFFFFF
+            c ^= ((b << 4) | (b >> 28)) & 0xFFFFFFFF
+            b = (b + a) & 0xFFFFFFFF
+
+            slow_offset += 12
+            slow_length -= 12
+        offset = slow_offset
+    length -= offset
 
     remaining = data[offset:]
     if length > 0:

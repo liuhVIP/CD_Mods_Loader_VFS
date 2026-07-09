@@ -52,21 +52,21 @@ def build_papgt(
     existing = {name for name, _flags, _hash in parsed_entries}
     new_dirs = _order_new_dirs(modified_names, existing, prepend_order)
 
-    live_entries: list[tuple[str, int]] = []
-    for name, flags, _old_hash in parsed_entries:
+    live_entries: list[tuple[str, int, int]] = []
+    for name, flags, old_hash in parsed_entries:
         if name in modified_names or _should_keep_existing(game_dir, name):
             if normalize_existing_flags:
                 flags = encode_flags()
-            live_entries.append((name, flags))
+            live_entries.append((name, flags, old_hash))
 
-    all_entries: list[tuple[str, int]] = []
+    all_entries: list[tuple[str, int, int | None]] = []
     default_flags = encode_flags()
-    all_entries.extend((name, default_flags) for name in new_dirs)
+    all_entries.extend((name, default_flags, None) for name in new_dirs)
     all_entries.extend(live_entries)
 
     string_table = bytearray()
     offsets: dict[str, int] = {}
-    for name, _flags in all_entries:
+    for name, _flags, _old_hash in all_entries:
         if name not in offsets:
             offsets[name] = len(string_table)
             string_table += name.encode("ascii") + b"\x00"
@@ -77,11 +77,11 @@ def build_papgt(
     result += header_meta8
     result[8] = len(all_entries) & 0xFF
 
-    for name, flags in all_entries:
+    for name, flags, old_hash in all_entries:
         if name in modified_pamts:
             pamt_hash = compute_pamt_hash(modified_pamts[name])
         else:
-            pamt_hash = _read_live_pamt_hash(game_dir, name)
+            pamt_hash = old_hash if old_hash is not None else _read_live_pamt_hash(game_dir, name)
         result += struct.pack("<III", flags, offsets[name], pamt_hash)
 
     result += struct.pack("<I", len(string_table))
