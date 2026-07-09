@@ -25,7 +25,9 @@ from cdmm.services.format3_iteminfo_whole_writer import (
     _coerce_prefab_data_list,
 )
 from cdmm.services.iteminfo_native_parser import (
+    parse_iteminfo_drop_default_data,
     parse_iteminfo_prefab_data_list,
+    serialize_iteminfo_drop_default_data,
     serialize_iteminfo_prefab_data_list,
 )
 
@@ -274,7 +276,23 @@ def build_iteminfo_prefab_result(
 
     changes: list[dict] = []
     skipped: list[Format3SkippedIntent] = []
-    for intent in intents:
+    drop_default_intents = [
+        intent for intent in intents
+        if DROP_DEFAULT_FIELD_RE.match(intent.field) is not None
+    ]
+    non_drop_default_intents = [
+        intent for intent in intents
+        if DROP_DEFAULT_FIELD_RE.match(intent.field) is None
+    ]
+    if drop_default_intents:
+        fallback_result = _build_drop_default_record_fallback_result(
+            context,
+            drop_default_intents,
+        )
+        changes.extend(fallback_result.changes)
+        skipped.extend(fallback_result.skipped)
+
+    for intent in non_drop_default_intents:
         change, reason = _build_single_change_with_reason(
             context.body,
             context.key_size,
@@ -319,30 +337,37 @@ def _build_iteminfo_prefab_list_result(
 
         entry_off, entry_end, entry_name, name_end = bounds
         entry_bytes = context.body[entry_off:entry_end]
-        legacy_change, legacy_reason = _build_legacy_prefab_list_change(
-            entry_bytes,
-            entry_off,
-            entry_name,
-            name_end,
-            intent,
-        )
-        if legacy_change is not None:
-            changes.append(legacy_change)
-            continue
-        if legacy_reason is not None:
-            # 不是 DMM V3 尾部 legacy prefab 结构时继续尝试 native parser。
-            # 真正失败原因由 native 分支统一暴露，避免对其他 Format 3
-            # iteminfo 模组产生过早跳过。
-            pass
-
         try:
             existing, field_start, field_end = parse_iteminfo_prefab_data_list(entry_bytes)
         except Exception as exc:
-            skipped.append(Format3SkippedIntent(intent=intent, reason=f"iteminfo prefab_data_list 定位失败：{exc}"))
+            legacy_change, legacy_reason = _build_legacy_prefab_list_change(
+                entry_bytes,
+                entry_off,
+                entry_name,
+                name_end,
+                intent,
+            )
+            if legacy_change is not None:
+                changes.append(legacy_change)
+                continue
+            reason = legacy_reason or f"iteminfo prefab_data_list 定位失败：{exc}"
+            skipped.append(Format3SkippedIntent(intent=intent, reason=reason))
             continue
 
         new_value, reason = _coerce_prefab_data_list(existing, intent.new)
         if reason is not None:
+            legacy_change, legacy_reason = _build_legacy_prefab_list_change(
+                entry_bytes,
+                entry_off,
+                entry_name,
+                name_end,
+                intent,
+            )
+            if legacy_change is not None:
+                changes.append(legacy_change)
+                continue
+            if legacy_reason is not None:
+                reason = f"{reason}；legacy fallback 未生效：{legacy_reason}"
             skipped.append(Format3SkippedIntent(intent=intent, reason=reason))
             continue
         if not shape_matches(existing, new_value):
@@ -448,9 +473,6 @@ def _locate_legacy_prefab_data_list(
     new_value: object,
 ) -> tuple[int, int] | None:
     """在单条 ItemInfo 记录尾部定位 DMM V3 legacy prefab 块。"""
-    if not entry_bytes.endswith(b"\xFF\x00"):
-        return None
-
     first_hash = _first_prefab_hash(new_value)
     new_count = len(new_value) if isinstance(new_value, list) else 0
     scan_start = max(0, len(entry_bytes) - LEGACY_PREFAB_SCAN_TAIL_BYTES)
@@ -480,16 +502,78 @@ def _locate_legacy_prefab_data_list(
                 relaxed_strong_candidates.append(offset)
 
     if len(strong_candidates) == 1:
-        return strong_candidates[0], len(entry_bytes) - 2
+        return _legacy_prefab_bounds(entry_bytes, strong_candidates[0])
     if not strong_candidates and len(candidates) == 1:
-        return candidates[0], len(entry_bytes) - 2
+        return _legacy_prefab_bounds(entry_bytes, candidates[0])
     if candidates:
         return None
     if len(relaxed_strong_candidates) == 1:
-        return relaxed_strong_candidates[0], len(entry_bytes) - 2
+        return _legacy_prefab_bounds(entry_bytes, relaxed_strong_candidates[0])
     if not relaxed_strong_candidates and len(relaxed_candidates) == 1:
-        return relaxed_candidates[0], len(entry_bytes) - 2
+        return _legacy_prefab_bounds(entry_bytes, relaxed_candidates[0])
     return None
+
+
+def _legacy_prefab_bounds(entry_bytes: bytes, offset: int) -> tuple[int, int] | None:
+    """按 legacy element 结构计算 prefab_data_list 精确边界。"""
+    end = _consume_legacy_prefab_data_list(entry_bytes, offset)
+    if end is None or end > len(entry_bytes) - 2:
+        return None
+    return offset, end
+
+
+def _consume_legacy_prefab_data_list(entry_bytes: bytes, offset: int) -> int | None:
+    """消费 DMM V3 legacy prefab_data_list，返回字段结束偏移。"""
+    if offset + 4 > len(entry_bytes):
+        return None
+    count = struct.unpack_from("<I", entry_bytes, offset)[0]
+    if count == 0 or count > MAX_PREFAB_SCAN_COUNT:
+        return None
+    pos = offset + 4
+    for index in range(count):
+        if pos + len(LEGACY_PREFAB_SCALE_NEEDLE) > len(entry_bytes):
+            return None
+        if index == 0 and entry_bytes[pos:pos + len(LEGACY_PREFAB_SCALE_NEEDLE)] != LEGACY_PREFAB_SCALE_NEEDLE:
+            return None
+        pos += len(LEGACY_PREFAB_SCALE_NEEDLE)
+        pos = _consume_legacy_u32_array(entry_bytes, pos)
+        if pos is None:
+            return None
+        pos = _consume_legacy_u32_array(entry_bytes, pos)
+        if pos is None:
+            return None
+        pos = _consume_legacy_u16_array(entry_bytes, pos)
+        if pos is None:
+            return None
+        pos = _consume_legacy_u32_array(entry_bytes, pos)
+        if pos is None:
+            return None
+        if pos + 3 > len(entry_bytes):
+            return None
+        pos += 3
+    return pos
+
+
+def _consume_legacy_u32_array(entry_bytes: bytes, offset: int) -> int | None:
+    """消费 legacy CArray<u32>。"""
+    if offset + 4 > len(entry_bytes):
+        return None
+    count = struct.unpack_from("<I", entry_bytes, offset)[0]
+    if count > MAX_PREFAB_SCAN_COUNT:
+        return None
+    end = offset + 4 + count * 4
+    return end if end <= len(entry_bytes) else None
+
+
+def _consume_legacy_u16_array(entry_bytes: bytes, offset: int) -> int | None:
+    """消费 legacy CArray<u16>。"""
+    if offset + 4 > len(entry_bytes):
+        return None
+    count = struct.unpack_from("<I", entry_bytes, offset)[0]
+    if count > MAX_PREFAB_SCAN_COUNT:
+        return None
+    end = offset + 4 + count * 2
+    return end if end <= len(entry_bytes) else None
 
 
 def _looks_like_legacy_prefab_scale_start(entry_bytes: bytes, offset: int) -> bool:
@@ -563,17 +647,6 @@ def _pack_u32_array(values: list[int]) -> bytes:
 def _pack_u16_array(values: list[int]) -> bytes:
     """打包 CArray<u16>。"""
     return struct.pack("<I", len(values)) + b"".join(struct.pack("<H", item) for item in values)
-
-
-def _build_single_change(
-    body: bytes,
-    key_size: int,
-    entry_bounds: dict[int, tuple[int, int, str, int]],
-    intent: dict[str, Any],
-) -> dict | None:
-    """定位单条 intent 的 tribe_gender_list 并生成 replace change。"""
-    change, _reason = _build_single_change_with_reason(body, key_size, entry_bounds, intent)
-    return change
 
 
 def _build_single_change_with_reason(
@@ -727,6 +800,175 @@ def _build_drop_default_change(
         "patched": patched.hex(),
         "label": f"{intent.get('entry', intent.get('key'))}.drop_default_data.{field_name}",
     }, None
+
+
+def _build_drop_default_record_fallback_result(
+    context: Format3RuntimeContext,
+    intents: list[Format3Intent],
+) -> Format3DispatchResult:
+    """用单条 ItemInfo 记录 roundtrip 处理当前游戏布局下的 drop_default_data。"""
+    grouped: dict[int, list[Format3Intent]] = {}
+    skipped: list[Format3SkippedIntent] = []
+    for intent in intents:
+        bounds, resolve_reason = _resolve_entry_bounds(context.entry_bounds, intent.to_legacy_dict())
+        if bounds is None:
+            skipped.append(Format3SkippedIntent(intent=intent, reason=resolve_reason or "目标 entry 未命中"))
+            continue
+        grouped.setdefault(bounds[0], []).append(intent)
+
+    changes: list[dict] = []
+    bounds_by_offset = {
+        bounds[0]: bounds
+        for bounds in context.entry_bounds.values()
+    }
+    for entry_off, entry_intents in grouped.items():
+        bounds = bounds_by_offset[entry_off]
+        entry_change, entry_skipped = _build_single_record_drop_default_change(
+            context.body,
+            bounds,
+            entry_intents,
+        )
+        skipped.extend(entry_skipped)
+        if entry_change is not None:
+            changes.append(entry_change)
+
+    return Format3DispatchResult(changes=tuple(changes), skipped=tuple(skipped))
+
+
+def _build_single_record_drop_default_change(
+    body: bytes,
+    bounds: tuple[int, int, str, int],
+    intents: list[Format3Intent],
+) -> tuple[dict | None, list[Format3SkippedIntent]]:
+    """对同一 ItemInfo entry 合并多个 drop_default_data intent。"""
+    entry_off, entry_end, entry_name, name_end = bounds
+    entry_bytes = body[entry_off:entry_end]
+    try:
+        drop_default, field_start, field_end = parse_iteminfo_drop_default_data(entry_bytes)
+        identity = serialize_iteminfo_drop_default_data(drop_default)
+    except Exception as exc:
+        return None, [
+            Format3SkippedIntent(intent=intent, reason=f"iteminfo drop_default_data 定位失败：{exc}")
+            for intent in intents
+        ]
+    original = entry_bytes[field_start:field_end]
+    if identity != original:
+        return None, [
+            Format3SkippedIntent(intent=intent, reason="iteminfo drop_default_data identity roundtrip 不一致")
+            for intent in intents
+        ]
+
+    skipped: list[Format3SkippedIntent] = []
+    applied = 0
+    for intent in intents:
+        match = DROP_DEFAULT_FIELD_RE.match(intent.field)
+        if match is None:
+            skipped.append(Format3SkippedIntent(intent=intent, reason=ITEMINFO_SUPPORTED_FIELD_REASON))
+            continue
+        if intent.op != "set":
+            skipped.append(Format3SkippedIntent(intent=intent, reason="仅支持 op=set"))
+            continue
+        field_name = match.group("field")
+        changed, reason = _apply_drop_default_record_value(
+            drop_default,
+            field_name,
+            intent.new,
+        )
+        if reason is not None:
+            skipped.append(Format3SkippedIntent(intent=intent, reason=reason))
+            continue
+        if not changed:
+            skipped.append(Format3SkippedIntent(intent=intent, reason="目标字节已是期望值"))
+            continue
+        applied += 1
+
+    if applied == 0:
+        return None, skipped
+
+    try:
+        patched = serialize_iteminfo_drop_default_data(drop_default)
+    except Exception as exc:
+        skipped.extend(
+            Format3SkippedIntent(intent=intent, reason=f"iteminfo drop_default_data 序列化失败：{exc}")
+            for intent in intents
+        )
+        return None, skipped
+    if patched == original:
+        return None, skipped
+
+    first_intent = intents[0]
+    return {
+        "entry": entry_name or str(first_intent.entry or first_intent.key),
+        "rel_offset": entry_off + field_start - name_end,
+        "original": original.hex(),
+        "patched": patched.hex(),
+        "label": f"{entry_name or first_intent.key}.drop_default_data ({applied} applied)",
+        "_dynamic_entry_offset": True,
+    }, skipped
+
+
+def _apply_drop_default_record_value(
+    drop_default: dict,
+    field_name: str,
+    new_value: object,
+) -> tuple[bool, str | None]:
+    """校验并写入 drop_default_data 的单记录值。"""
+    descriptor = DROP_DEFAULT_FIELD_LAYOUTS[field_name][1]
+    if _pack_descriptor_value(new_value, descriptor) is None:
+        return False, f"{field_name} 的 new 值类型不合法"
+    if field_name in {"socket_valid_count", "use_socket"}:
+        return _apply_socket_flag_value(drop_default, field_name, new_value)
+
+    existing = drop_default.get(field_name)
+    if field_name == "add_socket_material_item_list" and isinstance(new_value, list):
+        coerced = [dict(item) for item in new_value]
+    elif field_name == "socket_item_list" and isinstance(new_value, list):
+        coerced = list(new_value)
+    elif field_name == "default_sub_item" and isinstance(new_value, dict):
+        coerced = dict(new_value)
+    else:
+        coerced = new_value
+    if existing == coerced:
+        return False, None
+    drop_default[field_name] = coerced
+    return True, None
+
+
+def _apply_socket_flag_value(
+    drop_default: dict,
+    field_name: str,
+    new_value: object,
+) -> tuple[bool, str | None]:
+    """按 DMM 当前布局写入 socket 有效数/启用标记。
+
+    部分 ItemInfo 记录的 `default_sub_item` 使用非 14 的 tagged variant。
+    DMM 1.4.9.1 会把 FiveSockets 的 5/1 写入该 variant value 的低两个
+    字节，而不是写到 DropDefaultData 末尾两个 u8。照这个布局输出后，
+    游戏能正常读取并启用额外孔位。
+    """
+    if isinstance(new_value, bool) or not isinstance(new_value, int):
+        return False, f"{field_name} 的 new 值类型不合法"
+
+    sub_item = drop_default.get("default_sub_item")
+    if (
+        isinstance(sub_item, dict)
+        and sub_item.get("type_id") != 14
+        and isinstance(sub_item.get("value"), int)
+        and not isinstance(sub_item.get("value"), bool)
+    ):
+        byte_index = 0 if field_name == "socket_valid_count" else 1
+        value_bytes = bytearray(struct.pack("<I", sub_item["value"] & 0xFFFFFFFF))
+        if value_bytes[byte_index] == new_value:
+            return False, None
+        value_bytes[byte_index] = new_value
+        sub_item["value"] = struct.unpack("<I", value_bytes)[0]
+        return True, None
+
+    existing = drop_default.get(field_name)
+    if existing == new_value:
+        return False, None
+    drop_default[field_name] = new_value
+    return True, None
 
 
 def _resolve_entry_bounds(

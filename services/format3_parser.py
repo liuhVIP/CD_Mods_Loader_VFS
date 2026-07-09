@@ -52,6 +52,7 @@ class Format3Intent:
     op: str
     new: Any
     old: str | None = None
+    match: dict[str, Any] | None = None
 
     def to_legacy_dict(self) -> dict[str, Any]:
         """转换为当前独立加载器 writer 仍在使用的 dict 结构。"""
@@ -62,6 +63,7 @@ class Format3Intent:
             "op": self.op,
             "new": self.new,
             "old": self.old,
+            "match": self.match,
         }
 
 
@@ -133,7 +135,13 @@ def _parse_intents(raw_intents: object, label: str) -> tuple[Format3Intent, ...]
     for index, raw_intent in enumerate(raw_intents):
         if not isinstance(raw_intent, dict):
             raise ValueError(f"{label}[{index}] 不是对象")
-        entry = _require_entry(raw_intent.get("entry"), f"{label}[{index}].entry")
+        match_spec = _parse_match(raw_intent.get("match"), f"{label}[{index}].match")
+        if "entry" in raw_intent:
+            entry = _require_entry(raw_intent.get("entry"), f"{label}[{index}].entry")
+        elif match_spec is not None:
+            entry = ""
+        else:
+            entry = _require_entry(raw_intent.get("entry"), f"{label}[{index}].entry")
         field = _require_str(raw_intent.get("field"), f"{label}[{index}].field")
         if "new" not in raw_intent:
             raise ValueError(f"{label}[{index}] 缺少 new")
@@ -151,9 +159,38 @@ def _parse_intents(raw_intents: object, label: str) -> tuple[Format3Intent, ...]
                 op=str(raw_intent.get("op", FORMAT3_DEFAULT_OP)),
                 new=raw_intent["new"],
                 old=raw_old,
+                match=match_spec,
             )
         )
     return tuple(intents)
+
+
+def _parse_match(value: object, label: str) -> dict[str, Any] | None:
+    """解析 DMM v3.1 match capability，当前仅在运行层做表级窄支持。"""
+    if value is None:
+        return None
+    if not isinstance(value, dict) or not value:
+        raise ValueError(f"{label} 必须是非空对象")
+
+    normalized: dict[str, Any] = {}
+    for raw_key, raw_value in value.items():
+        if not isinstance(raw_key, str) or not raw_key:
+            raise ValueError(f"{label} 的字段名必须是非空字符串")
+        _validate_match_value(raw_value, f"{label}.{raw_key}")
+        normalized[raw_key] = raw_value
+    return normalized
+
+
+def _validate_match_value(value: object, label: str) -> None:
+    """限制 match 值为可比较的简单 JSON 标量或标量数组。"""
+    if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+        return
+    if isinstance(value, list) and all(
+        isinstance(item, (str, int, float)) and not isinstance(item, bool)
+        for item in value
+    ):
+        return
+    raise ValueError(f"{label} 必须是字符串、数字或这两类值的数组")
 
 
 def _parse_target_file(raw_target: dict[str, object], index: int) -> str:

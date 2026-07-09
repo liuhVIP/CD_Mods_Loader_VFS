@@ -422,6 +422,32 @@ def parse_iteminfo_prefab_data_list(data: bytes) -> tuple[list[dict], int, int]:
     raise ValueError("prefab_data_list field not found")
 
 
+def parse_iteminfo_drop_default_data(data: bytes) -> tuple[dict, int, int]:
+    """只解析单条 ItemInfo 记录中的 `drop_default_data` 字段。"""
+    r = _Reader(data, 0, rec_end=len(data))
+    out: dict[str, Any] = {}
+    for spec in _ITEM_FIELDS:
+        name, kind = spec[0], spec[1]
+        if name == "item_desc" and out.get("equip_type_info") == LANTERN_EQ_TYPE:
+            out["lantern_unk_a"] = r.u32()
+            out["lantern_unk_b"] = r.u32()
+            out["lantern_unk_c"] = r.u32()
+        if name == "drop_default_data":
+            start = r.pos
+            values = spec[2](r)
+            end = r.pos
+            return values, start, end
+        out[name] = _read_item_field_for_prefab_seek(r, out, spec)
+    raise ValueError("drop_default_data field not found")
+
+
+def serialize_iteminfo_drop_default_data(value: dict) -> bytes:
+    """序列化单个 `drop_default_data` 字段。"""
+    w = _Writer()
+    _write_DropDefaultData(w, value)
+    return bytes(w.buf)
+
+
 def serialize_iteminfo_prefab_data_list(values: list[dict]) -> bytes:
     """序列化单个 `prefab_data_list` 字段。"""
     w = _Writer()

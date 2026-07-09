@@ -56,7 +56,7 @@ VFS_MAPPING_FILE_NAME = "vfs_mapping_tree.json"
 VFS_STATE_FILE_NAME = "vfs_state.json"
 
 # VFS 状态结构版本。分包策略变化时必须提升，避免复用旧 mapping。
-VFS_STATE_SCHEMA = 2
+VFS_STATE_SCHEMA = 3
 
 # DMM 已验证的高风险表分包名。这里用 ASCII 常量，避免后续脚本编码踩坑。
 NPP_V3_STATUSINFO_PACKAGE = "nppv3_statusinfo"
@@ -198,6 +198,7 @@ def build_vfs_package(
         game_dir,
         previous_items=previous_standalone_items,
         ordered_mods=mods,
+        warnings=warnings,
     )
 
     if not overlay_packages and not standalone_archives:
@@ -408,7 +409,12 @@ def _build_dmm_like_overlay_packages(
         package_name = NPP_VOICE_PACKAGE if _is_voice_entry(entry) else NPP_LOOSE_PACKAGE
         grouped[package_name].append(entry)
 
-    grouped[NPP_JSON_PACKAGE].extend(json_overlay_inputs)
+    # Format 3 输出已经叠加了 loose/JSON base。若 nppgen 再保留同目标
+    # JSON 旧版本，运行期可能把 pabgb/pabgh 拆成两个包交叉读取。
+    format3_targets = {_entry_key(entry) for entry in format3_overlay_inputs}
+    grouped[NPP_JSON_PACKAGE].extend(
+        entry for entry in json_overlay_inputs if _entry_key(entry) not in format3_targets
+    )
     for entry in format3_overlay_inputs:
         package_name = _format3_package_name(entry) or NPP_JSON_PACKAGE
         grouped[package_name].append(entry)

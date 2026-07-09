@@ -5,14 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from cdmm.archive.pamt import parse_pamt
 from cdmm.common.constants import (
     GAME_DIR_NAME_LENGTH,
+    KNOWN_GAME_TOP_DIRS,
+    LOOSE_FILES_DIR_NAME,
     MODS_DIR_NAME,
     OVERLAY_PAMT_NAME,
     OVERLAY_PAZ_NAME,
     OVERLAY_START_DIR,
 )
-from cdmm.common.models import DiscoveredMod
+from cdmm.common.models import DiscoveredMod, PazEntry
+from cdmm.services.json_loader import decompress_entry
 
 
 @dataclass(frozen=True)
@@ -31,6 +35,7 @@ def collect_standalone_archives(
     reserved_dirs: set[str] | None = None,
     previous_items: list[dict[str, str]] | None = None,
     ordered_mods: list[DiscoveredMod] | None = None,
+    warnings: list[str] | None = None,
 ) -> list[StandaloneArchive]:
     """收集 standalone PAZ/PAMT，并优先复用上次分配目录。"""
     mods_dir = game_dir / MODS_DIR_NAME
@@ -44,6 +49,12 @@ def collect_standalone_archives(
 
     result: list[StandaloneArchive] = []
     for source_dir in _iter_standalone_dirs(mods_dir, ordered_mods):
+        if _standalone_archive_is_duplicated_by_loose(source_dir):
+            if warnings is not None:
+                warnings.append(
+                    f"{source_dir.parent.name}/{source_dir.name}: standalone 内容已被同模组 loose 文件完整覆盖，已跳过重复 PAZ/PAMT"
+                )
+            continue
         source_key = _source_key(game_dir, source_dir)
         assigned_dir = previous_by_source.get(source_key)
         if assigned_dir is None or not _can_reuse_assigned_dir(game_dir, assigned_dir, used_dirs):
@@ -110,6 +121,72 @@ def _iter_standalone_dirs(
             if (child / OVERLAY_PAZ_NAME).is_file() and (child / OVERLAY_PAMT_NAME).is_file():
                 result.append(child)
     return result
+
+
+def _standalone_archive_is_duplicated_by_loose(source_dir: Path) -> bool:
+    """判断 standalone 中所有 entry 是否已有同模组 loose 原文件副本。"""
+    entries = _parse_standalone_entries(source_dir)
+    if not entries:
+        return False
+    loose_by_name = _collect_same_mod_loose_files(source_dir.parent)
+    for entry in entries:
+        candidates = loose_by_name.get(_entry_basename(entry))
+        if len(candidates or []) != 1:
+            return False
+        try:
+            archive_content = _read_standalone_entry_content(entry)
+            loose_content = candidates[0].read_bytes()
+        except OSError:
+            return False
+        except Exception:
+            return False
+        if archive_content != loose_content:
+            return False
+    return True
+
+
+def _parse_standalone_entries(source_dir: Path) -> list[PazEntry]:
+    """安全解析 standalone PAMT，解析失败时保持原行为继续加载。"""
+    try:
+        return parse_pamt(source_dir / OVERLAY_PAMT_NAME, paz_dir=source_dir)
+    except Exception:
+        return []
+
+
+def _read_standalone_entry_content(entry: PazEntry) -> bytes:
+    """读取 standalone entry 的解压后内容，用于和 loose 原文件去重。"""
+    with Path(entry.paz_file).open("rb") as handle:
+        handle.seek(entry.offset)
+        raw = handle.read(entry.comp_size)
+    content, _entry = decompress_entry(raw, entry)
+    return content
+
+
+def _collect_same_mod_loose_files(mod_dir: Path) -> dict[str, list[Path]]:
+    """收集同一模组目录内 root game-path loose 文件，按 basename 建索引。"""
+    result: dict[str, list[Path]] = {}
+    for parent in _loose_search_roots(mod_dir):
+        for child in sorted((item for item in parent.iterdir() if item.is_dir()), key=_path_sort_key):
+            if child.name.lower() not in KNOWN_GAME_TOP_DIRS:
+                continue
+            for loose_file in sorted((item for item in child.rglob("*") if item.is_file()), key=_path_sort_key):
+                result.setdefault(loose_file.name.lower(), []).append(loose_file)
+    return result
+
+
+def _loose_search_roots(mod_dir: Path) -> list[Path]:
+    """返回需要检查 loose game-path 的目录根。"""
+    roots = [mod_dir]
+    files_dir = mod_dir / LOOSE_FILES_DIR_NAME
+    if files_dir.is_dir():
+        roots.append(files_dir)
+    return roots
+
+
+def _entry_basename(entry: PazEntry) -> str:
+    """提取 PAMT entry 的文件名并统一大小写。"""
+    normalized = entry.path.replace("\\", "/")
+    return normalized.rsplit("/", 1)[-1].lower()
 
 
 def _iter_ordered_mod_dirs(

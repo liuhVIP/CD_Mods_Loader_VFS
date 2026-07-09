@@ -153,6 +153,7 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
         game_dir,
         previous_items=previous_standalone_items,
         ordered_mods=mods,
+        warnings=warnings,
     )
     _log_phase("收集 standalone 归档", phase_started)
     _notify_progress(progress_callback, "收集 standalone 归档")

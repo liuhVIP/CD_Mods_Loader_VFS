@@ -15,9 +15,11 @@ Format 3 入口重写一遍。
 from __future__ import annotations
 
 import logging
+import struct
 from collections.abc import Callable
 from pathlib import Path
 
+from cdmm.archive.pamt import derive_pamt_dir
 from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
 from cdmm.services.format3_buffinfo_writer import build_buffinfo_byte_patch_result
 from cdmm.services.format3_capabilities import partition_supported_intents
@@ -86,6 +88,7 @@ def build_format3_overlay_entries(
     base_entries: list[OverlayInputEntry] | None = None,
 ) -> list[OverlayInputEntry]:
     """把 Format 3 模组转换为 overlay entry。"""
+    composed_outputs: dict[str, OverlayInputEntry] = {}
     grouped = build_format3_patch_items(
         game_dir,
         mods,
@@ -93,7 +96,10 @@ def build_format3_overlay_entries(
         warnings,
         errors,
         base_entries,
+        composed_outputs=composed_outputs,
     )
+    if composed_outputs:
+        return list(composed_outputs.values())
     return build_patch_overlay_entries(
         game_dir,
         grouped,
@@ -111,6 +117,8 @@ def build_format3_patch_items(
     warnings: list[str],
     errors: list[str],
     base_entries: list[OverlayInputEntry] | None = None,
+    *,
+    composed_outputs: dict[str, OverlayInputEntry] | None = None,
 ) -> dict[str, list[tuple[DiscoveredMod, dict]]]:
     """生成可复用 JSON byte patch 流程的 Format 3 patch block。"""
     grouped: dict[str, list[tuple[DiscoveredMod, dict]]] = {}
@@ -191,6 +199,10 @@ def build_format3_patch_items(
                     {
                         "game_file": game_file,
                         "changes": list(dispatch_result.changes),
+                        "_allow_partial_apply": any(
+                            bool(change.get("_dynamic_entry_offset"))
+                            for change in dispatch_result.changes
+                        ),
                     },
                 )
             )
@@ -202,8 +214,18 @@ def build_format3_patch_items(
             )
             if composed_body is not None:
                 current_body_by_entry[body_key] = composed_body
+                if composed_outputs is not None:
+                    composed_outputs[lower_game_rel_path(game_file)] = _overlay_input_from_paz_entry(
+                        body_entry,
+                        composed_body,
+                    )
             if composed_header is not None:
                 current_header_by_entry[header_key] = composed_header
+                if composed_outputs is not None and header_entry is not None:
+                    composed_outputs[lower_game_rel_path(header_entry.path)] = _overlay_input_from_paz_entry(
+                        header_entry,
+                        composed_header,
+                    )
             generated += dispatch_result.change_count
 
     if mods:
@@ -216,6 +238,18 @@ def build_format3_patch_items(
         if skipped:
             logger.info("Format 3 bridge: 跳过 %d 个 intent", skipped)
     return grouped
+
+
+def _overlay_input_from_paz_entry(entry: PazEntry, content: bytes) -> OverlayInputEntry:
+    """把 Format 3 内存合成结果包装成 overlay 输入。"""
+    return OverlayInputEntry(
+        content=content,
+        entry_path=entry.path,
+        pamt_dir=derive_pamt_dir(entry.paz_file),
+        compression_type=entry.compression_type,
+        encrypted=entry.encrypted,
+        crypto_filename=Path(entry.path).name,
+    )
 
 
 def _apply_format3_changes_to_current_base(
@@ -247,12 +281,22 @@ def _apply_format3_changes_to_current_base(
     body = bytearray(current_body)
     inserts_out: list[tuple[int, int]] = []
     if body_changes:
-        applied, mismatched, _relocated = apply_byte_patches(
-            body,
-            body_changes,
-            inserts_out=inserts_out,
-            name_offsets=name_offsets,
-        )
+        if any(bool(change.get("_dynamic_entry_offset")) for change in body_changes):
+            body, header_after_body, applied, mismatched = _apply_dynamic_body_changes(
+                game_file,
+                body,
+                bytearray(current_header),
+                body_changes,
+            )
+            if header_after_body is not None:
+                current_header = bytes(header_after_body)
+        else:
+            applied, mismatched, _relocated = apply_byte_patches(
+                body,
+                body_changes,
+                inserts_out=inserts_out,
+                name_offsets=name_offsets,
+            )
         if mismatched or applied != len(body_changes):
             logger.warning(
                 "%s: Format 3 内存合成 body 补丁未完全应用：%d/%d",
@@ -277,6 +321,39 @@ def _apply_format3_changes_to_current_base(
         header = bytearray(fixup_pabgh_after_inserts(bytes(header), inserts_out))
 
     return bytes(body), bytes(header)
+
+
+def _apply_dynamic_body_changes(
+    game_file: str,
+    body: bytearray,
+    header: bytearray,
+    changes: list[dict],
+) -> tuple[bytearray, bytearray | None, int, int]:
+    """逐条应用 entry-relative change，并在长度变化后刷新当前 PABGH。"""
+    table_name = Path(game_file.replace("\\", "/")).stem.lower()
+    applied_total = 0
+    mismatched_total = 0
+    current_header: bytearray | None = header if game_file.lower().endswith(".pabgb") else None
+
+    for change in changes:
+        name_offsets: dict[str, int] | None = None
+        if current_header is not None:
+            key_size, offsets = parse_pabgh_index(bytes(current_header), table_name)
+            entry_bounds = build_entry_bounds(bytes(body), key_size, offsets) if offsets else {}
+            name_offsets = _name_offsets_from_bounds(entry_bounds)
+        local_inserts: list[tuple[int, int]] = []
+        applied, mismatched, _relocated = apply_byte_patches(
+            body,
+            [change],
+            inserts_out=local_inserts,
+            name_offsets=name_offsets,
+        )
+        applied_total += applied
+        mismatched_total += mismatched
+        if current_header is not None and local_inserts:
+            current_header = bytearray(fixup_pabgh_after_inserts(bytes(current_header), local_inserts))
+
+    return body, current_header, applied_total, mismatched_total
 
 
 def _name_offsets_from_bounds(
@@ -337,14 +414,24 @@ def _format3_intents_to_result(
     if key_size not in (2, 4) or not offsets:
         return _skip_all_intents(intents, f"{table_name}.pabgh 索引无效")
     entry_bounds = build_entry_bounds(vanilla_body, key_size, offsets)
+    intents, match_skipped = _expand_match_intents_for_table(
+        table_name,
+        vanilla_body,
+        entry_bounds,
+        intents,
+    )
     writer = _FORMAT3_WRITERS.get(table_name)
     if writer is None:
-        return _skip_all_intents(intents, f"目标表 {table_name} 暂无 writer")
+        skipped_result = _skip_all_intents(intents, f"目标表 {table_name} 暂无 writer")
+        return Format3DispatchResult(
+            changes=(),
+            skipped=match_skipped + skipped_result.skipped,
+        )
     supported_intents, capability_skipped = partition_supported_intents(table_name, intents)
     if not supported_intents:
         return Format3DispatchResult(
             changes=(),
-            skipped=capability_skipped,
+            skipped=match_skipped + capability_skipped,
         )
     context = Format3RuntimeContext(
         game_file=game_file,
@@ -357,8 +444,184 @@ def _format3_intents_to_result(
     writer_result = writer(context, supported_intents)
     return Format3DispatchResult(
         changes=writer_result.changes,
-        skipped=capability_skipped + writer_result.skipped,
+        skipped=match_skipped + capability_skipped + writer_result.skipped,
     )
+
+
+def _expand_match_intents_for_table(
+    table_name: str,
+    body: bytes,
+    entry_bounds: dict[int, tuple[int, int, str, int]],
+    intents: list[Format3Intent],
+) -> tuple[list[Format3Intent], tuple[Format3SkippedIntent, ...]]:
+    """把 DMM v3.1 match intent 展开成当前 writer 可处理的 key intent。"""
+    if not any(intent.match for intent in intents):
+        return intents, ()
+    if table_name != "iteminfo":
+        return _skip_match_intents(intents, f"{table_name} 当前暂不支持 match capability")
+
+    records = _collect_iteminfo_match_records(body, entry_bounds)
+    if not records:
+        return _skip_match_intents(intents, "iteminfo match 前缀扫描未得到可用记录")
+
+    expanded: list[Format3Intent] = []
+    skipped: list[Format3SkippedIntent] = []
+    for intent in intents:
+        if not intent.match:
+            expanded.append(intent)
+            continue
+
+        unsupported = _unsupported_iteminfo_match_fields(intent.match)
+        if unsupported:
+            skipped.append(
+                Format3SkippedIntent(
+                    intent=intent,
+                    reason=f"iteminfo match 当前仅支持 equip_type_info；不支持 {', '.join(unsupported)}",
+                )
+            )
+            continue
+
+        matches = [
+            record
+            for record in records
+            if _iteminfo_record_matches(record, intent.match)
+        ]
+        if not matches:
+            skipped.append(
+                Format3SkippedIntent(
+                    intent=intent,
+                    reason="iteminfo match 条件未命中记录",
+                )
+            )
+            continue
+
+        for record in matches:
+            raw_key = record.get("key")
+            if isinstance(raw_key, bool) or not isinstance(raw_key, int):
+                skipped.append(
+                    Format3SkippedIntent(
+                        intent=intent,
+                        reason="iteminfo match 命中记录缺少有效 key",
+                    )
+                )
+                continue
+            bounds = entry_bounds.get(raw_key)
+            if bounds is None:
+                skipped.append(
+                    Format3SkippedIntent(
+                        intent=intent,
+                        reason=f"iteminfo match 命中 key={raw_key} 但 PABGH 中无边界",
+                    )
+                )
+                continue
+            raw_name = record.get("string_key")
+            entry_name = raw_name if isinstance(raw_name, str) and raw_name else bounds[2]
+            expanded.append(
+                Format3Intent(
+                    entry=entry_name,
+                    key=raw_key,
+                    field=intent.field,
+                    op=intent.op,
+                    new=intent.new,
+                    old=intent.old,
+                    match=None,
+                )
+            )
+
+    return expanded, tuple(skipped)
+
+
+def _skip_match_intents(
+    intents: list[Format3Intent],
+    reason: str,
+) -> tuple[list[Format3Intent], tuple[Format3SkippedIntent, ...]]:
+    """对带 match 的 intents 统一跳过，其余 intents 保持原样继续执行。"""
+    passthrough: list[Format3Intent] = []
+    skipped: list[Format3SkippedIntent] = []
+    for intent in intents:
+        if intent.match:
+            skipped.append(Format3SkippedIntent(intent=intent, reason=reason))
+        else:
+            passthrough.append(intent)
+    return passthrough, tuple(skipped)
+
+
+def _collect_iteminfo_match_records(
+    body: bytes,
+    entry_bounds: dict[int, tuple[int, int, str, int]],
+) -> list[dict[str, object]]:
+    """轻量读取 iteminfo match 需要的字段，避免整表解析导致 VFS 构建卡住。"""
+    records: list[dict[str, object]] = []
+    for key, bounds in entry_bounds.items():
+        parsed = _read_iteminfo_match_prefix(body, key, bounds)
+        if parsed is not None:
+            records.append(parsed)
+    return records
+
+
+def _read_iteminfo_match_prefix(
+    body: bytes,
+    key: int,
+    bounds: tuple[int, int, str, int],
+) -> dict[str, object] | None:
+    """只读取 ItemInfo 前缀中的 string_key 和 equip_type_info。"""
+    _entry_off, entry_end, entry_name, name_end = bounds
+    cursor = name_end
+    try:
+        # ItemInfo 前缀：is_blocked(u8)、max_stack_count(u64)、
+        # item_name(LocalizableString)、broken_item_prefix_string(u32)、
+        # inventory_info(u16)、equip_type_info(u32)。
+        cursor += 1 + 8
+        localizable_size = _consume_iteminfo_localizable(body, cursor, entry_end)
+        if localizable_size is None:
+            return None
+        cursor += localizable_size
+        if cursor + 4 + 2 + 4 > entry_end:
+            return None
+        cursor += 4 + 2
+        equip_type_info = struct.unpack_from("<I", body, cursor)[0]
+    except (struct.error, IndexError):
+        return None
+    return {
+        "key": key,
+        "string_key": entry_name,
+        "equip_type_info": equip_type_info,
+    }
+
+
+def _consume_iteminfo_localizable(body: bytes, offset: int, entry_end: int) -> int | None:
+    """消费 ItemInfo 前缀里的 LocalizableString：u8 + u64 + CString。"""
+    limit = min(entry_end, len(body))
+    if offset + 1 + 8 + 4 > limit:
+        return None
+    length_offset = offset + 1 + 8
+    string_len = struct.unpack_from("<I", body, length_offset)[0]
+    total = 1 + 8 + 4 + string_len
+    if string_len > 1_000_000 or offset + total > limit:
+        return None
+    return total
+
+
+def _unsupported_iteminfo_match_fields(match_spec: dict[str, object]) -> list[str]:
+    """当前只放开真实 MaxWeaponsModular 使用的 equip_type_info 匹配。"""
+    return [field for field in match_spec if field != "equip_type_info"]
+
+
+def _iteminfo_record_matches(record: dict, match_spec: dict[str, object]) -> bool:
+    """判断 iteminfo 记录是否满足已支持的简单 match 条件。"""
+    for field, expected in match_spec.items():
+        if not _match_simple_value(record.get(field), expected):
+            return False
+    return True
+
+
+def _match_simple_value(actual: object, expected: object) -> bool:
+    """支持标量等值，以及标量字段对数组条件的 IN 匹配。"""
+    if isinstance(expected, list):
+        if isinstance(actual, list):
+            return actual == expected
+        return actual in expected
+    return actual == expected
 
 
 def _skip_all_intents(

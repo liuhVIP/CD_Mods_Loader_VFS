@@ -10,6 +10,7 @@ from pathlib import Path
 from cdmm.archive.pamt import derive_pamt_dir
 from cdmm.archive.paz_crypto import decrypt, lz4_decompress
 from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
+from cdmm.services.pabgh_rewrite import rewrite_pabgh_offsets
 from cdmm.services.pab_table_service import parse_entry_name_end, parse_pabgh_index
 from cdmm.services.pamt_index_service import get_game_pamt_index
 from cdmm.services.scanner import load_json_file
@@ -17,6 +18,10 @@ from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.path_utils import lower_game_rel_path
 
 logger = logging.getLogger(__name__)
+
+# Format 3 的动态 entry-relative 补丁可以因同一 entry 前面的长度变化
+# 产生小范围位移，但不能全表扫描到另一个 entry 的相同字节。
+DYNAMIC_ENTRY_RELOCATION_WINDOW = 512
 
 DATA_TABLE_SUFFIXES = (".pabgb", ".pabgh", ".pamt")
 
@@ -138,18 +143,39 @@ def build_patch_overlay_entries(
         already_patched = 0
         need_already_patched_check = False
         inserts_out: list[tuple[int, int]] = []
+        reject_partial_items: list[tuple[DiscoveredMod, dict]] = []
 
         for mod, patch in patch_items:
             changes = patch.get("changes", [])
             if not changes:
                 continue
+            patch_name_offsets = name_offsets
+            if _has_dynamic_entry_changes(changes):
+                current_header = _build_current_pabgh_for_body(
+                    game_dir,
+                    vanilla_store,
+                    game_file,
+                    base_plaintext,
+                    bytes(modified),
+                    errors,
+                    base_by_entry,
+                )
+                patch_name_offsets = _build_name_offsets(
+                    game_dir,
+                    vanilla_store,
+                    game_file,
+                    bytes(modified),
+                    errors,
+                    base_by_entry,
+                    header_override=current_header,
+                )
             applied, mismatched, relocated = apply_byte_patches(
                 modified,
                 changes,
                 signature=patch.get("signature"),
                 vanilla_data=plaintext,
                 inserts_out=inserts_out,
-                name_offsets=name_offsets,
+                name_offsets=patch_name_offsets,
             )
             total_applied += applied
             total_mismatched += mismatched
@@ -159,11 +185,13 @@ def build_patch_overlay_entries(
                 logger.info("%s: %s 发生 %d 个偏移重定位", mod.name, game_file, relocated)
             if mismatched:
                 had_mismatch = True
+                if not bool(patch.get("_allow_partial_apply")):
+                    reject_partial_items.append((mod, patch))
                 warnings.append(
                     f"{mod.name}: {game_file} 有 {mismatched}/{applied + mismatched} 个补丁未匹配"
                 )
 
-        if total_mismatched > 0 and _should_skip_partial_data_table(game_file, patch_items, inserts_out):
+        if total_mismatched > 0 and _should_skip_partial_data_table(game_file, reject_partial_items, inserts_out):
             allowed_names = ", ".join(sorted({mod.name for mod, _patch in patch_items}))
             warnings.append(
                 f"{game_file}: 数据表补丁存在 {total_mismatched}/{total_applied + total_mismatched} "
@@ -207,6 +235,8 @@ def build_patch_overlay_entries(
                 inserts_out,
                 errors,
                 base_by_entry,
+                body_before=base_plaintext,
+                body_after=bytes(modified),
                 required=bool(inserts_out),
             )
             if companion is not None:
@@ -304,17 +334,18 @@ def apply_byte_patches(
         if parsed is None:
             mismatched += 1
             continue
-        parsed_changes.append((offset, change, *parsed))
+        dynamic_entry_offset = bool(change.get("_dynamic_entry_offset"))
+        parsed_changes.append((offset, change, *parsed, dynamic_entry_offset))
     # DMM 的 V1/V2 replace 会保留 JSON 原始顺序；只有长度变化时才需要按 offset 计算位移。
     has_length_delta = any(
         len(patched_bytes) != old_len
-        for _offset, _change, patched_bytes, _original_bytes, old_len in parsed_changes
+        for _offset, _change, patched_bytes, _original_bytes, old_len, _dynamic in parsed_changes
     )
     if has_length_delta:
         parsed_changes.sort(key=lambda item: item[0])
 
-    for original_offset, change, patched_bytes, original_bytes, old_len in parsed_changes:
-        if writes:
+    for original_offset, change, patched_bytes, original_bytes, old_len, dynamic_entry_offset in parsed_changes:
+        if writes and not dynamic_entry_offset:
             offset = original_offset + shift_for(original_offset)
         else:
             offset = original_offset
@@ -333,8 +364,24 @@ def apply_byte_patches(
             continue
 
         if offset + old_len > len(data):
-            mismatched += 1
-            continue
+            new_offset = (
+                _pattern_scan(data, original_offset, original_bytes, vanilla_data)
+                if original_bytes is not None
+                else None
+            )
+            if (
+                new_offset is None
+                or new_offset + old_len > len(data)
+                or data[new_offset:new_offset + old_len] != original_bytes
+                or (
+                    dynamic_entry_offset
+                    and not _is_near_dynamic_relocation(original_offset, new_offset)
+                )
+            ):
+                mismatched += 1
+                continue
+            offset = new_offset
+            relocated += 1
         if original_bytes is not None and data[offset:offset + old_len] != original_bytes:
             if data[offset:offset + len(patched_bytes)] == patched_bytes:
                 applied += 1
@@ -353,6 +400,10 @@ def apply_byte_patches(
                     and new_offset != offset
                     and new_offset + old_len <= len(data)
                     and data[new_offset:new_offset + old_len] == original_bytes
+                    and (
+                        not dynamic_entry_offset
+                        or _is_near_dynamic_relocation(original_offset, new_offset)
+                    )
                 ):
                     data[new_offset:new_offset + old_len] = patched_bytes
                     writes.append((original_offset, 0))
@@ -365,6 +416,10 @@ def apply_byte_patches(
                 new_offset is None
                 or new_offset + old_len > len(data)
                 or data[new_offset:new_offset + old_len] != original_bytes
+                or (
+                    dynamic_entry_offset
+                    and not _is_near_dynamic_relocation(original_offset, new_offset)
+                )
             ):
                 mismatched += 1
                 continue
@@ -374,8 +429,10 @@ def apply_byte_patches(
         writes.append((original_offset, len(patched_bytes) - old_len))
         written_replacements[(original_offset, old_len)] = patched_bytes
         if inserts_out is not None and len(patched_bytes) != old_len:
-            # 长度变化的 replace 同样会移动后续 entry，需要修正 PABGH 指针。
-            inserts_out.append((original_offset, len(patched_bytes) - old_len))
+            # 长度变化的 replace 只会移动被替换旧片段之后的 entry。
+            # 若把 delta 记在 replace 起点，刚好从 entry 开头替换时会把
+            # 当前 entry 的 PABGH 指针也推走，游戏会从记录中间读取 _key。
+            inserts_out.append((original_offset + old_len, len(patched_bytes) - old_len))
         applied += 1
 
     if signature and applied == 0 and mismatched > 0 and original_snapshot is not None:
@@ -390,6 +447,11 @@ def apply_byte_patches(
             name_offsets=name_offsets,
         )
     return applied, mismatched, relocated
+
+
+def _is_near_dynamic_relocation(original_offset: int, new_offset: int) -> bool:
+    """限制动态 entry 补丁只能在 entry 附近重定位。"""
+    return abs(new_offset - original_offset) <= DYNAMIC_ENTRY_RELOCATION_WINDOW
 
 
 def _get_prior_same_range_rewrite(
@@ -459,6 +521,8 @@ def _build_pabgh_companion(
     errors: list[str],
     base_by_entry: dict[str, OverlayInputEntry] | None = None,
     *,
+    body_before: bytes | None = None,
+    body_after: bytes | None = None,
     required: bool = True,
 ) -> OverlayInputEntry | None:
     """构造 insert 场景需要同步输出的 .pabgh companion entry。"""
@@ -478,6 +542,15 @@ def _build_pabgh_companion(
     if base_entry is not None:
         plaintext = base_entry.content
     fixed = fixup_pabgh_after_inserts(plaintext, inserts)
+    repaired = _repair_pabgh_offsets_from_body(
+        fixed,
+        game_file,
+        reference_header=plaintext,
+        reference_body=body_before,
+        final_body=body_after,
+    )
+    if repaired is not None:
+        fixed = repaired
     return OverlayInputEntry(
         content=fixed,
         entry_path=vanilla_entry.path,
@@ -486,6 +559,86 @@ def _build_pabgh_companion(
         encrypted=vanilla_entry.encrypted,
         crypto_filename=os.path.basename(vanilla_entry.path),
     )
+
+
+def _repair_pabgh_offsets_from_body(
+    header: bytes,
+    game_file: str,
+    *,
+    reference_header: bytes,
+    reference_body: bytes | None,
+    final_body: bytes | None,
+) -> bytes | None:
+    """用最终 PABGB 记录起点反修 PABGH，兜底复杂 Format 3 变长组合。"""
+    if reference_body is None or final_body is None:
+        return None
+    table_name = Path(game_file.replace("\\", "/")).stem.lower()
+    if table_name != "iteminfo":
+        return None
+    key_size, fixed_offsets = parse_pabgh_index(header, table_name)
+    if key_size not in (2, 4) or not fixed_offsets:
+        return None
+
+    _, reference_offsets = parse_pabgh_index(reference_header, table_name)
+    expected_names: dict[int, str] = {}
+    for key, offset in reference_offsets.items():
+        parsed = parse_entry_name_end(reference_body, offset, key_size)
+        if parsed is not None:
+            expected_names[key] = parsed[0]
+
+    repaired_offsets: dict[int, int] = {}
+    cursor = 0
+    for key, estimated_offset in sorted(fixed_offsets.items(), key=lambda item: item[1]):
+        expected_name = expected_names.get(key)
+        found = _find_entry_offset_by_key_name(
+            final_body,
+            key,
+            key_size,
+            expected_name,
+            cursor,
+            estimated_offset,
+        )
+        if found is None:
+            return None
+        repaired_offsets[key] = found
+        cursor = found + key_size
+
+    if repaired_offsets == fixed_offsets:
+        return None
+    return rewrite_pabgh_offsets(header, table_name, repaired_offsets)
+
+
+def _find_entry_offset_by_key_name(
+    body: bytes,
+    key: int,
+    key_size: int,
+    expected_name: str | None,
+    cursor: int,
+    estimated_offset: int,
+) -> int | None:
+    """在最终 body 里按 key + string_key 定位真实 entry 起点。"""
+    needle = int(key).to_bytes(key_size, "little", signed=False)
+    search_windows = (4096, 65536, 262144, len(body))
+    best: tuple[int, int] | None = None
+    for window in search_windows:
+        start = max(cursor, estimated_offset - window)
+        end = min(len(body), estimated_offset + window)
+        if window >= len(body):
+            start = cursor
+            end = len(body)
+        pos = body.find(needle, start, end)
+        while pos >= 0:
+            parsed = parse_entry_name_end(body, pos, key_size)
+            if parsed is not None:
+                name, _name_end = parsed
+                if expected_name is None or name == expected_name:
+                    distance = abs(pos - estimated_offset)
+                    if best is None or distance < best[0]:
+                        best = (distance, pos)
+            pos = body.find(needle, pos + 1, end)
+        if best is not None:
+            return best[1]
+    return None
 
 
 def _count_already_patched(changes: list[dict], data: bytes) -> int:
@@ -505,6 +658,8 @@ def _build_name_offsets(
     body: bytes,
     errors: list[str],
     base_by_entry: dict[str, OverlayInputEntry] | None = None,
+    *,
+    header_override: bytes | None = None,
 ) -> dict[str, int] | None:
     """构建 entry 名称到 name_end 的映射，用于 Format 3 的 entry+rel_offset。"""
     if not game_file.lower().endswith(".pabgb"):
@@ -513,15 +668,18 @@ def _build_name_offsets(
     entry = _find_patch_target_entry(pabgh_file, game_dir)
     if entry is None:
         return None
-    try:
-        vanilla_entry = vanilla_store.ensure_entry_backup(entry)
-        header, _ = extract_plaintext(vanilla_entry)
-    except Exception as exc:
-        errors.append(f"{pabgh_file}: entry 名称索引构建失败：{exc}")
-        return None
-    base_header = (base_by_entry or {}).get(vanilla_entry.path.lower())
-    if base_header is not None:
-        header = base_header.content
+    if header_override is not None:
+        header = header_override
+    else:
+        try:
+            vanilla_entry = vanilla_store.ensure_entry_backup(entry)
+            header, _ = extract_plaintext(vanilla_entry)
+        except Exception as exc:
+            errors.append(f"{pabgh_file}: entry 名称索引构建失败：{exc}")
+            return None
+        base_header = (base_by_entry or {}).get(vanilla_entry.path.lower())
+        if base_header is not None:
+            header = base_header.content
     table_name = Path(game_file.replace("\\", "/")).stem.lower()
     key_size, offsets = parse_pabgh_index(header, table_name)
     if key_size not in (2, 4) or not offsets:
@@ -536,6 +694,45 @@ def _build_name_offsets(
             names[name] = name_end
             names[name.lower()] = name_end
     return names
+
+
+def _has_dynamic_entry_changes(changes: list[dict]) -> bool:
+    """判断 patch 是否包含需要当前 entry 锚点的 Format 3 change。"""
+    return any(bool(change.get("_dynamic_entry_offset")) for change in changes)
+
+
+def _build_current_pabgh_for_body(
+    game_dir: Path,
+    vanilla_store: VanillaStore,
+    game_file: str,
+    reference_body: bytes,
+    current_body: bytes,
+    errors: list[str],
+    base_by_entry: dict[str, OverlayInputEntry] | None = None,
+) -> bytes | None:
+    """用当前 body 修复 companion PABGH，供动态 entry offset 重新锚定。"""
+    if not game_file.lower().endswith(".pabgb"):
+        return None
+    pabgh_file = game_file.rsplit(".", 1)[0] + ".pabgh"
+    entry = _find_patch_target_entry(pabgh_file, game_dir)
+    if entry is None:
+        return None
+    try:
+        vanilla_entry = vanilla_store.ensure_entry_backup(entry)
+        reference_header, _ = extract_plaintext(vanilla_entry)
+    except Exception as exc:
+        errors.append(f"{pabgh_file}: 当前 entry 索引构建失败：{exc}")
+        return None
+    base_header = (base_by_entry or {}).get(vanilla_entry.path.lower())
+    if base_header is not None:
+        reference_header = base_header.content
+    return _repair_pabgh_offsets_from_body(
+        reference_header,
+        game_file,
+        reference_header=reference_header,
+        reference_body=reference_body,
+        final_body=current_body,
+    )
 
 
 def _find_patch_target_entry(game_file: str, game_dir: Path) -> PazEntry | None:
@@ -791,6 +988,8 @@ def _should_skip_partial_data_table(
     inserts: list[tuple[int, int]],
 ) -> bool:
     """只有数据表长度变化伴随未匹配时才整表跳过；等长冲突可按 DMM 继续半应用。"""
+    if not patch_items:
+        return False
     if not _should_reject_partial_data_table(game_file, patch_items):
         return False
     return bool(inserts)
