@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections import Counter
+from collections import Counter, defaultdict
 from time import perf_counter
 from pathlib import Path
 
@@ -17,7 +17,7 @@ from cdmm.common.constants import (
     OVERLAY_PAZ_NAME,
 )
 from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
-from cdmm.services.pamt_index_service import get_game_pamt_index
+from cdmm.services.pamt_index_service import get_game_pamt_index, prefetch_game_pamt_dir_targets
 from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.path_utils import lower_game_rel_path
 
@@ -42,6 +42,7 @@ def build_loose_overlay_entries(
     numbered_count = sum(1 for _mod_dir, pamt_dir, _rel_path, _loose_path in loose_files if pamt_dir is not None)
     root_count = len(loose_files) - numbered_count
     root_match_started = perf_counter()
+    _prefetch_numbered_loose_matches(game_dir, loose_files)
     root_match_cache, root_sibling_hints = _prepare_root_loose_matches(game_dir, loose_files)
 
     entries: list[OverlayInputEntry] = []
@@ -147,6 +148,9 @@ def _prepare_root_loose_matches(
 def collect_loose_pamt_targets(
     game_dir: Path,
     ordered_mods: list[DiscoveredMod] | None = None,
+    *,
+    include_numbered: bool = True,
+    include_root: bool = True,
 ) -> list[str]:
     """收集 loose 阶段会按 PAMT 查询的目标路径，用于冷启动预筛选。"""
     mods_dir = game_dir / MODS_DIR_NAME
@@ -154,8 +158,23 @@ def collect_loose_pamt_targets(
         return []
     return [
         rel_path.as_posix()
-        for _mod_dir, _pamt_dir, rel_path, _loose_path in _iter_loose_files(mods_dir, ordered_mods)
+        for _mod_dir, pamt_dir, rel_path, _loose_path in _iter_loose_files(mods_dir, ordered_mods)
+        if (pamt_dir is not None and include_numbered) or (pamt_dir is None and include_root)
     ]
+
+
+def _prefetch_numbered_loose_matches(
+    game_dir: Path,
+    loose_files: list[tuple[Path, str | None, Path, Path]],
+) -> None:
+    """按 NNNN 目录批量预取 numbered loose 目标，避免混入全局 basename 扫描。"""
+    targets_by_dir: dict[str, list[str]] = defaultdict(list)
+    for _mod_dir, pamt_dir, rel_path, _loose_path in loose_files:
+        if pamt_dir is None:
+            continue
+        targets_by_dir[pamt_dir].append(rel_path.as_posix())
+    if targets_by_dir:
+        prefetch_game_pamt_dir_targets(game_dir, dict(targets_by_dir))
 
 
 def _iter_loose_files(

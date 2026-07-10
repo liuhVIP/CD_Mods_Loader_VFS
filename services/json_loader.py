@@ -7,6 +7,7 @@ import os
 import struct
 from bisect import bisect_right
 from pathlib import Path
+from time import perf_counter
 
 from cdmm.archive.pamt import derive_pamt_dir
 from cdmm.archive.paz_crypto import decrypt, lz4_decompress
@@ -29,6 +30,9 @@ DATA_TABLE_SUFFIXES = (".pabgb", ".pabgh", ".pamt")
 # DMM 对 8 字节旧版 JSON 补丁会允许小范围最近匹配，超过该距离会跳过以免误写。
 NEAR_PATTERN_RELOCATION_LIMIT = 4000
 
+# JSON 阶段耗时超过该阈值时写入细分日志，方便定位慢模组。
+JSON_PROFILE_LOG_THRESHOLD_SECONDS = 0.25
+
 
 def build_json_overlay_entries(
     game_dir: Path,
@@ -39,14 +43,19 @@ def build_json_overlay_entries(
     base_entries: list[OverlayInputEntry] | None = None,
 ) -> list[OverlayInputEntry]:
     """读取所有传统 JSON 模组，生成待写入 overlay 的 entry。"""
+    started = perf_counter()
     grouped: dict[str, list[tuple[DiscoveredMod, dict]]] = {}
     resolved_game_files: dict[str, str] = {}
+    mod_stats: dict[str, dict[str, float | int]] = {}
     for mod in mods:
+        mod_started = perf_counter()
         try:
             data = load_json_file(mod.path)
         except Exception as exc:
             errors.append(f"{mod.name}: JSON 读取失败：{exc}")
             continue
+        mod_patch_count = 0
+        mod_change_count = 0
         for patch in data.get("patches", []):
             if not _is_patch_block(patch):
                 continue
@@ -59,8 +68,16 @@ def build_json_overlay_entries(
                 group_key = lower_game_rel_path(resolved.path)
                 resolved_game_files[group_key] = resolved.path
             grouped.setdefault(group_key, []).append((mod, patch))
+            mod_patch_count += 1
+            mod_change_count += len(patch.get("changes", []))
+        mod_stats[mod.name] = {
+            "load_group_seconds": perf_counter() - mod_started,
+            "patch_count": mod_patch_count,
+            "change_count": mod_change_count,
+        }
 
-    return build_patch_overlay_entries(
+    grouping_seconds = perf_counter() - started
+    overlay_entries = build_patch_overlay_entries(
         game_dir,
         grouped,
         vanilla_store,
@@ -68,7 +85,16 @@ def build_json_overlay_entries(
         errors,
         base_entries,
         resolved_game_files,
+        mod_stats=mod_stats,
     )
+    logger.info(
+        "JSON 耗时：总计 %.2fs，读取/分组 %.2fs，目标 %d 个，overlay entry %d 个",
+        perf_counter() - started,
+        grouping_seconds,
+        len(grouped),
+        len(overlay_entries),
+    )
+    return overlay_entries
 
 
 def collect_json_pamt_targets(mods: list[DiscoveredMod]) -> list[str]:
@@ -97,6 +123,7 @@ def build_patch_overlay_entries(
     errors: list[str],
     base_entries: list[OverlayInputEntry] | None = None,
     resolved_game_files: dict[str, str] | None = None,
+    mod_stats: dict[str, dict[str, float | int]] | None = None,
 ) -> list[OverlayInputEntry]:
     """把已经聚合好的 byte patch block 应用到 vanilla，并生成 overlay entry。"""
     grouped, resolved_game_files = _expand_grouped_patch_items(
@@ -109,6 +136,7 @@ def build_patch_overlay_entries(
     }
     overlay_entries: list[OverlayInputEntry] = []
     for group_key, patch_items in grouped.items():
+        group_started = perf_counter()
         first_patch = patch_items[0][1]
         original_game_file = str(first_patch["game_file"])
         game_file = (resolved_game_files or {}).get(
@@ -147,6 +175,7 @@ def build_patch_overlay_entries(
         reject_partial_items: list[tuple[DiscoveredMod, dict]] = []
 
         for mod, patch in patch_items:
+            patch_started = perf_counter()
             changes = patch.get("changes", [])
             if not changes:
                 continue
@@ -180,6 +209,24 @@ def build_patch_overlay_entries(
             )
             total_applied += applied
             total_mismatched += mismatched
+            _record_json_mod_apply_stat(
+                mod_stats,
+                mod.name,
+                perf_counter() - patch_started,
+                len(changes),
+                applied,
+                mismatched,
+                relocated,
+            )
+            _log_slow_json_patch(
+                mod.name,
+                game_file,
+                perf_counter() - patch_started,
+                len(changes),
+                applied,
+                mismatched,
+                relocated,
+            )
             if applied == 0:
                 need_already_patched_check = True
             if relocated:
@@ -242,6 +289,15 @@ def build_patch_overlay_entries(
             )
             if companion is not None:
                 overlay_entries.append(companion)
+        _log_slow_json_group(
+            game_file,
+            perf_counter() - group_started,
+            patch_items,
+            total_applied,
+            total_mismatched,
+        )
+
+    _log_json_mod_profile(mod_stats)
 
     return overlay_entries
 
@@ -813,44 +869,14 @@ def _pattern_scan(
     vanilla_data: bytes | None,
 ) -> int | None:
     """在游戏更新导致 offset 漂移时尝试定位原始字节。"""
-    try:
-        import cdumm_native
+    from cdmm import cdloader_native
 
-        return cdumm_native.pattern_scan(bytes(data), original_offset, original_bytes, vanilla_data)
-    except ImportError:
-        pass
-
-    data_bytes = bytes(data)
-    if vanilla_data and original_offset < len(vanilla_data):
-        for context_size in (24, 16, 12, 8):
-            start = max(0, original_offset - context_size)
-            end = min(len(vanilla_data), original_offset + len(original_bytes) + context_size)
-            context = vanilla_data[start:end]
-            if len(context) < context_size:
-                continue
-            matches = _find_all(data_bytes, context)
-            if len(matches) == 1:
-                candidate = matches[0] + original_offset - start
-                if candidate + len(original_bytes) <= len(data):
-                    return _filter_near_pattern_candidate(candidate, original_offset, original_bytes)
-
-    scan_start = max(0, original_offset - 512) if len(original_bytes) < 4 else 0
-    scan_end = min(len(data_bytes), original_offset + 512) if len(original_bytes) < 4 else len(data_bytes)
-    matches = _find_all(data_bytes[scan_start:scan_end], original_bytes)
-    if len(matches) == 1:
-        return _filter_near_pattern_candidate(
-            scan_start + matches[0],
-            original_offset,
-            original_bytes,
-        )
-    if len(original_bytes) >= 8 and matches:
-        nearest = min(
-            (scan_start + match for match in matches),
-            key=lambda match: abs(match - original_offset),
-        )
-        if abs(nearest - original_offset) <= NEAR_PATTERN_RELOCATION_LIMIT:
-            return nearest
-    return None
+    return cdloader_native.pattern_scan(
+        data,
+        original_offset,
+        original_bytes,
+        vanilla_data,
+    )
 
 
 def _filter_near_pattern_candidate(
@@ -867,7 +893,7 @@ def _filter_near_pattern_candidate(
     return candidate
 
 
-def _find_all(data: bytes, pattern: bytes) -> list[int]:
+def _find_all(data: bytes | bytearray, pattern: bytes | bytearray) -> list[int]:
     """查找所有 pattern 位置。"""
     if not pattern:
         return []
@@ -879,6 +905,107 @@ def _find_all(data: bytes, pattern: bytes) -> list[int]:
             return result
         result.append(index)
         pos = index + 1
+
+
+def _record_json_mod_apply_stat(
+    mod_stats: dict[str, dict[str, float | int]] | None,
+    mod_name: str,
+    elapsed: float,
+    change_count: int,
+    applied: int,
+    mismatched: int,
+    relocated: int,
+) -> None:
+    """累加单个 JSON 模组的应用耗时和补丁结果。"""
+    if mod_stats is None:
+        return
+    stats = mod_stats.setdefault(
+        mod_name,
+        {
+            "load_group_seconds": 0.0,
+            "patch_count": 0,
+            "change_count": 0,
+        },
+    )
+    stats["apply_seconds"] = float(stats.get("apply_seconds", 0.0)) + elapsed
+    stats["apply_change_count"] = int(stats.get("apply_change_count", 0)) + change_count
+    stats["applied"] = int(stats.get("applied", 0)) + applied
+    stats["mismatched"] = int(stats.get("mismatched", 0)) + mismatched
+    stats["relocated"] = int(stats.get("relocated", 0)) + relocated
+
+
+def _log_slow_json_patch(
+    mod_name: str,
+    game_file: str,
+    elapsed: float,
+    change_count: int,
+    applied: int,
+    mismatched: int,
+    relocated: int,
+) -> None:
+    """输出慢 JSON patch 块，便于定位单个模组。"""
+    if elapsed < JSON_PROFILE_LOG_THRESHOLD_SECONDS:
+        return
+    logger.info(
+        "JSON 耗时：patch %.2fs，模组=%s，目标=%s，changes=%d，applied=%d，mismatched=%d，relocated=%d",
+        elapsed,
+        mod_name,
+        game_file,
+        change_count,
+        applied,
+        mismatched,
+        relocated,
+    )
+
+
+def _log_slow_json_group(
+    game_file: str,
+    elapsed: float,
+    patch_items: list[tuple[DiscoveredMod, dict]],
+    total_applied: int,
+    total_mismatched: int,
+) -> None:
+    """输出慢目标分组耗时。"""
+    if elapsed < JSON_PROFILE_LOG_THRESHOLD_SECONDS:
+        return
+    mod_names = ", ".join(sorted({mod.name for mod, _patch in patch_items}))
+    change_count = sum(len(patch.get("changes", [])) for _mod, patch in patch_items)
+    logger.info(
+        "JSON 耗时：目标 %.2fs，target=%s，mods=%s，changes=%d，applied=%d，mismatched=%d",
+        elapsed,
+        game_file,
+        mod_names,
+        change_count,
+        total_applied,
+        total_mismatched,
+    )
+
+
+def _log_json_mod_profile(mod_stats: dict[str, dict[str, float | int]] | None) -> None:
+    """输出 JSON 模组耗时 Top 列表。"""
+    if not mod_stats:
+        return
+    rows = []
+    for mod_name, stats in mod_stats.items():
+        total_seconds = float(stats.get("load_group_seconds", 0.0)) + float(
+            stats.get("apply_seconds", 0.0)
+        )
+        if total_seconds < JSON_PROFILE_LOG_THRESHOLD_SECONDS:
+            continue
+        rows.append((total_seconds, mod_name, stats))
+    for total_seconds, mod_name, stats in sorted(rows, reverse=True)[:10]:
+        logger.info(
+            "JSON 耗时TOP：%.2fs，模组=%s，读取/分组=%.2fs，应用=%.2fs，patches=%d，changes=%d，applied=%d，mismatched=%d，relocated=%d",
+            total_seconds,
+            mod_name,
+            float(stats.get("load_group_seconds", 0.0)),
+            float(stats.get("apply_seconds", 0.0)),
+            int(stats.get("patch_count", 0)),
+            int(stats.get("apply_change_count", stats.get("change_count", 0))),
+            int(stats.get("applied", 0)),
+            int(stats.get("mismatched", 0)),
+            int(stats.get("relocated", 0)),
+        )
 
 
 def _bytes_from_hex(value: object) -> bytes | None:

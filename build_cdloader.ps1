@@ -24,6 +24,16 @@ $OutputDir = Join-Path $ScriptDir $DistDir
 $WorkDir = Join-Path $ScriptDir "build\pyinstaller"
 $SpecDir = Join-Path $ScriptDir "build"
 $VersionFile = Join-Path $ScriptDir "version.txt"
+$NativeDir = Join-Path $ScriptDir "native"
+
+if (-not (Test-Path -LiteralPath (Join-Path $NativeDir "__init__.py"))) {
+    Write-Host "未找到 native 包目录：$NativeDir" -ForegroundColor Red
+    exit 1
+}
+if ((Get-ChildItem -LiteralPath $NativeDir -Filter "_cdloader_native*.pyd" -File).Count -eq 0) {
+    Write-Host "未找到 _cdloader_native 原生扩展：$NativeDir" -ForegroundColor Red
+    exit 1
+}
 
 # PyInstaller 会跟随部分可选依赖，把测试、打包、交互环境模块一起收进单文件。
 # 这些模块不参与 cdloader 运行，集中排除可以降低成品 exe 体积。
@@ -59,6 +69,7 @@ $PyInstallerArgs = @(
     "--workpath", $WorkDir,
     "--specpath", $SpecDir,
     "--optimize", "2",
+    "--hidden-import", "cdmm.native._cdloader_native",
     "--add-data", "$ScriptDir\config\game_config.json;config",
     "--add-data", "$VersionFile;.",
     "$ScriptDir\cli.py"

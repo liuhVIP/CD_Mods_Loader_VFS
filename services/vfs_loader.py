@@ -13,6 +13,7 @@ from hashlib import sha256
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 
 from cdmm.common.constants import (
     LOGS_DIR_NAME,
@@ -121,16 +122,23 @@ def build_vfs_package(
     progress_callback: Callable[[str], None] | None = None,
 ) -> VfsBuildResult:
     """构建 VFS 运行目录和 mapping_tree.json，不修改游戏源文件。"""
+    total_started = perf_counter()
+    stage_started = perf_counter()
     _notify_progress(progress_callback, "检查游戏目录")
     validate_game_dir(game_dir)
     _ensure_vfs_work_dirs(game_dir)
+    _log_vfs_stage("检查游戏目录", stage_started)
 
     warnings: list[str] = []
     errors: list[str] = []
+    stage_started = perf_counter()
     _notify_progress(progress_callback, "扫描 mods 并同步加载顺序")
     mods, scan_warnings = scan_mods(game_dir)
     warnings.extend(scan_warnings)
     current_fingerprint = fingerprint_mods(mods)
+    _log_vfs_stage("扫描 mods / 指纹", stage_started)
+
+    stage_started = perf_counter()
     cached_result = _try_reuse_vfs_package(
         game_dir,
         mods,
@@ -139,25 +147,33 @@ def build_vfs_package(
         allow_missing_targets,
     )
     if cached_result is not None:
+        _log_vfs_stage("整包缓存检查", stage_started)
+        _log_vfs_stage("VFS 构建总耗时", total_started)
         _notify_progress(progress_callback, "VFS 缓存命中，复用已构建包")
         return cached_result
+    _log_vfs_stage("整包缓存检查", stage_started)
 
+    stage_started = perf_counter()
     _notify_progress(progress_callback, "统计 JSON / Format 3 / loose 目标")
     json_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_JSON_PATCH]
     format3_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_FORMAT3]
     warnings.extend(collect_format3_warnings(format3_mods))
 
     pamt_targets = [
-        *collect_loose_pamt_targets(game_dir, mods),
+        *collect_loose_pamt_targets(game_dir, mods, include_numbered=False),
         *collect_json_pamt_targets(json_mods),
         *collect_format3_pamt_targets(format3_mods),
     ]
     register_game_pamt_targets(game_dir, pamt_targets)
+    _log_vfs_stage("统计并注册 PAMT 目标", stage_started)
 
+    stage_started = perf_counter()
     _notify_progress(progress_callback, "准备原版 meta 与 PAMT 索引")
     vanilla_store = VanillaStore(game_dir)
     vanilla_store.ensure_meta_backup()
+    _log_vfs_stage("准备原版 meta / PAMT", stage_started)
 
+    stage_started = perf_counter()
     _notify_progress(progress_callback, "构建 loose 文件覆盖输入")
     loose_overlay_inputs = build_loose_overlay_entries(
         game_dir,
@@ -166,6 +182,9 @@ def build_vfs_package(
         errors,
         mods,
     )
+    _log_vfs_stage("构建 loose 覆盖输入", stage_started)
+
+    stage_started = perf_counter()
     _notify_progress(progress_callback, "构建 JSON 补丁覆盖输入")
     json_overlay_inputs = build_json_overlay_entries(
         game_dir,
@@ -175,6 +194,9 @@ def build_vfs_package(
         errors,
         loose_overlay_inputs,
     )
+    _log_vfs_stage("构建 JSON 覆盖输入", stage_started)
+
+    stage_started = perf_counter()
     _notify_progress(progress_callback, "构建 Format 3 语义覆盖输入")
     format3_overlay_inputs = build_format3_overlay_entries(
         game_dir,
@@ -184,16 +206,22 @@ def build_vfs_package(
         errors,
         [*loose_overlay_inputs, *json_overlay_inputs],
     )
+    _log_vfs_stage("构建 Format 3 覆盖输入", stage_started)
+
+    stage_started = perf_counter()
     overlay_packages = _build_dmm_like_overlay_packages(
         loose_overlay_inputs,
         json_overlay_inputs,
         format3_overlay_inputs,
     )
+    _log_vfs_stage("拆分 DMM-like VFS 包", stage_started)
     if allow_missing_targets:
         errors = _downgrade_missing_target_errors(errors, warnings)
     if errors:
+        _log_vfs_stage("VFS 构建总耗时", total_started)
         return _empty_result(game_dir, mods, warnings, errors)
 
+    stage_started = perf_counter()
     _notify_progress(progress_callback, "收集 standalone PAZ/PAMT")
     previous_state = load_state(game_dir)
     previous_standalone_items = previous_state.get("standalone_dirs")
@@ -205,11 +233,14 @@ def build_vfs_package(
         ordered_mods=mods,
         warnings=warnings,
     )
+    _log_vfs_stage("收集 standalone 包", stage_started)
 
     if not overlay_packages and not standalone_archives:
         warnings.append("没有生成 VFS overlay entry，mapping_tree.json 未写入")
+        _log_vfs_stage("VFS 构建总耗时", total_started)
         return _empty_result(game_dir, mods, warnings, errors)
 
+    stage_started = perf_counter()
     vfs_root = _reset_vfs_active_dir(game_dir)
     mapped_files: list[str] = []
     modified_pamts: dict[str, bytes] = {}
@@ -217,8 +248,10 @@ def build_vfs_package(
     package_input_entries: list[OverlayInputEntry] = []
     package_names: list[str] = []
     pathc_bytes: bytes | None = None
+    _log_vfs_stage("重置 VFS 输出目录", stage_started)
 
     for package in overlay_packages:
+        stage_started = perf_counter()
         _notify_progress(progress_callback, f"写入 VFS overlay 包：{package.name}")
         overlay = _build_or_reuse_overlay_package(game_dir, package)
         paz_rel, pamt_rel = overlay_rel_paths(package.name)
@@ -229,10 +262,12 @@ def build_vfs_package(
         package_built_entries.extend(overlay.entries)
         package_input_entries.extend(package.entries)
         package_names.append(package.name)
+        _log_vfs_stage(f"写入 VFS overlay 包 {package.name}", stage_started)
 
     standalone_pamts = {archive.assigned_dir: archive.pamt_bytes for archive in standalone_archives}
     modified_pamts.update(standalone_pamts)
     for archive in standalone_archives:
+        stage_started = perf_counter()
         _notify_progress(progress_callback, f"写入 standalone 包：{archive.assigned_dir}")
         _write_vfs_file(vfs_root, f"{archive.assigned_dir}/{OVERLAY_PAZ_NAME}", archive.paz_bytes)
         _write_vfs_file(vfs_root, f"{archive.assigned_dir}/{OVERLAY_PAMT_NAME}", archive.pamt_bytes)
@@ -242,8 +277,10 @@ def build_vfs_package(
                 f"{archive.assigned_dir}/{OVERLAY_PAMT_NAME}",
             ]
         )
+        _log_vfs_stage(f"写入 standalone 包 {archive.assigned_dir}", stage_started)
 
     if package_input_entries:
+        stage_started = perf_counter()
         _notify_progress(progress_callback, "构建 PATHC 纹理映射")
         pathc_bytes = build_pathc_for_overlay(
             game_dir,
@@ -252,7 +289,9 @@ def build_vfs_package(
             package_built_entries,
             warnings,
         )
+        _log_vfs_stage("构建 PATHC 纹理映射", stage_started)
 
+    stage_started = perf_counter()
     _notify_progress(progress_callback, "构建 PAPGT 并规范化 VFS flags")
     papgt_order = [*NPP_LIKE_PACKAGE_ORDER, *(archive.assigned_dir for archive in standalone_archives)]
     papgt_bytes = build_papgt(
@@ -262,14 +301,18 @@ def build_vfs_package(
         prepend_order=papgt_order,
         normalize_existing_flags=True,
     )
+    _log_vfs_stage("构建 PAPGT", stage_started)
 
+    stage_started = perf_counter()
     _write_vfs_file(vfs_root, f"{META_DIR_NAME}/{PAPGT_FILE_NAME}", papgt_bytes)
     mapped_files.append(f"{META_DIR_NAME}/{PAPGT_FILE_NAME}")
     if pathc_bytes is not None:
         _write_vfs_file(vfs_root, f"{META_DIR_NAME}/{PATHC_FILE_NAME}", pathc_bytes)
         mapped_files.append(f"{META_DIR_NAME}/{PATHC_FILE_NAME}")
+    _log_vfs_stage("写入 meta 文件", stage_started)
 
     mapping_path = game_dir / WORK_DIR_NAME / VFS_MAPPING_FILE_NAME
+    stage_started = perf_counter()
     _notify_progress(progress_callback, "写入 VFS 映射清单")
     _write_mapping_manifest(game_dir, vfs_root, mapping_path, mapped_files)
     overlay_dir_summary = ", ".join(package_names) if package_names else None
@@ -285,8 +328,10 @@ def build_vfs_package(
         allow_missing_targets,
     )
     save_game_pamt_target_cache(game_dir)
+    _log_vfs_stage("写入 VFS 状态和目标缓存", stage_started)
     _notify_progress(progress_callback, "VFS 构建完成")
     logger.info("VFS package built: %s", mapping_path)
+    _log_vfs_stage("VFS 构建总耗时", total_started)
     return VfsBuildResult(
         game_dir=game_dir,
         vfs_root=vfs_root,
@@ -303,6 +348,11 @@ def _notify_progress(progress_callback: Callable[[str], None] | None, message: s
     """向控制台入口报告 VFS 构建阶段，旧调用方可不传回调。"""
     if progress_callback is not None:
         progress_callback(message)
+
+
+def _log_vfs_stage(name: str, started: float) -> None:
+    """记录 VFS 构建阶段耗时，便于区分 hash、JSON、Format 3 等瓶颈。"""
+    logger.info("VFS 耗时：%s %.2fs", name, perf_counter() - started)
 
 
 def _ensure_vfs_work_dirs(game_dir: Path) -> None:

@@ -6,17 +6,16 @@ import sys
 import struct
 
 from cdmm.common.constants import HASH_SEED
-
-try:
-    from cdumm_native import compute_hashlittle as _native_hashlittle
-except ImportError:
-    _native_hashlittle = None
+from cdmm.cdloader_native import compute_hashlittle as _native_hashlittle
 
 
-def hashlittle(data: bytes, initval: int = 0) -> int:
+def hashlittle(data: bytes | bytearray | memoryview, initval: int = 0) -> int:
     """计算 Bob Jenkins hashlittle 哈希。"""
-    if _native_hashlittle is not None:
-        return _native_hashlittle(data, initval)
+    return _native_hashlittle(data, initval)
+
+
+def _python_hashlittle(data: bytes, initval: int = 0) -> int:
+    """纯 Python hashlittle fallback，供 native shim 缺失时调用。"""
 
     length = len(data)
     a = b = c = (0xDEADBEEF + length + initval) & 0xFFFFFFFF

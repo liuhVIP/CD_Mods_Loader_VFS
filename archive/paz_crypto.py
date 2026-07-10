@@ -8,7 +8,7 @@ import struct
 from cdmm.common.hashlittle import hashlittle
 
 try:
-    import cdumm_native as _native
+    from cdmm import cdloader_native as _native
 except ImportError:
     _native = None
 
@@ -32,8 +32,9 @@ LZ4_MAX_INPUT_SIZE = 0x7E000000
 
 def derive_key_iv(filename: str) -> tuple[bytes, bytes]:
     """根据文件名派生 ChaCha20 key/iv。"""
-    if _native is not None:
-        return _native.derive_key_iv(filename)
+    native_func = getattr(_native, "derive_key_iv", None) if _native is not None else None
+    if native_func is not None:
+        return native_func(filename)
     basename = os.path.basename(filename).lower()
     seed = hashlittle(basename.encode("utf-8"), HASH_INITVAL)
     iv = struct.pack("<I", seed) * 4
@@ -44,8 +45,11 @@ def derive_key_iv(filename: str) -> tuple[bytes, bytes]:
 
 def decrypt(data: bytes, filename: str) -> bytes:
     """使用文件名派生密钥解密数据。"""
-    if _native is not None:
-        return _native.chacha20_decrypt(data, filename)
+    native_func = (
+        getattr(_native, "chacha20_decrypt", None) if _native is not None else None
+    )
+    if native_func is not None:
+        return native_func(data, filename)
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
 
     key, iv = derive_key_iv(filename)
@@ -60,8 +64,11 @@ def encrypt(data: bytes, filename: str) -> bytes:
 
 def lz4_decompress(data: bytes, original_size: int) -> bytes:
     """解压无 frame header 的 LZ4 block。"""
-    if _native is not None:
-        return _native.lz4_decompress(data, original_size)
+    native_func = (
+        getattr(_native, "lz4_decompress", None) if _native is not None else None
+    )
+    if native_func is not None:
+        return native_func(data, original_size)
     import lz4.block
 
     return lz4.block.decompress(data, uncompressed_size=original_size)
@@ -73,8 +80,9 @@ def lz4_compress(data: bytes) -> bytes:
         raise ValueError(
             f"LZ4 输入过大：{len(data):,} 字节，超过单块上限 {LZ4_MAX_INPUT_SIZE:,}"
         )
-    if _native is not None:
-        return _native.lz4_compress(data)
+    native_func = getattr(_native, "lz4_compress", None) if _native is not None else None
+    if native_func is not None:
+        return native_func(data)
     import lz4.block
 
     return lz4.block.compress(data, store_size=False)

@@ -100,7 +100,7 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
     format3_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_FORMAT3]
     warnings.extend(collect_format3_warnings(format3_mods))
     pamt_targets = [
-        *collect_loose_pamt_targets(game_dir, mods),
+        *collect_loose_pamt_targets(game_dir, mods, include_numbered=False),
         *collect_json_pamt_targets(json_mods),
         *collect_format3_pamt_targets(format3_mods),
     ]

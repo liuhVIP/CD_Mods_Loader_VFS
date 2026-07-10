@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 from time import perf_counter
 
+from cdmm import cdloader_native
 from cdmm.common.constants import GAME_BIN_DIR_NAME, GAME_EXECUTABLE_NAME, LOGS_DIR_NAME, WORK_DIR_NAME
 from cdmm.services.vfs_loader import VfsBuildResult, build_vfs_package
 
@@ -87,6 +88,7 @@ def main(argv: list[str] | None = None) -> int:
 
     log_path = game_dir / WORK_DIR_NAME / LOGS_DIR_NAME / VFS_LAUNCH_LOG_FILE_NAME
     configure_logging(log_path)
+    logging.info("cdloader native hashlittle: %s", cdloader_native.native_status_text())
     print_header()
     print(f"游戏目录：{game_dir}")
     print("默认参数：AllowMissingTargets + 自动关闭窗口")

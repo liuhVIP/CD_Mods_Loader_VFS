@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from cdmm.archive.pamt import derive_pamt_dir, parse_pamt
+from cdmm.archive.pamt import derive_pamt_dir, parse_pamt, parse_pamt_filtered
 from cdmm.common.constants import (
     GAME_DIR_NAME_LENGTH,
     OVERLAY_PAMT_NAME,
@@ -142,14 +142,52 @@ class GamePamtIndex:
         basename = os.path.basename(normalized)
         if normalized in self.desired_exact and basename in self.desired_basenames:
             return
+        basename_already_loaded = basename in self.desired_basenames
         self.desired_exact.add(normalized)
         self.desired_basenames.add(basename)
+        if basename_already_loaded:
+            # 已按同名 basename 预筛选过所有已加载 PAMT 时，新的完整路径
+            # 只是同一候选的另一种写法（例如 effect/binary__/x -> effect/x）。
+            # 此时现有 exact/basename 索引已经包含所有同名 entry，避免冷构建
+            # 对 33 个原版 PAMT 逐目标重复补扫。
+            return
         self._reload_loaded_dirs_for_target(normalized, basename)
 
     def register_targets(self, targets: list[str]) -> None:
         """批量登记本次运行将查询的目标。"""
         for target in targets:
             self.register_target(target)
+
+    def prefetch_dir_targets(self, targets_by_dir: dict[str, list[str]]) -> None:
+        """按指定 PAMT 目录批量预取目标，避免编号 loose 触发全局扫描。"""
+        if self.game_dir is None:
+            return
+        for pamt_dir, targets in targets_by_dir.items():
+            normalized_targets = list(dict.fromkeys(lower_game_rel_path(target) for target in targets))
+            if not normalized_targets:
+                continue
+            target_exact = set(normalized_targets)
+            target_basenames = {os.path.basename(target) for target in normalized_targets}
+            effective_exact = {*self.desired_exact, *target_exact}
+            effective_basenames = {*self.desired_basenames, *target_basenames}
+            if pamt_dir not in self.by_dir:
+                self.by_dir[pamt_dir] = _parse_filtered_entries_in_dir(
+                    self.game_dir,
+                    pamt_dir,
+                    effective_basenames,
+                    effective_exact,
+                )
+                self._index_dir(pamt_dir)
+            else:
+                additions = _parse_filtered_entries_in_dir(
+                    self.game_dir,
+                    pamt_dir,
+                    target_basenames,
+                    target_exact,
+                )
+                if self._merge_dir_entries(pamt_dir, additions) or pamt_dir not in self.by_dir_exact:
+                    self._index_dir(pamt_dir)
+            self._cache_dir_targets(pamt_dir, normalized_targets)
 
     def _ensure_all_dirs_loaded(self, *, target_basename: str) -> None:
         """首次全局目标查找时并行读取尚未解析的原版 PAMT。"""
@@ -201,6 +239,54 @@ class GamePamtIndex:
         self.by_dir_exact[pamt_dir] = exact
         self.by_dir_basename[pamt_dir] = basename_index
 
+    def _cache_dir_targets(self, pamt_dir: str, normalized_targets: list[str]) -> None:
+        """把目录批量预取的目标写入小缓存，后续 find_in_dir 可直接命中。"""
+        for normalized in normalized_targets:
+            cache_key = _dir_target_cache_key(pamt_dir, normalized)
+            if cache_key in self.target_cache:
+                continue
+            basename = os.path.basename(normalized)
+            exact_matches = self.by_dir_exact.get(pamt_dir, {}).get(normalized, [])
+            if exact_matches:
+                self.target_cache[cache_key] = exact_matches[0]
+                self.target_cache_dirty = True
+                continue
+            basename_matches = self.by_dir_basename.get(pamt_dir, {}).get(basename, [])
+            self.target_cache[cache_key] = basename_matches[-1] if basename_matches else None
+            self.target_cache_dirty = True
+
+    def _merge_dir_entries(self, pamt_dir: str, additions: list[PazEntry]) -> bool:
+        """把补扫得到的 entry 合并进已加载目录，返回是否发生变化。"""
+        if not additions:
+            return False
+        existing_keys = {
+            (
+                lower_game_rel_path(entry.path),
+                entry.paz_file,
+                entry.offset,
+                entry.comp_size,
+                entry.orig_size,
+                entry.flags,
+            )
+            for entry in self.by_dir.get(pamt_dir, [])
+        }
+        changed = False
+        for entry in additions:
+            key = (
+                lower_game_rel_path(entry.path),
+                entry.paz_file,
+                entry.offset,
+                entry.comp_size,
+                entry.orig_size,
+                entry.flags,
+            )
+            if key in existing_keys:
+                continue
+            self.by_dir.setdefault(pamt_dir, []).append(entry)
+            existing_keys.add(key)
+            changed = True
+        return changed
+
     def _reload_loaded_dirs_for_target(self, normalized: str, basename: str) -> None:
         """为新登记目标补扫已解析目录，避免长进程内预筛选缓存漏目标。
 
@@ -222,35 +308,7 @@ class GamePamtIndex:
                 {basename},
                 {normalized},
             )
-            if not additions:
-                continue
-            existing_keys = {
-                (
-                    lower_game_rel_path(entry.path),
-                    entry.paz_file,
-                    entry.offset,
-                    entry.comp_size,
-                    entry.orig_size,
-                    entry.flags,
-                )
-                for entry in self.by_dir.get(pamt_dir, [])
-            }
-            changed = False
-            for entry in additions:
-                key = (
-                    lower_game_rel_path(entry.path),
-                    entry.paz_file,
-                    entry.offset,
-                    entry.comp_size,
-                    entry.orig_size,
-                    entry.flags,
-                )
-                if key in existing_keys:
-                    continue
-                self.by_dir.setdefault(pamt_dir, []).append(entry)
-                existing_keys.add(key)
-                changed = True
-            if changed:
+            if self._merge_dir_entries(pamt_dir, additions):
                 self._index_dir(pamt_dir)
 
 
@@ -303,6 +361,11 @@ def register_game_pamt_targets(game_dir: Path, targets: list[str]) -> None:
     get_game_pamt_index(game_dir).register_targets(targets)
 
 
+def prefetch_game_pamt_dir_targets(game_dir: Path, targets_by_dir: dict[str, list[str]]) -> None:
+    """按 PAMT 目录批量预取编号 loose 目标。"""
+    get_game_pamt_index(game_dir).prefetch_dir_targets(targets_by_dir)
+
+
 def _pamt_signature(game_dir: Path) -> tuple[tuple[str, int, int], ...]:
     """生成原版 PAMT 文件状态签名，用于缓存失效。"""
     items: list[tuple[str, int, int]] = []
@@ -337,15 +400,20 @@ def _parse_filtered_entries_in_dir(
     desired_exact: set[str],
 ) -> list[PazEntry]:
     """解析单个 PAMT 后只保留本次目标可能用到的 entry。"""
-    entries = _parse_entries_in_dir(game_dir, pamt_dir)
     if not desired_basenames and not desired_exact:
-        return entries
-    filtered: list[PazEntry] = []
-    for entry in entries:
-        entry_key = lower_game_rel_path(entry.path)
-        if entry_key in desired_exact or os.path.basename(entry_key) in desired_basenames:
-            filtered.append(entry)
-    return filtered
+        return _parse_entries_in_dir(game_dir, pamt_dir)
+    directory = game_dir / pamt_dir
+    pamt_path = directory / OVERLAY_PAMT_NAME
+    try:
+        return parse_pamt_filtered(
+            pamt_path,
+            paz_dir=directory,
+            desired_basenames=desired_basenames,
+            desired_exact=desired_exact,
+        )
+    except Exception as exc:
+        logger.warning("跳过无法解析的 PAMT：%s (%s)", pamt_path, exc)
+        return []
 
 
 def _pick_best(

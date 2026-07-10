@@ -42,7 +42,38 @@ def parse_pamt(pamt_path: str | Path, paz_dir: str | Path | None = None) -> list
         raise ValueError(f"损坏的 PAMT {pamt_path.name}: {exc}") from exc
 
 
-def _parse_pamt_impl(pamt_path: Path, paz_dir: Path | None) -> list[PazEntry]:
+def parse_pamt_filtered(
+    pamt_path: str | Path,
+    paz_dir: str | Path | None = None,
+    *,
+    desired_basenames: set[str] | None = None,
+    desired_exact: set[str] | None = None,
+) -> list[PazEntry]:
+    """解析 PAMT 并只返回目标 basename / 完整路径命中的 entry。"""
+    normalized_basenames = {name.lower() for name in desired_basenames or set()}
+    normalized_exact = {lower_game_rel_path(path) for path in desired_exact or set()}
+    if not normalized_basenames and not normalized_exact:
+        return parse_pamt(pamt_path, paz_dir=paz_dir)
+
+    pamt_path = Path(pamt_path)
+    try:
+        return _parse_pamt_impl(
+            pamt_path,
+            Path(paz_dir) if paz_dir else None,
+            desired_basenames=normalized_basenames,
+            desired_exact=normalized_exact,
+        )
+    except (struct.error, IndexError) as exc:
+        raise ValueError(f"损坏的 PAMT {pamt_path.name}: {exc}") from exc
+
+
+def _parse_pamt_impl(
+    pamt_path: Path,
+    paz_dir: Path | None,
+    *,
+    desired_basenames: set[str] | None = None,
+    desired_exact: set[str] | None = None,
+) -> list[PazEntry]:
     data = pamt_path.read_bytes()
     paz_dir = paz_dir or pamt_path.parent
     pamt_stem = pamt_path.stem
@@ -74,6 +105,7 @@ def _parse_pamt_impl(pamt_path: Path, paz_dir: Path | None) -> list[PazEntry]:
         if parent == 0xFFFFFFFF:
             folder_prefix = name
         offset += 5 + name_len
+    folder_prefix_lower = folder_prefix.lower()
 
     node_size = struct.unpack_from("<I", data, offset)[0]
     offset += 4
@@ -88,16 +120,28 @@ def _parse_pamt_impl(pamt_path: Path, paz_dir: Path | None) -> list[PazEntry]:
         nodes[rel] = (parent, name)
         offset += 5 + name_len
 
+    path_cache: dict[int, str] = {}
+
     def build_node_path(node_ref: int) -> str:
+        """带父节点缓存地还原 entry 路径，避免冷构建反复拼同一目录链。"""
+        cached = path_cache.get(node_ref)
+        if cached is not None:
+            return cached
         parts: list[str] = []
         current = node_ref
         while current != 0xFFFFFFFF and len(parts) < 64:
+            cached_parent = path_cache.get(current)
+            if cached_parent is not None:
+                parts.append(cached_parent)
+                break
             if current not in nodes:
                 break
             parent, name = nodes[current]
             parts.append(name)
             current = parent
-        return "".join(reversed(parts))
+        node_path = "".join(reversed(parts))
+        path_cache[node_ref] = node_path
+        return node_path
 
     folder_count = struct.unpack_from("<I", data, offset)[0]
     offset += 4 + folder_count * 16
@@ -105,6 +149,9 @@ def _parse_pamt_impl(pamt_path: Path, paz_dir: Path | None) -> list[PazEntry]:
     offset += 4
 
     entries: list[PazEntry] = []
+    exact_targets = desired_exact or set()
+    basename_targets = desired_basenames or set()
+    should_filter = bool(exact_targets or basename_targets)
     while offset + 20 <= len(data):
         node_ref, paz_offset, comp_size, orig_size, flags = struct.unpack_from(
             "<IIIII", data, offset
@@ -112,6 +159,17 @@ def _parse_pamt_impl(pamt_path: Path, paz_dir: Path | None) -> list[PazEntry]:
         offset += 20
         paz_index = flags & 0xFF
         node_path = build_node_path(node_ref)
+        if should_filter:
+            # node_path 是 PAMT 当前 folder 下的文件名主体；这里直接用它判断
+            # basename，避免对上百万 entry 反复调用 Windows ntpath.basename。
+            node_path_lower = node_path.lower()
+            normalized = (
+                f"{folder_prefix_lower}/{node_path_lower}"
+                if folder_prefix_lower
+                else node_path_lower
+            )
+            if normalized not in exact_targets and node_path_lower not in basename_targets:
+                continue
         full_path = f"{folder_prefix}/{node_path}" if folder_prefix else node_path
         paz_num = int(pamt_stem) + paz_index
         entries.append(

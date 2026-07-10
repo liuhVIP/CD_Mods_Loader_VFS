@@ -24,6 +24,7 @@ $NuitkaVenvDir = Join-Path $ScriptDir ".venv-nuitka"
 $VfsRuntimeDir = Join-Path $ScriptDir "private\vfs_runtime"
 $VfsLauncherFile = Join-Path $VfsRuntimeDir "nppvfs_launcher.exe"
 $VfsRuntimeDll = Join-Path $VfsRuntimeDir "vfs_runtime.dll"
+$NativeDir = Join-Path $ScriptDir "native"
 
 # Nuitka 构建依赖集中维护。
 $NuitkaBuildPackages = @(
@@ -155,6 +156,14 @@ if (-not (Test-Path -LiteralPath $VfsRuntimeDll)) {
     Write-Host "未找到闭源 VFS runtime：$VfsRuntimeDll" -ForegroundColor Red
     exit 1
 }
+if (-not (Test-Path -LiteralPath (Join-Path $NativeDir "__init__.py"))) {
+    Write-Host "未找到 native 包目录：$NativeDir" -ForegroundColor Red
+    exit 1
+}
+if ((Get-ChildItem -LiteralPath $NativeDir -Filter "_cdloader_native*.pyd" -File).Count -eq 0) {
+    Write-Host "未找到 _cdloader_native 原生扩展：$NativeDir" -ForegroundColor Red
+    exit 1
+}
 
 $PythonPath = Ensure-NuitkaPython -TargetPython $PythonPath -VersionPrefix $RequiredPython -CustomPythonPath $HasCustomPythonPath
 
@@ -209,6 +218,7 @@ $NuitkaArgs = @(
     "--nofollow-import-to=pandas",
     "--nofollow-import-to=numpy",
     "--nofollow-import-to=tqdm",
+    "--include-module=cdmm.native._cdloader_native",
     "--include-package=cryptography",
     "--include-package=lz4",
     "--include-data-file=$VfsLauncherFile=cdmm/private/vfs_runtime/nppvfs_launcher.exe",

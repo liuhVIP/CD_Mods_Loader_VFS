@@ -22,6 +22,7 @@ $EntryFile = Join-Path $BuildDir "cdloader_nuitka_entry.py"
 $GameConfigFile = Join-Path $ScriptDir "config\game_config.json"
 $VersionFile = Join-Path $ScriptDir "version.txt"
 $NuitkaVenvDir = Join-Path $ScriptDir ".venv-nuitka"
+$NativeDir = Join-Path $ScriptDir "native"
 
 # Nuitka 构建依赖，集中维护，避免散落在命令参数里。
 $NuitkaBuildPackages = @(
@@ -143,6 +144,14 @@ if (-not (Test-Path -LiteralPath (Join-Path $ScriptDir "cli.py"))) {
     Write-Host "未找到项目入口文件：$(Join-Path $ScriptDir "cli.py")" -ForegroundColor Red
     exit 1
 }
+if (-not (Test-Path -LiteralPath (Join-Path $NativeDir "__init__.py"))) {
+    Write-Host "未找到 native 包目录：$NativeDir" -ForegroundColor Red
+    exit 1
+}
+if ((Get-ChildItem -LiteralPath $NativeDir -Filter "_cdloader_native*.pyd" -File).Count -eq 0) {
+    Write-Host "未找到 _cdloader_native 原生扩展：$NativeDir" -ForegroundColor Red
+    exit 1
+}
 
 $PythonPath = Ensure-NuitkaPython -TargetPython $PythonPath -VersionPrefix $RequiredPython -CustomPythonPath $HasCustomPythonPath
 
@@ -189,6 +198,7 @@ $NuitkaArgs = @(
     "--file-version=1.0.0.0",
     "--product-version=1.0.0.0",
     "--include-package=cdmm",
+    "--include-module=cdmm.native._cdloader_native",
     "--nofollow-import-to=pytest",
     "--nofollow-import-to=ruff",
     "--nofollow-import-to=PyInstaller",

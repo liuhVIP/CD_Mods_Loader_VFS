@@ -12,3 +12,8 @@ test/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# cdloader 原生加速模块是交付产物，需要随项目提交。
+!native/
+!native/__init__.py
+!native/*.pyd
