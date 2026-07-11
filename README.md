@@ -3,7 +3,7 @@
 本项目是 Crimson Desert（红色沙漠）的独立命令行模组加载器。当前推荐使用 VFS 版本：
 
 ```text
-T:\python_pro\cdmm\dist_nuitka\cdloader-VFS-v1.exe
+T:\python_pro\cdmm\dist_nuitka\cdloader-VFS-v2.exe
 ```
 
 VFS 版本会先在游戏目录下生成虚拟加载包，再通过内置 VFS runtime 启动游戏。它不会直接改写游戏原始 PAZ/PAMT 归档，主要输出都放在游戏根目录的 `.cdloader` 目录中。
@@ -44,9 +44,9 @@ G:\SteamLibrary\steamapps\common\Crimson Desert
 
 最简单用法：
 
-1. 复制 `dist_nuitka\cdloader-VFS-v1.exe` 到 Crimson Desert 游戏根目录。
+1. 复制 `dist_nuitka\cdloader-VFS-v2.exe` 到 Crimson Desert 游戏根目录。
 2. 确认游戏已经完全退出，不要在游戏运行中重建 VFS。
-3. 双击 `cdloader-VFS-v1.exe`。
+3. 双击 `cdloader-VFS-v2.exe`。
 4. 等待窗口显示 VFS 构建完成，并自动启动游戏。
 
 放到游戏根目录后，程序会自动把自身所在目录识别为游戏目录。如果没有放在游戏根目录，会提示找不到：
@@ -106,9 +106,9 @@ Set-Location 'T:\python_pro\cdmm'
 打包后的 VFS exe 也支持命令行参数：
 
 ```powershell
-& 'G:\SteamLibrary\steamapps\common\Crimson Desert\cdloader-VFS-v1.exe'
-& 'T:\python_pro\cdmm\dist_nuitka\cdloader-VFS-v1.exe' --game-dir 'G:\SteamLibrary\steamapps\common\Crimson Desert'
-& 'T:\python_pro\cdmm\dist_nuitka\cdloader-VFS-v1.exe' --game-dir 'G:\SteamLibrary\steamapps\common\Crimson Desert' --build-only
+& 'G:\SteamLibrary\steamapps\common\Crimson Desert\cdloader-VFS-v2.exe'
+& 'T:\python_pro\cdmm\dist_nuitka\cdloader-VFS-v2.exe' --game-dir 'G:\SteamLibrary\steamapps\common\Crimson Desert'
+& 'T:\python_pro\cdmm\dist_nuitka\cdloader-VFS-v2.exe' --game-dir 'G:\SteamLibrary\steamapps\common\Crimson Desert' --build-only
 ```
 
 排障参数：
@@ -159,7 +159,7 @@ build_cdloader_vfs_nuitka.ps1
 build_cdloader_vfs_nuitka.bat
 ```
 
-推荐直接运行 `.bat` 包装脚本，内部会调用 PowerShell 7：
+推荐直接运行 `.bat` 包装脚本。脚本会优先使用 PowerShell 7，用户机器没有时会自动降级到系统自带 Windows PowerShell：
 
 ```powershell
 Set-Location 'T:\python_pro\cdmm'
@@ -170,13 +170,13 @@ Set-Location 'T:\python_pro\cdmm'
 
 ```powershell
 Set-Location 'T:\python_pro\cdmm'
-& 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -ExecutionPolicy Bypass -File '.\build_cdloader_vfs_nuitka.ps1'
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File '.\build_cdloader_vfs_nuitka.ps1'
 ```
 
 默认输出：
 
 ```text
-T:\python_pro\cdmm\dist_nuitka\cdloader-VFS-v1.exe
+T:\python_pro\cdmm\dist_nuitka\cdloader-VFS-v2.exe
 ```
 
 脚本会自动准备 `.venv-nuitka`，默认要求 Python `3.10.x`。如果本机没有可用环境，脚本会优先使用 `uv` 创建 Nuitka 构建环境并安装依赖。
@@ -188,12 +188,29 @@ private\vfs_runtime\nppvfs_launcher.exe
 private\vfs_runtime\vfs_runtime.dll
 ```
 
-它们会被打进单体 exe，用户复制 `cdloader-VFS-v1.exe` 到游戏根目录后不再依赖本机源码目录。
+它们会被打进单体 exe，用户复制 `cdloader-VFS-v2.exe` 到游戏根目录后不再依赖本机源码目录。
+
+VFS 原生启动器还依赖 VC/UCRT 运行库。打包脚本会从构建机的系统目录自动收集以下常见 DLL，随 `nppvfs_launcher.exe` 一起打进单体 exe 并释放到 `.cdloader\vfs_runtime\`：
+
+```text
+msvcp140.dll
+vcruntime140.dll
+vcruntime140_1.dll
+ucrtbase.dll
+```
+
+这些 DLL 是已知常见缺失项，不代表完整依赖清单。如果构建机也缺少这些 DLL，脚本会给出警告；此时成品仍会要求用户系统已安装完整 Microsoft Visual C++ 2015-2022 x64 运行库。
+
+用户侧优先从微软官方下载 x64 运行库，不建议单独下载 DLL：
+
+```text
+https://aka.ms/vc14/vc_redist.x64.exe
+```
 
 自定义输出名或输出目录：
 
 ```powershell
-& '.\build_cdloader_vfs_nuitka.bat' -OutputName 'cdloader-VFS-v1' -DistDir 'dist_nuitka'
+& '.\build_cdloader_vfs_nuitka.bat' -OutputName 'cdloader-VFS-v2' -DistDir 'dist_nuitka'
 ```
 
 使用指定 Python：
@@ -205,8 +222,8 @@ private\vfs_runtime\vfs_runtime.dll
 打包完成后会看到类似：
 
 ```text
-VFS 专用 Nuitka 打包完成：T:\python_pro\cdmm\dist_nuitka\cdloader-VFS-v1.exe
-复制 cdloader-VFS-v1.exe 到游戏根目录后双击，即默认构建 VFS 并启动游戏。
+VFS 专用 Nuitka 打包完成：T:\python_pro\cdmm\dist_nuitka\cdloader-VFS-v2.exe
+复制 cdloader-VFS-v2.exe 到游戏根目录后双击，即默认构建 VFS 并启动游戏。
 ```
 
 ## 普通实体加载器

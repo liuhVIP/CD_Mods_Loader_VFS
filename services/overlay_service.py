@@ -148,15 +148,35 @@ def build_overlay(overlay_dir: str, entries: list[OverlayInputEntry], game_dir: 
     """从解压后的 overlay entries 构建 0.paz/0.pamt。"""
     paz_buffer = bytearray()
     built_entries: list[BuiltOverlayEntry] = []
-    seen: dict[str, OverlayInputEntry] = {}
     path_map_cache: dict[str, dict[str, str]] = {}
+    seen: dict[str, tuple[OverlayInputEntry, str, str]] = {}
     for entry in entries:
-        # 同一 entry_path 采用最后写入结果，匹配低序号先加载、后续覆盖的组合语义。
-        seen[entry.entry_path.lower()] = entry
-
-    for entry in seen.values():
+        # 同一最终 PAMT 路径采用最后写入结果，避免不同源路径解析到同一
+        # dir_path/filename 后在 0.pamt 中留下重复记录，导致 PATHC 与 PAZ 尺寸错配。
         filename = entry.entry_path.rsplit("/", 1)[-1]
         dir_path = _resolve_dir_path(entry.entry_path, entry.pamt_dir, game_dir, path_map_cache)
+        final_key = f"{dir_path}/{filename}".lower() if dir_path else filename.lower()
+        previous = seen.get(final_key)
+        if previous is not None:
+            previous_entry, previous_dir_path, previous_filename = previous
+            previous_path = (
+                f"{previous_dir_path}/{previous_filename}"
+                if previous_dir_path
+                else previous_filename
+            )
+            logger.warning(
+                "overlay 最终路径覆盖：%s/%s (%d bytes) -> %s/%s (%d bytes)，最终路径 %s",
+                previous_entry.pamt_dir,
+                previous_entry.entry_path,
+                len(previous_entry.content),
+                entry.pamt_dir,
+                entry.entry_path,
+                len(entry.content),
+                previous_path,
+            )
+        seen[final_key] = (entry, dir_path, filename)
+
+    for entry, dir_path, filename in seen.values():
         paz_offset = len(paz_buffer)
         if paz_offset > 0xFFFFFFFF:
             raise ValueError("overlay PAZ 超过 4GiB，当前第一阶段不支持拆分输出")

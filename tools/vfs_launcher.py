@@ -1,12 +1,13 @@
 """VFS 专用单体 exe 启动入口。
 
-本入口用于 Nuitka 打包后的 cdloader-VFS-v1.exe。用户把 exe 放到游戏根目录后
+本入口用于 Nuitka 打包后的 cdloader-VFS-v2.exe。用户把 exe 放到游戏根目录后
 双击运行，即可按默认 VFS 参数构建虚拟包并启动 Crimson Desert。
 """
 
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import logging
 import os
@@ -15,15 +16,13 @@ import subprocess
 import sys
 import threading
 import time
+from ctypes import wintypes
 from pathlib import Path
 from time import perf_counter
 
 from cdmm import cdloader_native
 from cdmm.common.constants import GAME_BIN_DIR_NAME, GAME_EXECUTABLE_NAME, LOGS_DIR_NAME, WORK_DIR_NAME
 from cdmm.services.vfs_loader import VfsBuildResult, build_vfs_package
-
-# PowerShell 7 固定位置，仅用于进程检测和清理。
-POWERSHELL_EXE = Path(r"C:\Program Files\PowerShell\7\pwsh.exe")
 
 # 默认等待秒数，保持 run_cdmm_vfs.ps1 的启动行为。
 DEFAULT_WAIT_SECONDS = 15
@@ -43,8 +42,19 @@ VFS_LAUNCHER_EXE_NAME = "nppvfs_launcher.exe"
 # VFS 注入 DLL 文件名。
 VFS_RUNTIME_DLL_NAME = "vfs_runtime.dll"
 
-# 必须随 exe 携带的闭源 VFS runtime 文件。
-VFS_RUNTIME_FILE_NAMES = (VFS_LAUNCHER_EXE_NAME, VFS_RUNTIME_DLL_NAME)
+# VFS runtime 的核心文件，缺失时无法启动。
+REQUIRED_VFS_RUNTIME_FILE_NAMES = (VFS_LAUNCHER_EXE_NAME, VFS_RUNTIME_DLL_NAME)
+
+# 原生 launcher 依赖的 VC/UCRT 运行库，优先随包携带，避免用户机器连环缺 DLL。
+VFS_RUNTIME_DEPENDENCY_DLL_NAMES = (
+    "msvcp140.dll",
+    "vcruntime140.dll",
+    "vcruntime140_1.dll",
+    "ucrtbase.dll",
+)
+
+# 运行时可复制的全部 VFS 文件。
+VFS_RUNTIME_FILE_NAMES = REQUIRED_VFS_RUNTIME_FILE_NAMES + VFS_RUNTIME_DEPENDENCY_DLL_NAMES
 
 # VFS runtime 日志目录名。
 VFS_RUNTIME_LOG_DIR_NAME = "logs"
@@ -56,7 +66,7 @@ VFS_NATIVE_LAUNCHER_LOG_NAME = "vfs_launcher.log"
 VFS_NATIVE_RUNTIME_LOG_NAME = "vfs_runtime.log"
 
 # 用户可见程序标题。
-APP_TITLE = "红色沙漠 VFS 独立轻量模组加载器 v1"
+APP_TITLE = "红色沙漠 VFS 独立轻量模组加载器 v2"
 
 # 用户可见作者说明。
 AUTHOR_TEXT = "作者：B站UP 改名_开发"
@@ -71,6 +81,57 @@ AUTO_CLOSE_DELAY_SECONDS = 2.0
 DETACHED_PROCESS_FLAG = 0x00000008
 CREATE_NEW_PROCESS_GROUP_FLAG = 0x00000200
 DETACHED_VFS_CREATION_FLAGS = DETACHED_PROCESS_FLAG | CREATE_NEW_PROCESS_GROUP_FLAG
+
+# Win32 进程枚举和终止常量，替代 PowerShell/WMI，降低用户机器依赖。
+TH32CS_SNAPPROCESS = 0x00000002
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+PROCESS_TERMINATE = 0x0001
+STILL_ACTIVE = 259
+MAX_PATH_BUFFER_CHARS = 32768
+MAX_PROCESS_EXE_NAME_CHARS = 260
+INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+
+KERNEL32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+
+class ProcessEntry32W(ctypes.Structure):
+    """Windows 进程快照结构，只保留当前启动器需要的字段。"""
+
+    _fields_ = [
+        ("dwSize", wintypes.DWORD),
+        ("cntUsage", wintypes.DWORD),
+        ("th32ProcessID", wintypes.DWORD),
+        ("th32DefaultHeapID", ctypes.c_size_t),
+        ("th32ModuleID", wintypes.DWORD),
+        ("cntThreads", wintypes.DWORD),
+        ("th32ParentProcessID", wintypes.DWORD),
+        ("pcPriClassBase", wintypes.LONG),
+        ("dwFlags", wintypes.DWORD),
+        ("szExeFile", wintypes.WCHAR * MAX_PROCESS_EXE_NAME_CHARS),
+    ]
+
+
+KERNEL32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+KERNEL32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+KERNEL32.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry32W)]
+KERNEL32.Process32FirstW.restype = wintypes.BOOL
+KERNEL32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry32W)]
+KERNEL32.Process32NextW.restype = wintypes.BOOL
+KERNEL32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+KERNEL32.OpenProcess.restype = wintypes.HANDLE
+KERNEL32.CloseHandle.argtypes = [wintypes.HANDLE]
+KERNEL32.CloseHandle.restype = wintypes.BOOL
+KERNEL32.QueryFullProcessImageNameW.argtypes = [
+    wintypes.HANDLE,
+    wintypes.DWORD,
+    wintypes.LPWSTR,
+    ctypes.POINTER(wintypes.DWORD),
+]
+KERNEL32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+KERNEL32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+KERNEL32.GetExitCodeProcess.restype = wintypes.BOOL
+KERNEL32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+KERNEL32.TerminateProcess.restype = wintypes.BOOL
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -246,7 +307,7 @@ def resolve_game_dir(game_dir_arg: Path | None) -> Path | None:
     exe_dir = executable_dir()
     if looks_like_game_dir(exe_dir):
         return exe_dir
-    print("未识别到游戏根目录，请把 cdloader-VFS-v1.exe 放到红色沙漠游戏根目录后再运行。")
+    print("未识别到游戏根目录，请把 cdloader-VFS-v2.exe 放到红色沙漠游戏根目录后再运行。")
     print(r"游戏根目录需要包含：bin64\CrimsonDesert.exe")
     print(r"示例：G:\SteamLibrary\steamapps\common\Crimson Desert")
     return None
@@ -265,12 +326,10 @@ def looks_like_game_dir(path: Path) -> bool:
 
 
 def ensure_game_ready(game_dir: Path) -> None:
-    """检查游戏主程序和 PowerShell 运行环境是否存在。"""
+    """检查游戏主程序是否存在。"""
     target_exe = game_dir / GAME_BIN_DIR_NAME / GAME_EXECUTABLE_NAME
     if not target_exe.exists():
         raise FileNotFoundError(f"未找到红色沙漠主程序：{target_exe}")
-    if not POWERSHELL_EXE.exists():
-        raise FileNotFoundError(f"未找到 PowerShell 7：{POWERSHELL_EXE}")
 
 
 def prepare_vfs_runtime(game_dir: Path, runtime_dir_arg: Path | None) -> Path:
@@ -279,8 +338,13 @@ def prepare_vfs_runtime(game_dir: Path, runtime_dir_arg: Path | None) -> Path:
     target_dir = game_dir / GAME_VFS_RUNTIME_REL_DIR
     target_dir.mkdir(parents=True, exist_ok=True)
     (target_dir / VFS_RUNTIME_LOG_DIR_NAME).mkdir(parents=True, exist_ok=True)
-    for file_name in VFS_RUNTIME_FILE_NAMES:
+    for file_name in REQUIRED_VFS_RUNTIME_FILE_NAMES:
         copy_runtime_file_if_needed(source_dir / file_name, target_dir / file_name)
+    for file_name in VFS_RUNTIME_DEPENDENCY_DLL_NAMES:
+        dependency_source = source_dir / file_name
+        if dependency_source.exists():
+            copy_runtime_file_if_needed(dependency_source, target_dir / file_name)
+    ensure_vfs_runtime_dependencies_available(target_dir)
     return target_dir
 
 
@@ -289,7 +353,7 @@ def resolve_vfs_runtime_source(runtime_dir_arg: Path | None) -> Path:
     if runtime_dir_arg is not None:
         return normalize_runtime_dir(runtime_dir_arg)
     for candidate in bundled_runtime_candidates():
-        if all((candidate / file_name).exists() for file_name in VFS_RUNTIME_FILE_NAMES):
+        if all((candidate / file_name).exists() for file_name in REQUIRED_VFS_RUNTIME_FILE_NAMES):
             return candidate
     candidates_text = "\n".join(str(path) for path in bundled_runtime_candidates())
     raise FileNotFoundError(f"未找到内置 VFS runtime 二进制，请检查打包资产：\n{candidates_text}")
@@ -346,6 +410,36 @@ def copy_runtime_file_if_needed(source: Path, target: Path) -> None:
         return
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(source.read_bytes())
+
+
+def ensure_vfs_runtime_dependencies_available(runtime_dir: Path) -> None:
+    """启动原生 VFS 前预检运行库，避免弹出一连串系统缺 DLL 窗口。"""
+    missing = [
+        file_name
+        for file_name in VFS_RUNTIME_DEPENDENCY_DLL_NAMES
+        if not runtime_dependency_available(runtime_dir, file_name)
+    ]
+    if not missing:
+        return
+    missing_text = "、".join(missing)
+    raise RuntimeError(
+        "VFS 原生启动器当前检测到缺少运行库："
+        f"{missing_text}。这些只是可预检的常见 VC/UCRT DLL，不代表全部依赖。"
+        "请重新打包让运行库随 nppvfs_launcher.exe 一起释放，"
+        "或安装完整 Microsoft Visual C++ 2015-2022 x64 运行库。"
+    )
+
+
+def runtime_dependency_available(runtime_dir: Path, file_name: str) -> bool:
+    """判断 DLL 是否已经在启动目录或系统目录中可被 Windows 加载器找到。"""
+    if (runtime_dir / file_name).exists():
+        return True
+    windows_dir = os.environ.get("WINDIR", r"C:\Windows")
+    system_candidates = (
+        Path(windows_dir) / "System32" / file_name,
+        Path(windows_dir) / "SysWOW64" / file_name,
+    )
+    return any(path.exists() for path in system_candidates)
 
 
 def file_sha256(path: Path) -> str:
@@ -465,30 +559,14 @@ def cleanup_stale_helper_processes(game_dir: Path, runtime_dir: Path) -> None:
 
 def find_processes_by_exact_paths(paths: list[Path]) -> list[int]:
     """按完整路径查找进程 PID，避免误杀其他软件同名进程。"""
-    normalized_paths = [str(path.resolve()).lower() for path in paths if path.exists()]
+    normalized_paths = {normalize_process_path(path) for path in paths if path.exists()}
     if not normalized_paths:
         return []
-    ps_paths = "@(" + ",".join(powershell_single_quote(path) for path in normalized_paths) + ")"
-    command = [
-        str(POWERSHELL_EXE),
-        "-NoLogo",
-        "-NoProfile",
-        "-Command",
-        (
-            f"$targets = {ps_paths}; "
-            "$items = Get-CimInstance Win32_Process | "
-            "Where-Object { $_.ExecutablePath -and "
-            "$targets -contains ([System.IO.Path]::GetFullPath($_.ExecutablePath).ToLowerInvariant()) }; "
-            "if ($items) { ($items | ForEach-Object { $_.ProcessId }) -join ',' }"
-        ),
+    return [
+        pid
+        for pid, image_path, _exe_name in iter_windows_processes()
+        if image_path and normalize_process_path(image_path) in normalized_paths
     ]
-    completed = subprocess.run(command, capture_output=True, check=False, text=True)
-    return [int(part) for part in completed.stdout.strip().split(",") if part.strip().isdigit()]
-
-
-def powershell_single_quote(value: str) -> str:
-    """生成 PowerShell 单引号字符串。"""
-    return "'" + value.replace("'", "''") + "'"
 
 
 def ensure_no_running_target(game_dir: Path, allow_running_target: bool) -> None:
@@ -496,26 +574,11 @@ def ensure_no_running_target(game_dir: Path, allow_running_target: bool) -> None
     if allow_running_target:
         return
     target_exe = (game_dir / GAME_BIN_DIR_NAME / GAME_EXECUTABLE_NAME).resolve()
-    command = [
-        str(POWERSHELL_EXE),
-        "-NoLogo",
-        "-NoProfile",
-        "-Command",
-        (
-            "$target = [System.IO.Path]::GetFullPath($args[0]); "
-            "$items = @(Get-CimInstance Win32_Process -Filter \"Name = 'CrimsonDesert.exe'\" | "
-            "Where-Object { $_.ExecutablePath -and "
-            "([System.IO.Path]::GetFullPath($_.ExecutablePath) -ieq $target) }); "
-            "if ($items.Count -gt 0) { "
-            "($items | ForEach-Object { $_.ProcessId }) -join ','; exit 7 }"
-        ),
-        str(target_exe),
-    ]
-    completed = subprocess.run(command, capture_output=True, check=False, text=True)
-    if completed.returncode != 7:
+    pids = find_processes_by_exact_paths([target_exe])
+    if not pids:
         return
-    pids = completed.stdout.strip() or "未知"
-    raise RuntimeError(f"检测到 CrimsonDesert.exe 仍在运行，PID: {pids}。请完全退出游戏后再运行。")
+    pids_text = ", ".join(str(pid) for pid in pids)
+    raise RuntimeError(f"检测到 CrimsonDesert.exe 仍在运行，PID: {pids_text}。请完全退出游戏后再运行。")
 
 
 def configure_vfs_environment(args: argparse.Namespace) -> None:
@@ -609,52 +672,81 @@ def read_target_pid(log_path: Path) -> int | None:
 
 def is_process_running(pid: int) -> bool:
     """判断指定 PID 是否仍在运行。"""
-    command = [
-        str(POWERSHELL_EXE),
-        "-NoLogo",
-        "-NoProfile",
-        "-Command",
-        "if (Get-Process -Id $args[0] -ErrorAction SilentlyContinue) { exit 0 } exit 1",
-        str(pid),
-    ]
-    return subprocess.run(command, check=False).returncode == 0
+    handle = open_process(PROCESS_QUERY_LIMITED_INFORMATION, pid)
+    if not handle:
+        return False
+    try:
+        exit_code = wintypes.DWORD()
+        if not KERNEL32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            return False
+        return exit_code.value == STILL_ACTIVE
+    finally:
+        KERNEL32.CloseHandle(handle)
 
 
 def find_process_by_path(target_exe: Path) -> int | None:
     """按可执行文件路径查找游戏进程 PID。"""
-    command = [
-        str(POWERSHELL_EXE),
-        "-NoLogo",
-        "-NoProfile",
-        "-Command",
-        (
-            "$target = [System.IO.Path]::GetFullPath($args[0]); "
-            "$item = Get-Process -ErrorAction SilentlyContinue | "
-            "Where-Object { $_.Path -and ([System.IO.Path]::GetFullPath($_.Path) -ieq $target) } | "
-            "Select-Object -First 1; "
-            "if ($item) { $item.Id }"
-        ),
-        str(target_exe.resolve()),
-    ]
-    completed = subprocess.run(command, capture_output=True, check=False, text=True)
-    output = completed.stdout.strip()
-    return int(output) if output.isdigit() else None
+    pids = find_processes_by_exact_paths([target_exe])
+    return pids[0] if pids else None
 
 
 def stop_processes(*pids: int | None) -> None:
     """按 PID 停止进程，主要用于显式 NoKeepRunning 排障场景。"""
     for pid in {pid for pid in pids if pid}:
-        subprocess.run(
-            [
-                str(POWERSHELL_EXE),
-                "-NoLogo",
-                "-NoProfile",
-                "-Command",
-                "Stop-Process -Id $args[0] -Force -ErrorAction SilentlyContinue",
-                str(pid),
-            ],
-            check=False,
-        )
+        handle = open_process(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, pid)
+        if not handle:
+            continue
+        try:
+            KERNEL32.TerminateProcess(handle, 1)
+        finally:
+            KERNEL32.CloseHandle(handle)
+
+
+def iter_windows_processes() -> list[tuple[int, str, str]]:
+    """枚举 Windows 进程，返回 PID、完整路径和快照中的进程名。"""
+    snapshot = KERNEL32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+    if snapshot == INVALID_HANDLE_VALUE:
+        return []
+    processes: list[tuple[int, str, str]] = []
+    try:
+        entry = ProcessEntry32W()
+        entry.dwSize = ctypes.sizeof(ProcessEntry32W)
+        if not KERNEL32.Process32FirstW(snapshot, ctypes.byref(entry)):
+            return processes
+        while True:
+            pid = int(entry.th32ProcessID)
+            exe_name = entry.szExeFile
+            processes.append((pid, query_process_image_path(pid), exe_name))
+            if not KERNEL32.Process32NextW(snapshot, ctypes.byref(entry)):
+                break
+    finally:
+        KERNEL32.CloseHandle(snapshot)
+    return processes
+
+
+def query_process_image_path(pid: int) -> str:
+    """读取进程完整路径；权限不足时返回空字符串。"""
+    handle = open_process(PROCESS_QUERY_LIMITED_INFORMATION, pid)
+    if not handle:
+        return ""
+    try:
+        size = wintypes.DWORD(MAX_PATH_BUFFER_CHARS)
+        buffer = ctypes.create_unicode_buffer(size.value)
+        if not KERNEL32.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)):
+            return ""
+        return buffer.value
+    finally:
+        KERNEL32.CloseHandle(handle)
+
+
+def open_process(access_mask: int, pid: int) -> wintypes.HANDLE:
+    """打开进程句柄，集中处理 ctypes 类型转换。"""
+    return KERNEL32.OpenProcess(access_mask, False, int(pid))
+
+
+def normalize_process_path(path: str | Path) -> str:
+    """规整 Windows 路径大小写和分隔符，用于进程路径精确比较。"""
+    return os.path.normcase(os.path.abspath(os.fspath(path)))
 
 
 def print_vfs_smoke_result(

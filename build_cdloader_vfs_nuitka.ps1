@@ -2,7 +2,7 @@
 param(
     [string]$PythonPath = "",
     [string]$DistDir = "dist_nuitka",
-    [string]$OutputName = "cdloader-VFS-v1",
+    [string]$OutputName = "cdloader-VFS-v2",
     [string]$RequiredPython = "3.10"
 )
 
@@ -25,6 +25,15 @@ $VfsRuntimeDir = Join-Path $ScriptDir "private\vfs_runtime"
 $VfsLauncherFile = Join-Path $VfsRuntimeDir "nppvfs_launcher.exe"
 $VfsRuntimeDll = Join-Path $VfsRuntimeDir "vfs_runtime.dll"
 $NativeDir = Join-Path $ScriptDir "native"
+
+# 原生 VFS launcher 依赖的 VC/UCRT 运行库。构建时优先放进内置 runtime 目录，
+# 用户机器缺少 VC 运行库时仍能直接启动。
+$VfsRuntimeDependencyNames = @(
+    "msvcp140.dll",
+    "vcruntime140.dll",
+    "vcruntime140_1.dll",
+    "ucrtbase.dll"
+)
 
 # Nuitka 构建依赖集中维护。
 $NuitkaBuildPackages = @(
@@ -78,6 +87,43 @@ function Install-PythonPackages {
 
     & $TargetPython -m pip install --upgrade @Packages
     return $LASTEXITCODE
+}
+
+function Resolve-SystemRuntimeDependency {
+    param(
+        [string]$FileName
+    )
+
+    # 只取 64 位 System32 依赖；nppvfs_launcher.exe 是 64 位启动器。
+    $Candidates = @(
+        (Join-Path $env:WINDIR "System32\$FileName"),
+        (Join-Path $env:WINDIR "SysWOW64\$FileName")
+    )
+    foreach ($Candidate in $Candidates) {
+        if (Test-Path -LiteralPath $Candidate -PathType Leaf) {
+            return $Candidate
+        }
+    }
+    return ""
+}
+
+function Ensure-VfsRuntimeDependencies {
+    # 构建机上能找到的运行库会复制到 private\vfs_runtime，随后一起打进单体 exe。
+    foreach ($DependencyName in $VfsRuntimeDependencyNames) {
+        $TargetPath = Join-Path $VfsRuntimeDir $DependencyName
+        if (Test-Path -LiteralPath $TargetPath -PathType Leaf) {
+            continue
+        }
+
+        $SourcePath = Resolve-SystemRuntimeDependency -FileName $DependencyName
+        if ([string]::IsNullOrWhiteSpace($SourcePath)) {
+            Write-Host "警告：未找到运行库 $DependencyName，成品会要求用户系统已安装该 DLL。" -ForegroundColor Yellow
+            continue
+        }
+
+        Copy-Item -LiteralPath $SourcePath -Destination $TargetPath -Force
+        Write-Host "已收集 VFS 运行库：$DependencyName" -ForegroundColor Cyan
+    }
 }
 
 function Test-PythonVersion {
@@ -156,6 +202,7 @@ if (-not (Test-Path -LiteralPath $VfsRuntimeDll)) {
     Write-Host "未找到闭源 VFS runtime：$VfsRuntimeDll" -ForegroundColor Red
     exit 1
 }
+Ensure-VfsRuntimeDependencies
 if (-not (Test-Path -LiteralPath (Join-Path $NativeDir "__init__.py"))) {
     Write-Host "未找到 native 包目录：$NativeDir" -ForegroundColor Red
     exit 1
@@ -166,6 +213,7 @@ if ((Get-ChildItem -LiteralPath $NativeDir -Filter "_cdloader_native*.pyd" -File
 }
 
 $PythonPath = Ensure-NuitkaPython -TargetPython $PythonPath -VersionPrefix $RequiredPython -CustomPythonPath $HasCustomPythonPath
+$PythonPath = (Resolve-Path -LiteralPath $PythonPath).Path
 
 Write-Host "开始准备 VFS 专用 Nuitka 打包环境..." -ForegroundColor Cyan
 $InstallExitCode = Install-PythonPackages -TargetPython $PythonPath -Packages $NuitkaBuildPackages
@@ -226,9 +274,16 @@ $NuitkaArgs = @(
     "--jobs=$([Environment]::ProcessorCount)"
 )
 
+foreach ($DependencyName in $VfsRuntimeDependencyNames) {
+    $DependencyFile = Join-Path $VfsRuntimeDir $DependencyName
+    if (Test-Path -LiteralPath $DependencyFile -PathType Leaf) {
+        $NuitkaArgs += "--include-data-file=$DependencyFile=cdmm/private/vfs_runtime/$DependencyName"
+    }
+}
+
 $NuitkaArgs += $EntryFile
 
-Write-Host "开始使用 Nuitka 打包 cdloader-VFS-v1，不使用 UPX 压缩..." -ForegroundColor Cyan
+Write-Host "开始使用 Nuitka 打包 cdloader-VFS-v2，不使用 UPX 压缩..." -ForegroundColor Cyan
 & $PythonPath @NuitkaArgs
 try {
     if ($LASTEXITCODE -ne 0) {
@@ -247,4 +302,4 @@ if (-not (Test-Path -LiteralPath $ExePath)) {
 
 $ExeSize = (Get-Item -LiteralPath $ExePath).Length / 1MB
 Write-Host ("VFS 专用 Nuitka 打包完成：{0}（{1:N2} MB）" -f $ExePath, $ExeSize) -ForegroundColor Green
-Write-Host "复制 cdloader-VFS-v1.exe 到游戏根目录后双击，即默认构建 VFS 并启动游戏。" -ForegroundColor Green
+Write-Host "复制 cdloader-VFS-v2.exe 到游戏根目录后双击，即默认构建 VFS 并启动游戏。" -ForegroundColor Green

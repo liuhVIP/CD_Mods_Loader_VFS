@@ -2,19 +2,26 @@
 
 from __future__ import annotations
 
+import bisect
 import logging
 from collections import Counter, defaultdict
 from time import perf_counter
 from pathlib import Path
 
+from cdmm.archive.pathc_handler import get_path_hash, read_pathc
 from cdmm.archive.pamt import derive_pamt_dir
 from cdmm.common.constants import (
+    DDS_SUFFIX,
     GAME_DIR_NAME_LENGTH,
     KNOWN_GAME_TOP_DIRS,
     LOOSE_FILES_DIR_NAME,
+    META_DIR_NAME,
     MODS_DIR_NAME,
     OVERLAY_PAMT_NAME,
     OVERLAY_PAZ_NAME,
+    PATHC_FILE_NAME,
+    VANILLA_DIR_NAME,
+    WORK_DIR_NAME,
 )
 from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
 from cdmm.services.pamt_index_service import get_game_pamt_index, prefetch_game_pamt_dir_targets
@@ -22,6 +29,11 @@ from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.path_utils import lower_game_rel_path
 
 logger = logging.getLogger(__name__)
+
+# DDS loose 模组有时只给 NNNN/<top>/name.dds，但原版纹理索引实际注册在
+# <top>/texture/name.dds。PAMT 找不到时，只按 PATHC 已存在路径做通用推断。
+_DDS_TEXTURE_DIR_NAME = "texture"
+_PATHC_HASH_CACHE: dict[tuple[str, int, int], tuple[int, ...]] = {}
 
 
 def build_loose_overlay_entries(
@@ -52,6 +64,7 @@ def build_loose_overlay_entries(
     exact_matches: Counter[str] = Counter()
     basename_matches: Counter[str] = Counter()
     raw_path_writes: Counter[str] = Counter()
+    pathc_inferred_writes: Counter[str] = Counter()
     root_skips: Counter[str] = Counter()
     for loose_file in loose_files:
         mod_dir, pamt_dir, rel_path, loose_path = loose_file
@@ -80,8 +93,17 @@ def build_loose_overlay_entries(
                 target_path = f"{inferred_parent}/{rel_path.name}" if inferred_parent else rel_path.name
             else:
                 target_pamt_dir = pamt_dir or derive_pamt_dir(source_entry.paz_file)
+            inferred_from_pathc = False
             if source_entry is None:
-                raw_path_writes[f"{mod_dir.name}/{target_pamt_dir}"] += 1
+                inferred_target_path = _infer_dds_target_from_pathc(game_dir, target_path)
+                if inferred_target_path is not None:
+                    target_path = inferred_target_path
+                    inferred_from_pathc = True
+            if source_entry is None:
+                if inferred_from_pathc:
+                    pathc_inferred_writes[f"{mod_dir.name}/{target_pamt_dir}"] += 1
+                else:
+                    raw_path_writes[f"{mod_dir.name}/{target_pamt_dir}"] += 1
             elif matched_by_basename:
                 basename_matches[target_pamt_dir] += 1
             else:
@@ -102,8 +124,14 @@ def build_loose_overlay_entries(
         except Exception as exc:
             prefix = pamt_dir if pamt_dir is not None else "root"
             errors.append(f"{mod_dir.name}: {prefix}/{target_path} 加载失败：{exc}")
-    _append_loose_summary_warnings(warnings, raw_path_writes, root_skips)
-    _log_loose_match_summary(exact_matches, basename_matches, raw_path_writes, root_skips)
+    _append_loose_summary_warnings(warnings, raw_path_writes, pathc_inferred_writes, root_skips)
+    _log_loose_match_summary(
+        exact_matches,
+        basename_matches,
+        raw_path_writes,
+        pathc_inferred_writes,
+        root_skips,
+    )
     logger.info(
         "loose 细分：枚举 %.2fs，目标匹配 %.2fs，读取/构建 %.2fs，文件 %d 个（编号 %d，根路径 %d，跳过 %d）",
         enumerate_seconds,
@@ -310,9 +338,13 @@ def _find_entry_globally(game_dir: Path, target_path: str) -> tuple[PazEntry | N
 def _append_loose_summary_warnings(
     warnings: list[str],
     raw_path_writes: Counter[str],
+    pathc_inferred_writes: Counter[str],
     root_skips: Counter[str],
 ) -> None:
     """把大量 loose 未命中提示压缩成汇总警告。"""
+    for key, count in sorted(pathc_inferred_writes.items()):
+        mod_name, pamt_dir = key.rsplit("/", 1)
+        warnings.append(f"{mod_name}: {count} 个 DDS 文件未在 {pamt_dir}/0.pamt 中找到，已按 PATHC 推断真实纹理路径写入")
     for key, count in sorted(raw_path_writes.items()):
         mod_name, pamt_dir = key.rsplit("/", 1)
         warnings.append(f"{mod_name}: {count} 个文件未在 {pamt_dir}/0.pamt 中找到，已按原始路径写入")
@@ -324,6 +356,7 @@ def _log_loose_match_summary(
     exact_matches: Counter[str],
     basename_matches: Counter[str],
     raw_path_writes: Counter[str],
+    pathc_inferred_writes: Counter[str],
     root_skips: Counter[str],
 ) -> None:
     """输出 loose 匹配汇总，避免大量逐文件日志拖慢加载。"""
@@ -333,8 +366,67 @@ def _log_loose_match_summary(
         logger.info("loose 匹配汇总：basename 命中 %s", _format_counter(basename_matches))
     if raw_path_writes:
         logger.info("loose 匹配汇总：原始路径写入 %s", _format_counter(raw_path_writes))
+    if pathc_inferred_writes:
+        logger.info("loose 匹配汇总：PATHC 推断写入 %s", _format_counter(pathc_inferred_writes))
     if root_skips:
         logger.info("loose 匹配汇总：root 跳过 %s", _format_counter(root_skips))
+
+
+def _infer_dds_target_from_pathc(game_dir: Path, target_path: str) -> str | None:
+    """编号 loose DDS 未命中 PAMT 时，尝试用原版 PATHC 推断真实纹理目录。"""
+    normalized = lower_game_rel_path(target_path)
+    if not normalized.endswith(DDS_SUFFIX):
+        return None
+    if "/" not in normalized:
+        return None
+    parent, filename = normalized.rsplit("/", 1)
+    candidates = _dds_pathc_candidate_paths(parent, filename)
+    matches = [
+        candidate
+        for candidate in dict.fromkeys(candidates)
+        if candidate != normalized and _pathc_contains_virtual_path(game_dir, candidate)
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _dds_pathc_candidate_paths(parent: str, filename: str) -> list[str]:
+    """为 loose DDS 生成通用 PATHC 候选路径，不绑定具体模组或文件名。"""
+    if not parent or "/" in parent or parent == _DDS_TEXTURE_DIR_NAME:
+        return []
+    return [f"{parent}/{_DDS_TEXTURE_DIR_NAME}/{filename}"]
+
+
+def _pathc_contains_virtual_path(game_dir: Path, virtual_path: str) -> bool:
+    """检查原版 PATHC 是否包含给定虚拟 DDS 路径 hash。"""
+    hashes = _read_pathc_hashes(game_dir)
+    if not hashes:
+        return False
+    target_hash = get_path_hash(virtual_path)
+    index = bisect.bisect_left(hashes, target_hash)
+    return index < len(hashes) and hashes[index] == target_hash
+
+
+def _read_pathc_hashes(game_dir: Path) -> tuple[int, ...]:
+    """读取原版 PATHC hash 表，按文件状态缓存，避免反复解析大文件。"""
+    pathc_path = game_dir / WORK_DIR_NAME / VANILLA_DIR_NAME / META_DIR_NAME / PATHC_FILE_NAME
+    if not pathc_path.exists():
+        pathc_path = game_dir / META_DIR_NAME / PATHC_FILE_NAME
+    if not pathc_path.exists():
+        return ()
+    stat = pathc_path.stat()
+    cache_key = (str(pathc_path.resolve()), stat.st_mtime_ns, stat.st_size)
+    cached = _PATHC_HASH_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        hashes = tuple(read_pathc(pathc_path).key_hashes)
+    except Exception as exc:
+        logger.debug("PATHC hash 读取失败：%s (%s)", pathc_path, exc)
+        return ()
+    _PATHC_HASH_CACHE[cache_key] = hashes
+    return hashes
 
 
 def _format_counter(counter: Counter[str]) -> str:

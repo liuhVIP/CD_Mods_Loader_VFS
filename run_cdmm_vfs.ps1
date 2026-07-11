@@ -23,6 +23,26 @@ $TargetExe = Join-Path $GameDir "bin64\CrimsonDesert.exe"
 $MappingJson = Join-Path $GameDir ".cdloader\vfs_mapping_tree.json"
 $VfsRunScript = Join-Path $VfsDemoDir "run_target.ps1"
 
+function Find-PowerShellExecutable {
+    # 优先使用 PowerShell 7；用户机器没有时自动降级到系统自带 Windows PowerShell。
+    $FixedPwsh = "C:\Program Files\PowerShell\7\pwsh.exe"
+    if (Test-Path -LiteralPath $FixedPwsh -PathType Leaf) {
+        return $FixedPwsh
+    }
+
+    $PwshCommand = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+    if ($null -ne $PwshCommand) {
+        return $PwshCommand.Source
+    }
+
+    $WindowsPowerShell = Get-Command powershell.exe -ErrorAction SilentlyContinue
+    if ($null -ne $WindowsPowerShell) {
+        return $WindowsPowerShell.Source
+    }
+
+    throw "未找到可用的 PowerShell。"
+}
+
 if (-not (Test-Path -LiteralPath $PythonPath -PathType Leaf)) {
     throw "未找到项目 Python 虚拟环境：$PythonPath"
 }
@@ -99,6 +119,7 @@ if ($KeepRunning) {
 }
 
 Set-Location -LiteralPath $VfsDemoDir
-& "C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass `
+$PowerShellExe = Find-PowerShellExecutable
+& $PowerShellExe -NoLogo -NoProfile -ExecutionPolicy Bypass `
     -File $VfsRunScript @vfsArgs
 exit $LASTEXITCODE
