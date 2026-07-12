@@ -159,6 +159,17 @@ cdmod-converter-v5.zip
 cdmod-converter-v5.exe
 ```
 
+首次启动会要求选择界面语言：
+
+```text
+1. 中文
+2. English
+```
+
+选择会保存在转换器目录的 `cdmod-converter.config.json`，后续启动直接使用该语言。
+需要切换时可删除该配置重新选择，也可以在 CMD 中传入
+`--language zh-CN` 或 `--language en-US`。
+
 控制台支持：
 
 ```text

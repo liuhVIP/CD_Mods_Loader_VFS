@@ -91,7 +91,7 @@ Crimson Desert .cdmod Converter $DisplayVersion
 
 1. Extract the complete ZIP.
 2. Run $OutputName.exe.
-3. Follow the Chinese console prompts.
+3. Select Chinese or English on first launch, then follow the console prompts.
 4. Use the matching $DisplayVersion cdloader to load generated .cdmod files.
 "@ | Set-Content -LiteralPath (Join-Path $PackageDir "README.txt") -Encoding UTF8
 
