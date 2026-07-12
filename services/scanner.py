@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 MOD_TYPE_JSON_PATCH = "json_patch"
 MOD_TYPE_FORMAT3 = "format3"
+MOD_TYPE_CDMOD = "cdmod"
 MOD_TYPE_LOOSE_FILES = "loose_files"
 MOD_TYPE_STANDALONE_ARCHIVE = "standalone_archive"
 MOD_TYPE_META = "meta"
@@ -42,6 +43,9 @@ MOD_TYPE_DDS = "dds"
 # 空目录跳过提示前缀，CLI 会据此把空目录单独整理展示给用户。
 EMPTY_MOD_DIR_WARNING_PREFIX = "空目录（已跳过）："
 
+# 损坏cdmod必须让apply/VFS拒绝本轮构建，不能按普通未知文件静默忽略。
+INVALID_CDMOD_WARNING_PREFIX = "无效cdmod（本次构建将拒绝）："
+
 # 目录型模组可能包含多种组件，按固定顺序合并展示。
 DIRECTORY_MOD_TYPE_ORDER = (
     MOD_TYPE_LOOSE_FILES,
@@ -49,6 +53,9 @@ DIRECTORY_MOD_TYPE_ORDER = (
     MOD_TYPE_STANDALONE_ARCHIVE,
     MOD_TYPE_META,
 )
+
+# Crimson Mod Package统一容器扩展名。
+CDMOD_SUFFIX = ".cdmod"
 
 
 def scan_mods(game_dir: Path) -> tuple[list[DiscoveredMod], list[str]]:
@@ -224,6 +231,14 @@ def _write_disabled_mods(path: Path, disabled_items: list[str], warnings: list[s
 
 def detect_mod_type(path: Path) -> str | None:
     """识别传统 JSON patch、Format 3 JSON 或目录型组件。"""
+    if path.is_file() and path.suffix.lower() == CDMOD_SUFFIX:
+        try:
+            from cdmm.services.cdmod_package import load_cdmod_package
+
+            load_cdmod_package(path)
+        except (OSError, ValueError):
+            return None
+        return MOD_TYPE_CDMOD
     if path.is_file() and path.suffix.lower() == JSON_SUFFIX:
         data = load_json_optional(path)
         if is_json_patch_data(data):
@@ -301,6 +316,12 @@ def _collect_candidates(mods_dir: Path, warnings: list[str]) -> list[Path]:
         if item.is_file() and suffix in ARCHIVE_SUFFIXES:
             warnings.append(f"跳过压缩包，请先手动解压：{item.name}")
             continue
+        if item.is_file() and suffix == CDMOD_SUFFIX:
+            if detect_mod_type(item) is None:
+                warnings.append(f"{INVALID_CDMOD_WARNING_PREFIX}{item.name}")
+                continue
+            candidates.append(item)
+            continue
         if item.is_file() and suffix == JSON_SUFFIX:
             candidates.append(item)
             continue
@@ -315,6 +336,12 @@ def _collect_candidates(mods_dir: Path, warnings: list[str]) -> list[Path]:
                 if _inside_game_archive_tree(json_file.relative_to(item)):
                     continue
                 candidates.append(json_file)
+            for cdmod_file in sorted(item.rglob(f"*{CDMOD_SUFFIX}"), key=lambda p: p.as_posix()):
+                if detect_mod_type(cdmod_file) is None:
+                    rel = cdmod_file.relative_to(mods_dir).as_posix()
+                    warnings.append(f"{INVALID_CDMOD_WARNING_PREFIX}{rel}")
+                    continue
+                candidates.append(cdmod_file)
     return candidates
 
 

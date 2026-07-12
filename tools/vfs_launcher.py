@@ -1,6 +1,6 @@
 """VFS 专用单体 exe 启动入口。
 
-本入口用于 Nuitka 打包后的 cdloader-VFS-v2.exe。用户把 exe 放到游戏根目录后
+本入口用于 Nuitka 打包后的 cdloader-VFS 版本化 exe。用户把 exe 放到游戏根目录后
 双击运行，即可按默认 VFS 参数构建虚拟包并启动 Crimson Desert。
 """
 
@@ -59,14 +59,57 @@ VFS_RUNTIME_FILE_NAMES = REQUIRED_VFS_RUNTIME_FILE_NAMES + VFS_RUNTIME_DEPENDENC
 # VFS runtime 日志目录名。
 VFS_RUNTIME_LOG_DIR_NAME = "logs"
 
+# 当前 Windows 开机会话完成纯净 Steam 预热后的标记文件。
+STEAM_WARMUP_MARKER_FILE_NAME = "steam_warmup_boot.marker"
+
+# 游戏自身日志目录，用于确认本次开机是否已经完整加载到 12/12。
+GAME_RUNTIME_LOG_REL_DIR = Path("Pearl Abyss") / "log"
+
+# Steam 冷启动等待游戏进程出现的最长秒数。
+STEAM_WARMUP_START_TIMEOUT_SECONDS = 120
+
+# 纯净预热过早退出时不写入成功标记，避免把启动失败误判成预热完成。
+STEAM_WARMUP_MIN_RUNTIME_SECONDS = 20
+
+# 版本文件名；打包文件名、PE 版本和运行时标题统一以此文件为来源。
+VERSION_FILE_NAME = "version.txt"
+
+# 版本文件异常时仅用于保证错误提示仍可显示。
+DEFAULT_APP_VERSION = "v1.0"
+
 # vfs_launcher 日志文件名。
 VFS_NATIVE_LAUNCHER_LOG_NAME = "vfs_launcher.log"
 
 # vfs_runtime 日志文件名。
 VFS_NATIVE_RUNTIME_LOG_NAME = "vfs_runtime.log"
 
-# 用户可见程序标题。
-APP_TITLE = "红色沙漠 VFS 独立轻量模组加载器 v2"
+def bundled_resource_candidates(file_name: str) -> list[Path]:
+    """返回源码和 Nuitka 单文件环境下的内置资源候选路径。"""
+    candidates: list[Path] = []
+    bundle_root = getattr(sys, "_MEIPASS", "")
+    if bundle_root:
+        candidates.extend((Path(bundle_root) / "cdmm" / file_name, Path(bundle_root) / file_name))
+    package_root = Path(__file__).resolve().parents[1]
+    candidates.extend((package_root / file_name, package_root.parent / file_name))
+    return candidates
+
+
+def app_version() -> str:
+    """从唯一版本文件读取规范化版本号。"""
+    for version_path in bundled_resource_candidates(VERSION_FILE_NAME):
+        try:
+            version = version_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if re.fullmatch(r"v?\d+(?:\.\d+){0,3}", version, flags=re.IGNORECASE):
+            return f"v{version.lstrip('vV')}"
+    return DEFAULT_APP_VERSION
+
+
+# 用户可见程序版本、标题和成品文件名均动态派生。
+APP_VERSION = app_version()
+APP_TITLE = f"红色沙漠 VFS 独立轻量模组加载器 {APP_VERSION}"
+APP_EXE_NAME = f"cdloader-VFS-{APP_VERSION}.exe"
 
 # 用户可见作者说明。
 AUTHOR_TEXT = "作者：B站UP 改名_开发"
@@ -132,6 +175,8 @@ KERNEL32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes
 KERNEL32.GetExitCodeProcess.restype = wintypes.BOOL
 KERNEL32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
 KERNEL32.TerminateProcess.restype = wintypes.BOOL
+KERNEL32.GetTickCount64.argtypes = []
+KERNEL32.GetTickCount64.restype = ctypes.c_ulonglong
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -269,6 +314,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="允许 VFS runtime patch ASI 模块，仅复现旧行为时使用",
     )
+    parser.add_argument(
+        "--use-remote-injection",
+        "-UseRemoteInjection",
+        action="store_true",
+        help="回退到启动前远程注入 runtime，仅用于兼容性排障",
+    )
     return parser
 
 
@@ -301,13 +352,14 @@ def print_header() -> None:
 
 
 def resolve_game_dir(game_dir_arg: Path | None) -> Path | None:
-    """解析游戏目录；打包 exe 默认使用自身所在目录。"""
+    """解析游戏目录；兼容 exe 位于游戏根目录或其一级发布目录。"""
     if game_dir_arg is not None:
         return game_dir_arg.resolve()
     exe_dir = executable_dir()
-    if looks_like_game_dir(exe_dir):
-        return exe_dir
-    print("未识别到游戏根目录，请把 cdloader-VFS-v2.exe 放到红色沙漠游戏根目录后再运行。")
+    for candidate in (exe_dir, exe_dir.parent):
+        if looks_like_game_dir(candidate):
+            return candidate
+    print(f"未识别到游戏根目录，请把 {APP_EXE_NAME} 放到红色沙漠游戏根目录后再运行。")
     print(r"游戏根目录需要包含：bin64\CrimsonDesert.exe")
     print(r"示例：G:\SteamLibrary\steamapps\common\Crimson Desert")
     return None
@@ -512,6 +564,15 @@ def start_game_with_vfs(game_dir: Path, runtime_dir: Path, args: argparse.Namesp
     """通过项目内置 VFS runtime 启动 Crimson Desert。"""
     ensure_no_running_target(game_dir, args.allow_running_target)
     cleanup_stale_helper_processes(game_dir, runtime_dir)
+    steam_app_id = args.steam_app_id.strip() or resolve_steam_app_id(
+        game_dir / GAME_BIN_DIR_NAME / GAME_EXECUTABLE_NAME
+    )
+    if not args.use_remote_injection and steam_app_id:
+        ensure_steam_warmup_for_current_boot(game_dir, steam_app_id)
+    elif not args.use_remote_injection:
+        # 非 Steam 发行版不能伪造 AppID；保持平台无关的 ASI 直接启动路径。
+        print("未识别到匹配当前游戏目录的 Steam manifest，跳过 Steam 冷启动预热。")
+        logging.info("Steam 冷启动预热：非 Steam 安装或未识别到匹配 manifest，已跳过")
     configure_vfs_environment(args)
     clear_native_runtime_logs(runtime_dir)
     command = build_vfs_command(game_dir, runtime_dir, args)
@@ -538,6 +599,103 @@ def start_game_with_vfs(game_dir: Path, runtime_dir: Path, args: argparse.Namesp
     if args.no_keep_running:
         stop_processes(process.pid, game_pid)
     return 0
+
+
+def ensure_steam_warmup_for_current_boot(game_dir: Path, steam_app_id: str) -> None:
+    """每次 Windows 开机先完成一次无 VFS 的 Steam 原生预热。"""
+    if steam_warmup_completed_for_current_boot(game_dir):
+        logging.info("Steam 冷启动预热：本次开机已完成，直接进入 VFS")
+        return
+
+    target_exe = (game_dir / GAME_BIN_DIR_NAME / GAME_EXECUTABLE_NAME).resolve()
+    cleanup_owned_asi_runtime_files(target_exe.parent)
+    previous_pids = set(find_processes_by_exact_paths([target_exe]))
+    print("")
+    print("检测到本次开机尚未完成 Steam 冷启动预热。")
+    print("正在先以纯净模式启动游戏；进入主菜单后请正常退出游戏。")
+    print("退出后加载器会自动继续启动 VFS 模组，无需再次运行本程序。")
+    logging.info("Steam 冷启动预热：请求纯净启动 AppID=%s", steam_app_id)
+    os.startfile(f"steam://run/{steam_app_id}")
+
+    started_at = time.monotonic()
+    game_pid = wait_for_new_target_process(
+        target_exe,
+        previous_pids,
+        STEAM_WARMUP_START_TIMEOUT_SECONDS,
+    )
+    if game_pid is None:
+        raise RuntimeError("等待 Steam 纯净启动 CrimsonDesert.exe 超时")
+    print(f"Steam 纯净预热进程已启动，PID：{game_pid}；等待你正常退出游戏...")
+    logging.info("Steam 冷启动预热：游戏 PID=%s", game_pid)
+    while is_process_running(game_pid):
+        time.sleep(1)
+
+    runtime_seconds = time.monotonic() - started_at
+    if runtime_seconds < STEAM_WARMUP_MIN_RUNTIME_SECONDS:
+        raise RuntimeError(
+            f"Steam 纯净预热仅运行 {runtime_seconds:.1f}s，尚未完成。请重新运行并等待进入主菜单后再退出。"
+        )
+    write_steam_warmup_marker(game_dir)
+    print("Steam 纯净预热完成，正在自动继续 VFS 启动...")
+    logging.info("Steam 冷启动预热完成：%.2fs", runtime_seconds)
+
+
+def wait_for_new_target_process(target_exe: Path, previous_pids: set[int], timeout_seconds: int) -> int | None:
+    """等待 Steam 创建新的目标游戏进程。"""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        for pid in find_processes_by_exact_paths([target_exe]):
+            if pid not in previous_pids:
+                return pid
+        time.sleep(0.2)
+    return None
+
+
+def cleanup_owned_asi_runtime_files(game_bin_dir: Path) -> None:
+    """纯净预热前清理加载器自有的临时 ASI 和 sidecar。"""
+    for pattern in ("nppvfs_runtime_*.asi", "nppvfs_runtime_*.asi.env"):
+        for path in game_bin_dir.glob(pattern):
+            try:
+                path.unlink()
+            except OSError as exc:
+                raise RuntimeError(f"无法清理 VFS 临时文件：{path}") from exc
+
+
+def current_boot_time_seconds() -> float:
+    """根据 Windows 单调运行时间估算本次系统启动时间。"""
+    return time.time() - (KERNEL32.GetTickCount64() / 1000.0)
+
+
+def steam_warmup_completed_for_current_boot(game_dir: Path) -> bool:
+    """检查本次开机是否已有加载器标记或游戏 12/12 成功日志。"""
+    boot_time = current_boot_time_seconds()
+    marker = game_dir / WORK_DIR_NAME / STEAM_WARMUP_MARKER_FILE_NAME
+    try:
+        if marker.stat().st_mtime >= boot_time:
+            return True
+    except OSError:
+        pass
+
+    local_app_data = os.environ.get("LOCALAPPDATA", "")
+    if not local_app_data:
+        return False
+    log_dir = Path(local_app_data) / GAME_RUNTIME_LOG_REL_DIR
+    for log_path in sorted(log_dir.glob("Launcher_*.log"), reverse=True)[:20]:
+        try:
+            if log_path.stat().st_mtime < boot_time:
+                continue
+            if "(12/12)" in log_path.read_text(encoding="utf-8", errors="ignore"):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def write_steam_warmup_marker(game_dir: Path) -> None:
+    """记录当前开机已完成 Steam 纯净预热。"""
+    marker = game_dir / WORK_DIR_NAME / STEAM_WARMUP_MARKER_FILE_NAME
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(f"boot_time={current_boot_time_seconds():.3f}\n", encoding="utf-8")
 
 
 def cleanup_stale_helper_processes(game_dir: Path, runtime_dir: Path) -> None:
@@ -620,6 +778,9 @@ def build_vfs_command(game_dir: Path, runtime_dir: Path, args: argparse.Namespac
         "--mapping-json",
         str(mapping_json),
     ]
+    if not args.use_remote_injection:
+        # Crimson Desert 由已安装的 Ultimate ASI Loader 正常加载 runtime，避免保护初始化前远程注入。
+        command.append("--asi-load")
     if steam_app_id:
         print(f"Steam AppID：{steam_app_id}")
         command.extend(["--steam-appid", steam_app_id])

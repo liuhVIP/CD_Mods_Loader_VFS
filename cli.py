@@ -30,6 +30,7 @@ from cdmm.common.models import LoaderResult
 from cdmm.services.loader import apply_loader, revert_loader, scan_loader
 from cdmm.services.scanner import (
     EMPTY_MOD_DIR_WARNING_PREFIX,
+    MOD_TYPE_CDMOD,
     MOD_TYPE_DDS,
     MOD_TYPE_FORMAT3,
     MOD_TYPE_JSON_PATCH,
@@ -156,6 +157,7 @@ UI_TEXTS = {
         "mod_type_labels": {
             MOD_TYPE_JSON_PATCH: "JSON 补丁",
             MOD_TYPE_FORMAT3: "Format 3 语义补丁",
+            MOD_TYPE_CDMOD: "CDMOD语义模组",
             MOD_TYPE_LOOSE_FILES: "松散文件",
             MOD_TYPE_DDS: "DDS 纹理",
             MOD_TYPE_STANDALONE_ARCHIVE: "独立文件",
@@ -223,6 +225,7 @@ UI_TEXTS = {
         "mod_type_labels": {
             MOD_TYPE_JSON_PATCH: "JSON patch",
             MOD_TYPE_FORMAT3: "Format 3 semantic patch",
+            MOD_TYPE_CDMOD: "CDMOD semantic mod",
             MOD_TYPE_LOOSE_FILES: "Loose files",
             MOD_TYPE_DDS: "DDS texture",
             MOD_TYPE_STANDALONE_ARCHIVE: "Standalone archive",
@@ -545,7 +548,7 @@ def scan_group_key(mod_type: str) -> str:
     parts = set(mod_type.split("+"))
     if mod_type == MOD_TYPE_JSON_PATCH:
         return "json"
-    if mod_type == MOD_TYPE_FORMAT3:
+    if mod_type in {MOD_TYPE_FORMAT3, MOD_TYPE_CDMOD}:
         return "format3"
     if MOD_TYPE_LOOSE_FILES in parts:
         return "loose"

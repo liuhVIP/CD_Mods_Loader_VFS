@@ -2,7 +2,7 @@
 param(
     [string]$PythonPath = "",
     [string]$DistDir = "dist_nuitka",
-    [string]$OutputName = "cdloader-VFS-v2",
+    [string]$OutputName = "",
     [string]$RequiredPython = "3.10"
 )
 
@@ -11,6 +11,26 @@ $ErrorActionPreference = "Stop"
 
 # 固定项目根目录，避免从其他位置调用脚本时输出路径漂移。
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$VersionFile = Join-Path $ScriptDir "version.txt"
+if (-not (Test-Path -LiteralPath $VersionFile -PathType Leaf)) {
+    throw "未找到版本文件：$VersionFile"
+}
+
+# version.txt 是发布版本的唯一来源；允许 v3、v1.1 等简洁写法。
+$AppVersion = (Get-Content -LiteralPath $VersionFile -Raw -Encoding UTF8).Trim()
+if ($AppVersion -notmatch '^v?\d+(\.\d+){0,3}$') {
+    throw "version.txt 格式无效：$AppVersion（应为 v3、v1.1 或最多四段数字）"
+}
+$VersionNumbers = @($AppVersion.TrimStart('v', 'V').Split('.') | ForEach-Object { [int]$_ })
+while ($VersionNumbers.Count -lt 4) {
+    $VersionNumbers += 0
+}
+$PeVersion = $VersionNumbers -join '.'
+$DisplayVersion = "v$($AppVersion.TrimStart('v', 'V'))"
+if ([string]::IsNullOrWhiteSpace($OutputName)) {
+    $OutputName = "cdloader-VFS-$DisplayVersion"
+}
+
 $HasCustomPythonPath = -not [string]::IsNullOrWhiteSpace($PythonPath)
 if ([string]::IsNullOrWhiteSpace($PythonPath)) {
     $PythonPath = Join-Path $ScriptDir ".venv-nuitka\Scripts\python.exe"
@@ -252,8 +272,8 @@ $NuitkaArgs = @(
     "--company-name=cdmm",
     "--product-name=Crimson Desert VFS Mod Loader",
     "--file-description=Crimson Desert VFS Mod Loader",
-    "--file-version=1.0.0.0",
-    "--product-version=1.0.0.0",
+    "--file-version=$PeVersion",
+    "--product-version=$PeVersion",
     "--nofollow-import-to=pytest",
     "--nofollow-import-to=ruff",
     "--nofollow-import-to=PyInstaller",
@@ -269,6 +289,7 @@ $NuitkaArgs = @(
     "--include-module=cdmm.native._cdloader_native",
     "--include-package=cryptography",
     "--include-package=lz4",
+    "--include-data-file=$VersionFile=cdmm/version.txt",
     "--include-data-file=$VfsLauncherFile=cdmm/private/vfs_runtime/nppvfs_launcher.exe",
     "--include-data-file=$VfsRuntimeDll=cdmm/private/vfs_runtime/vfs_runtime.dll",
     "--jobs=$([Environment]::ProcessorCount)"
@@ -283,7 +304,7 @@ foreach ($DependencyName in $VfsRuntimeDependencyNames) {
 
 $NuitkaArgs += $EntryFile
 
-Write-Host "开始使用 Nuitka 打包 cdloader-VFS-v2，不使用 UPX 压缩..." -ForegroundColor Cyan
+Write-Host "开始使用 Nuitka 打包 $OutputName，不使用 UPX 压缩..." -ForegroundColor Cyan
 & $PythonPath @NuitkaArgs
 try {
     if ($LASTEXITCODE -ne 0) {
@@ -302,4 +323,4 @@ if (-not (Test-Path -LiteralPath $ExePath)) {
 
 $ExeSize = (Get-Item -LiteralPath $ExePath).Length / 1MB
 Write-Host ("VFS 专用 Nuitka 打包完成：{0}（{1:N2} MB）" -f $ExePath, $ExeSize) -ForegroundColor Green
-Write-Host "复制 cdloader-VFS-v2.exe 到游戏根目录后双击，即默认构建 VFS 并启动游戏。" -ForegroundColor Green
+Write-Host "复制 $OutputName.exe 到游戏根目录后双击，即默认构建 VFS 并启动游戏。" -ForegroundColor Green

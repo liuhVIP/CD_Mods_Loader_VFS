@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "summary": {
+    "package_count": 6,
+    "operation_count": 2736,
+    "finding_count": 0,
+    "auto_merge_count": 0,
+    "conflict_count": 0,
+    "missing_dependency_count": 0,
+    "unresolved_dynamic_selector_count": 12
+  },
+  "packages": [
+    {
+      "id": "pinapana-armorfivesockets",
+      "name": "ArmorFiveSockets",
+      "version": "2.0",
+      "path": "T:\\python_pro\\cdmm\\prototype_output\\ArmorFiveSockets.cdmod",
+      "operation_count": 3
+    },
+    {
+      "id": "aerowynx-equip-all-v6",
+      "name": "Equip All V6",
+      "version": "6.0",
+      "path": "T:\\python_pro\\cdmm\\prototype_output\\Equip Everything V6.cdmod",
+      "operation_count": 2544
+    },
+    {
+      "id": "khione95-female-armor-module-chest-and-gloves",
+      "name": "Female Armor Module - Chest and Gloves",
+      "version": "2.6",
+      "path": "T:\\python_pro\\cdmm\\prototype_output\\Female Armor Module - With Icons.cdmod",
+      "operation_count": 180
+    },
+    {
+      "id": "pinapana-onehandshieldfivesockets",
+      "name": "OneHandShieldFiveSockets",
+      "version": "1.0",
+      "path": "T:\\python_pro\\cdmm\\prototype_output\\OneHandShieldFiveSockets.cdmod",
+      "operation_count": 3
+    },
+    {
+      "id": "pinapana-onehandswordfivesockets",
+      "name": "OneHandSwordFiveSockets",
+      "version": "1.0",
+      "path": "T:\\python_pro\\cdmm\\prototype_output\\OneHandSwordFiveSockets.cdmod",
+      "operation_count": 3
+    },
+    {
+      "id": "pinapana-twohandswordfivesockets",
+      "name": "TwoHandSwordFiveSockets",
+      "version": "1.0",
+      "path": "T:\\python_pro\\cdmm\\prototype_output\\TwoHandSwordFiveSockets.cdmod",
+      "operation_count": 3
+    }
+  ],
+  "missing_dependencies": [],
+  "unresolved_dynamic_selectors": [
+    "pinapana-armorfivesockets#0 iteminfo.pabgb {\"equip_type_info\": [2667368044]} -> drop_default_data.socket_valid_count",
+    "pinapana-armorfivesockets#1 iteminfo.pabgb {\"equip_type_info\": [2667368044]} -> drop_default_data.use_socket",
+    "pinapana-armorfivesockets#2 iteminfo.pabgb {\"equip_type_info\": [2667368044]} -> drop_default_data.add_socket_material_item_list",
+    "pinapana-onehandshieldfivesockets#0 iteminfo.pabgb {\"equip_type_info\": [517658843, 257028056]} -> drop_default_data.socket_valid_count",
+    "pinapana-onehandshieldfivesockets#1 iteminfo.pabgb {\"equip_type_info\": [517658843, 257028056]} -> drop_default_data.use_socket",
+    "pinapana-onehandshieldfivesockets#2 iteminfo.pabgb {\"equip_type_info\": [517658843, 257028056]} -> drop_default_data.add_socket_material_item_list",
+    "pinapana-onehandswordfivesockets#0 iteminfo.pabgb {\"equip_type_info\": [1584411264, 2276596180]} -> drop_default_data.socket_valid_count",
+    "pinapana-onehandswordfivesockets#1 iteminfo.pabgb {\"equip_type_info\": [1584411264, 2276596180]} -> drop_default_data.use_socket",
+    "pinapana-onehandswordfivesockets#2 iteminfo.pabgb {\"equip_type_info\": [1584411264, 2276596180]} -> drop_default_data.add_socket_material_item_list",
+    "pinapana-twohandswordfivesockets#0 iteminfo.pabgb {\"equip_type_info\": [1086980073]} -> drop_default_data.socket_valid_count",
+    "pinapana-twohandswordfivesockets#1 iteminfo.pabgb {\"equip_type_info\": [1086980073]} -> drop_default_data.use_socket",
+    "pinapana-twohandswordfivesockets#2 iteminfo.pabgb {\"equip_type_info\": [1086980073]} -> drop_default_data.add_socket_material_item_list"
+  ],
+  "findings": []
+}

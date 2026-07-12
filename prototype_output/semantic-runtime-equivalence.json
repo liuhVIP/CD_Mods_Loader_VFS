@@ -1,0 +1,52 @@
+{
+  "equivalent": true,
+  "format3_mod_count": 14,
+  "old_entries": {
+    "gamedata/iteminfo.pabgb": "1cb6152f2c7b194e5efa307c96f8759ab8dcb81d4689350c1c6f889dc3ab0281",
+    "gamedata/iteminfo.pabgh": "c7914e0ce8cfa77be30d7b9bd1cdd2b86accb51082d98cb48379b0204dddcbcb",
+    "gamedata/interactioninfo.pabgb": "c7076ad08a8b890b98687f1f45db4d6106a280ed71d17f3af86425da1cbc9c1c",
+    "gamedata/interactioninfo.pabgh": "23840fd092d46b341c541477328f89ba157bd064bf168fbd6af273fc4b3c6e06",
+    "gamedata/stringinfo.pabgb": "d827b5c34543c43960fc4fe179483f8509b17e8ff4cbc188b83491d7cd039cdb",
+    "gamedata/stringinfo.pabgh": "c7daf9ae30784f7c176fdabefbe629bbdeb413bc7ae6fc34607c323f9206840a"
+  },
+  "new_entries": {
+    "gamedata/interactioninfo.pabgb": "c7076ad08a8b890b98687f1f45db4d6106a280ed71d17f3af86425da1cbc9c1c",
+    "gamedata/interactioninfo.pabgh": "23840fd092d46b341c541477328f89ba157bd064bf168fbd6af273fc4b3c6e06",
+    "gamedata/iteminfo.pabgb": "1cb6152f2c7b194e5efa307c96f8759ab8dcb81d4689350c1c6f889dc3ab0281",
+    "gamedata/iteminfo.pabgh": "c7914e0ce8cfa77be30d7b9bd1cdd2b86accb51082d98cb48379b0204dddcbcb",
+    "gamedata/stringinfo.pabgb": "d827b5c34543c43960fc4fe179483f8509b17e8ff4cbc188b83491d7cd039cdb",
+    "gamedata/stringinfo.pabgh": "c7daf9ae30784f7c176fdabefbe629bbdeb413bc7ae6fc34607c323f9206840a"
+  },
+  "old_warning_count": 10,
+  "new_warning_count": 14,
+  "old_warnings": [
+    "4xAtkSpd.json: Format 3 目标 statusinfo.pabgb 跳过 16 个 intent；16x 目标表 statusinfo 暂无 writer",
+    "ArmorFiveSockets.json: Format 3 目标 iteminfo.pabgb 跳过 132 个 intent；132x 目标字节已是期望值",
+    "CirclingMoon_Flame.field.json: Format 3 目标 iteminfo.pabgb 跳过 3 个 intent；3x 目标字节已是期望值",
+    "DivergingMoon_Flame.field.json: Format 3 目标 iteminfo.pabgb 跳过 3 个 intent；3x 目标字节已是期望值",
+    "Electro-Mecha_Longsword_to_Lightsaber.json: Format 3 目标 iteminfo.pabgb 跳过 2 个 intent；1x iteminfo 当前仅支持 prefab_data_list[N].tribe_gender_list、drop_default_data.drop_enchant_level、drop_default_data.socket_item_list、drop_default_data.add_socket_material_item_list、drop_default_data.default_sub_item、drop_default_data.socket_valid_count、drop_default_data.use_socket，以及已迁入的 whole-table 字段（如 cooltime、equipable_hash 等）；1x iteminfo 目标包含未支持字段，已跳过整个目标以避免半应用；请先实现完整 writer",
+    "Fast_Pickup_Increase_Range.json: Format 3 目标 interactioninfo.pabgb 跳过 1 个 intent；1x 目标字节已是期望值",
+    "GraspingMoon_Flame.field.json: Format 3 目标 iteminfo.pabgb 跳过 3 个 intent；3x 目标字节已是期望值",
+    "OneHandShieldFiveSockets.json: Format 3 目标 iteminfo.pabgb 跳过 49 个 intent；49x 目标字节已是期望值",
+    "OneHandSwordFiveSockets.json: Format 3 目标 iteminfo.pabgb 跳过 34 个 intent；34x 目标字节已是期望值",
+    "TwoHandSwordFiveSockets.json: Format 3 目标 iteminfo.pabgb 跳过 22 个 intent；22x 目标字节已是期望值"
+  ],
+  "new_warnings": [
+    "Electro-Mecha_Longsword_to_Lightsaber.json: iteminfo.pabgb 含 1 个未支持字段，已按旧Format 3原子规则跳过整个目标",
+    "cdmod合并：iteminfo.pabgb {\"key\":1002176,\"string_key\":\"KuKu_Fire_staff_spear_TwoHandSpear\"} cooltime: 按加载顺序由 legacy-format3-1e05840f92576d4897820f13 覆盖",
+    "cdmod合并：iteminfo.pabgb {\"key\":1002176,\"string_key\":\"KuKu_Fire_staff_spear_TwoHandSpear\"} unk_post_cooltime_a: 按加载顺序由 legacy-format3-1e05840f92576d4897820f13 覆盖",
+    "cdmod合并：iteminfo.pabgb {\"key\":1002176,\"string_key\":\"KuKu_Fire_staff_spear_TwoHandSpear\"} unk_post_cooltime_b: 按加载顺序由 legacy-format3-1e05840f92576d4897820f13 覆盖",
+    "cdmod合并：iteminfo.pabgb {\"key\":1002176,\"string_key\":\"KuKu_Fire_staff_spear_TwoHandSpear\"} cooltime: 按加载顺序由 legacy-format3-6b0a963349240dd6e0260d77 覆盖",
+    "cdmod合并：iteminfo.pabgb {\"key\":1002176,\"string_key\":\"KuKu_Fire_staff_spear_TwoHandSpear\"} unk_post_cooltime_a: 按加载顺序由 legacy-format3-6b0a963349240dd6e0260d77 覆盖",
+    "cdmod合并：iteminfo.pabgb {\"key\":1002176,\"string_key\":\"KuKu_Fire_staff_spear_TwoHandSpear\"} unk_post_cooltime_b: 按加载顺序由 legacy-format3-6b0a963349240dd6e0260d77 覆盖",
+    "cdmod合并：stringinfo.pabgb {\"key\":3925881959} buffer: 按加载顺序由 legacy-format3-bdeb530279ca83092bb12902 覆盖",
+    "cdmod合并：iteminfo.pabgb {\"key\":1002176,\"string_key\":\"KuKu_Fire_staff_spear_TwoHandSpear\"} cooltime: 按加载顺序由 legacy-format3-01ca3bb07274034c9dc400f4 覆盖",
+    "cdmod合并：iteminfo.pabgb {\"key\":1002176,\"string_key\":\"KuKu_Fire_staff_spear_TwoHandSpear\"} unk_post_cooltime_a: 按加载顺序由 legacy-format3-01ca3bb07274034c9dc400f4 覆盖",
+    "cdmod合并：iteminfo.pabgb {\"key\":1002176,\"string_key\":\"KuKu_Fire_staff_spear_TwoHandSpear\"} unk_post_cooltime_b: 按加载顺序由 legacy-format3-01ca3bb07274034c9dc400f4 覆盖",
+    "cdmod语义计划-88bb3041e496: Format 3 目标 interactioninfo.pabgb 跳过 1 个 intent；1x 目标字节已是期望值",
+    "cdmod语义计划-88bb3041e496: Format 3 目标 iteminfo.pabgb 跳过 237 个 intent；237x 目标字节已是期望值",
+    "cdmod语义计划-88bb3041e496: Format 3 目标 statusinfo.pabgb 跳过 16 个 intent；16x 目标表 statusinfo 暂无 writer"
+  ],
+  "old_errors": [],
+  "new_errors": []
+}

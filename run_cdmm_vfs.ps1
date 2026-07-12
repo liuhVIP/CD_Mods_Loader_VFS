@@ -10,7 +10,8 @@ param(
     [switch]$KeepRunning,
     [switch]$AllowRunningTarget,
     [switch]$EnableNtOpenFileHook,
-    [switch]$PatchAsiModules
+    [switch]$PatchAsiModules,
+    [switch]$UseRemoteInjection
 )
 
 $ErrorActionPreference = "Stop"
@@ -99,6 +100,7 @@ if (-not $EnableNtOpenFileHook) {
 
 $vfsArgs = @(
     "-TargetExe", $TargetExe,
+    "-Configuration", "Release",
     "-VirtualRoot", $GameDir,
     "-SourceRoots", $GameDir,
     "-MappingJson", $MappingJson,
@@ -116,6 +118,10 @@ if ($NoBuildVfsDemo) {
 }
 if ($KeepRunning) {
     $vfsArgs += "-KeepRunning"
+}
+if (-not $UseRemoteInjection) {
+    # Crimson Desert 默认交给现有 Ultimate ASI Loader 正常加载 runtime，避开保护初始化前远程注入。
+    $vfsArgs += "-AsiLoad"
 }
 
 Set-Location -LiteralPath $VfsDemoDir

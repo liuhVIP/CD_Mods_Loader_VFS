@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "summary": {
+    "package_count": 6,
+    "operation_count": 6252,
+    "finding_count": 0,
+    "auto_merge_count": 0,
+    "conflict_count": 0,
+    "missing_dependency_count": 0,
+    "unresolved_dynamic_selector_count": 0,
+    "resolution_error_count": 0,
+    "disjoint_field_pair_count": 3012
+  },
+  "packages": [
+    {
+      "id": "pinapana-armorfivesockets",
+      "name": "ArmorFiveSockets",
+      "version": "2.0",
+      "path": "T:\\python_pro\\cdmm\\prototype_output\\ArmorFiveSockets.cdmod",
+      "operation_count": 3045
+    },
+    {
+      "id": "aerowynx-equip-all-v6",
+      "name": "Equip All V6",
+      "version": "6.0",
+      "path": "T:\\python_pro\\cdmm\\prototype_output\\Equip Everything V6.cdmod",
+      "operation_count": 2544
+    },
+    {
+      "id": "khione95-female-armor-module-chest-and-gloves",
+      "name": "Female Armor Module - Chest and Gloves",
+      "version": "2.6",
+      "path": "T:\\python_pro\\cdmm\\prototype_output\\Female Armor Module - With Icons.cdmod",
+      "operation_count": 180
+    },
+    {
+      "id": "pinapana-onehandshieldfivesockets",
+      "name": "OneHandShieldFiveSockets",
+      "version": "1.0",
+      "path": "T:\\python_pro\\cdmm\\prototype_output\\OneHandShieldFiveSockets.cdmod",
+      "operation_count": 168
+    },
+    {
+      "id": "pinapana-onehandswordfivesockets",
+      "name": "OneHandSwordFiveSockets",
+      "version": "1.0",
+      "path": "T:\\python_pro\\cdmm\\prototype_output\\OneHandSwordFiveSockets.cdmod",
+      "operation_count": 243
+    },
+    {
+      "id": "pinapana-twohandswordfivesockets",
+      "name": "TwoHandSwordFiveSockets",
+      "version": "1.0",
+      "path": "T:\\python_pro\\cdmm\\prototype_output\\TwoHandSwordFiveSockets.cdmod",
+      "operation_count": 72
+    }
+  ],
+  "missing_dependencies": [],
+  "unresolved_dynamic_selectors": [],
+  "resolution_errors": [],
+  "findings": []
+}

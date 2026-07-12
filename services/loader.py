@@ -23,10 +23,10 @@ from cdmm.common.constants import (
 )
 from cdmm.common.models import LoaderResult
 from cdmm.io.transaction import Transaction, recover_interrupted
-from cdmm.services.format3_loader import (
-    build_format3_overlay_entries,
-    collect_format3_pamt_targets,
-    collect_format3_warnings,
+from cdmm.services.cdmod_semantic_loader import (
+    build_semantic_overlay_entries,
+    collect_semantic_pamt_targets,
+    collect_semantic_warnings,
 )
 from cdmm.services.json_loader import build_json_overlay_entries, collect_json_pamt_targets
 from cdmm.services.loose_file_service import build_loose_overlay_entries, collect_loose_pamt_targets
@@ -38,7 +38,13 @@ from cdmm.services.overlay_service import (
 from cdmm.services.pamt_index_service import register_game_pamt_targets, save_game_pamt_target_cache
 from cdmm.services.papgt_service import build_papgt
 from cdmm.services.pathc_service import build_pathc_for_overlay
-from cdmm.services.scanner import MOD_TYPE_FORMAT3, MOD_TYPE_JSON_PATCH, scan_mods
+from cdmm.services.scanner import (
+    INVALID_CDMOD_WARNING_PREFIX,
+    MOD_TYPE_CDMOD,
+    MOD_TYPE_FORMAT3,
+    MOD_TYPE_JSON_PATCH,
+    scan_mods,
+)
 from cdmm.services.standalone_archive_service import (
     cleanup_stale_standalone_dirs,
     collect_standalone_archives,
@@ -70,8 +76,8 @@ def scan_loader(game_dir: Path) -> LoaderResult:
     started = perf_counter()
     mods, warnings = scan_mods(game_dir)
     _log_phase("扫描 mods", started)
-    format3_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_FORMAT3]
-    warnings.extend(collect_format3_warnings(format3_mods))
+    semantic_mods = [mod for mod in mods if mod.mod_type in {MOD_TYPE_FORMAT3, MOD_TYPE_CDMOD}]
+    warnings.extend(collect_semantic_warnings(semantic_mods))
     return LoaderResult(overlay_dir=None, loaded_mods=mods, warnings=warnings, errors=[])
 
 
@@ -96,13 +102,16 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
     _log_phase("扫描 mods", phase_started)
     _notify_progress(progress_callback, "扫描 mods")
     warnings.extend(scan_warnings)
+    invalid_cdmods = [warning for warning in scan_warnings if warning.startswith(INVALID_CDMOD_WARNING_PREFIX)]
+    if invalid_cdmods:
+        return LoaderResult(overlay_dir=None, loaded_mods=mods, warnings=warnings, errors=invalid_cdmods)
     json_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_JSON_PATCH]
-    format3_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_FORMAT3]
-    warnings.extend(collect_format3_warnings(format3_mods))
+    semantic_mods = [mod for mod in mods if mod.mod_type in {MOD_TYPE_FORMAT3, MOD_TYPE_CDMOD}]
+    warnings.extend(collect_semantic_warnings(semantic_mods))
     pamt_targets = [
         *collect_loose_pamt_targets(game_dir, mods, include_numbered=False),
         *collect_json_pamt_targets(json_mods),
-        *collect_format3_pamt_targets(format3_mods),
+        *collect_semantic_pamt_targets(semantic_mods),
     ]
     register_game_pamt_targets(game_dir, pamt_targets)
 
@@ -134,9 +143,9 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
     _log_phase("构建 JSON overlay 输入", phase_started)
     _notify_progress(progress_callback, "构建 JSON overlay 输入")
     phase_started = perf_counter()
-    format3_overlay_inputs = build_format3_overlay_entries(
+    format3_overlay_inputs = build_semantic_overlay_entries(
         game_dir,
-        format3_mods,
+        semantic_mods,
         vanilla_store,
         warnings,
         errors,

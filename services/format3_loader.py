@@ -492,7 +492,7 @@ def _expand_match_intents_for_table(
     if table_name != "iteminfo":
         return _skip_match_intents(intents, f"{table_name} 当前暂不支持 match capability")
 
-    records = _collect_iteminfo_match_records(body, entry_bounds)
+    records = collect_iteminfo_match_records(body, entry_bounds)
     if not records:
         return _skip_match_intents(intents, "iteminfo match 前缀扫描未得到可用记录")
 
@@ -516,7 +516,7 @@ def _expand_match_intents_for_table(
         matches = [
             record
             for record in records
-            if _iteminfo_record_matches(record, intent.match)
+            if iteminfo_record_matches(record, intent.match)
         ]
         if not matches:
             skipped.append(
@@ -578,7 +578,7 @@ def _skip_match_intents(
     return passthrough, tuple(skipped)
 
 
-def _collect_iteminfo_match_records(
+def collect_iteminfo_match_records(
     body: bytes,
     entry_bounds: dict[int, tuple[int, int, str, int]],
 ) -> list[dict[str, object]]:
@@ -639,7 +639,7 @@ def _unsupported_iteminfo_match_fields(match_spec: dict[str, object]) -> list[st
     return [field for field in match_spec if field != "equip_type_info"]
 
 
-def _iteminfo_record_matches(record: dict, match_spec: dict[str, object]) -> bool:
+def iteminfo_record_matches(record: dict, match_spec: dict[str, object]) -> bool:
     """判断 iteminfo 记录是否满足已支持的简单 match 条件。"""
     for field, expected in match_spec.items():
         if not _match_simple_value(record.get(field), expected):

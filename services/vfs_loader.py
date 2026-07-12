@@ -28,10 +28,10 @@ from cdmm.common.constants import (
     WORK_DIR_NAME,
 )
 from cdmm.common.models import BuiltOverlayEntry, DiscoveredMod, OverlayBuildResult, OverlayInputEntry
-from cdmm.services.format3_loader import (
-    build_format3_overlay_entries,
-    collect_format3_pamt_targets,
-    collect_format3_warnings,
+from cdmm.services.cdmod_semantic_loader import (
+    build_semantic_overlay_entries,
+    collect_semantic_pamt_targets,
+    collect_semantic_warnings,
 )
 from cdmm.services.json_loader import build_json_overlay_entries, collect_json_pamt_targets
 from cdmm.services.loader import validate_game_dir
@@ -40,7 +40,13 @@ from cdmm.services.overlay_service import build_overlay, overlay_rel_paths
 from cdmm.services.pamt_index_service import register_game_pamt_targets, save_game_pamt_target_cache
 from cdmm.services.papgt_service import build_papgt
 from cdmm.services.pathc_service import build_pathc_for_overlay
-from cdmm.services.scanner import MOD_TYPE_FORMAT3, MOD_TYPE_JSON_PATCH, scan_mods
+from cdmm.services.scanner import (
+    INVALID_CDMOD_WARNING_PREFIX,
+    MOD_TYPE_CDMOD,
+    MOD_TYPE_FORMAT3,
+    MOD_TYPE_JSON_PATCH,
+    scan_mods,
+)
 from cdmm.services.standalone_archive_service import collect_standalone_archives
 from cdmm.storage.state_store import load_state
 from cdmm.storage.vanilla_store import VanillaStore
@@ -62,7 +68,11 @@ VFS_STATE_FILE_NAME = "vfs_state.json"
 VFS_PACKAGE_CACHE_DIR_NAME = "vfs_package_cache"
 
 # VFS 状态结构版本。分包策略变化时必须提升，避免复用旧 mapping。
-VFS_STATE_SCHEMA = 3
+VFS_STATE_SCHEMA = 4
+
+# 分包构建算法版本，必须参与缓存key。当前版本要求按最终PAMT路径去重，
+# 防止复用旧版可能含重复entry的PAZ/PAMT缓存。
+VFS_PACKAGE_BUILD_SCHEMA = 2
 
 # DMM 已验证的高风险表分包名。这里用 ASCII 常量，避免后续脚本编码踩坑。
 NPP_V3_STATUSINFO_PACKAGE = "nppv3_statusinfo"
@@ -135,6 +145,11 @@ def build_vfs_package(
     _notify_progress(progress_callback, "扫描 mods 并同步加载顺序")
     mods, scan_warnings = scan_mods(game_dir)
     warnings.extend(scan_warnings)
+    invalid_cdmods = [warning for warning in scan_warnings if warning.startswith(INVALID_CDMOD_WARNING_PREFIX)]
+    if invalid_cdmods:
+        errors.extend(invalid_cdmods)
+        _log_vfs_stage("VFS 构建总耗时", total_started)
+        return _empty_result(game_dir, mods, warnings, errors)
     current_fingerprint = fingerprint_mods(mods)
     _log_vfs_stage("扫描 mods / 指纹", stage_started)
 
@@ -156,13 +171,13 @@ def build_vfs_package(
     stage_started = perf_counter()
     _notify_progress(progress_callback, "统计 JSON / Format 3 / loose 目标")
     json_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_JSON_PATCH]
-    format3_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_FORMAT3]
-    warnings.extend(collect_format3_warnings(format3_mods))
+    semantic_mods = [mod for mod in mods if mod.mod_type in {MOD_TYPE_FORMAT3, MOD_TYPE_CDMOD}]
+    warnings.extend(collect_semantic_warnings(semantic_mods))
 
     pamt_targets = [
         *collect_loose_pamt_targets(game_dir, mods, include_numbered=False),
         *collect_json_pamt_targets(json_mods),
-        *collect_format3_pamt_targets(format3_mods),
+        *collect_semantic_pamt_targets(semantic_mods),
     ]
     register_game_pamt_targets(game_dir, pamt_targets)
     _log_vfs_stage("统计并注册 PAMT 目标", stage_started)
@@ -198,9 +213,9 @@ def build_vfs_package(
 
     stage_started = perf_counter()
     _notify_progress(progress_callback, "构建 Format 3 语义覆盖输入")
-    format3_overlay_inputs = build_format3_overlay_entries(
+    format3_overlay_inputs = build_semantic_overlay_entries(
         game_dir,
-        format3_mods,
+        semantic_mods,
         vanilla_store,
         warnings,
         errors,
@@ -516,6 +531,8 @@ def _build_or_reuse_overlay_package(game_dir: Path, package: VfsOverlayPackage) 
 def _overlay_package_cache_key(package: VfsOverlayPackage) -> str:
     """按分包输入内容生成稳定缓存 key。"""
     digest = sha256()
+    digest.update(f"schema:{VFS_PACKAGE_BUILD_SCHEMA}".encode("ascii"))
+    digest.update(b"\0")
     digest.update(package.name.encode("utf-8"))
     digest.update(b"\0")
     seen: dict[str, OverlayInputEntry] = {}
