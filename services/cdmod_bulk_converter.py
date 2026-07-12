@@ -53,6 +53,28 @@ class BulkConversionResult:
     items: tuple[BulkConversionItem, ...]
 
 
+def convert_mod_source_to_cdmod(
+    game_dir: Path,
+    source: Path,
+    output_dir: Path,
+) -> BulkConversionItem:
+    """转换单个旧模组文件或目录，供控制台工具和其他调用方复用。"""
+    game_dir = game_dir.resolve()
+    source = source.resolve()
+    output_dir = output_dir.resolve()
+    if not source.exists():
+        raise ValueError(f"模组输入不存在：{source}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    task, item = _classify_source(source, output_dir)
+    if task is None:
+        if item is None:
+            raise ValueError(f"无法识别模组输入：{source}")
+        return item
+    if task.source_type == "general-loose":
+        register_game_pamt_targets(game_dir, collect_general_loose_targets(task.source))
+    return _run_task(task, game_dir)
+
+
 @dataclass(frozen=True)
 class _ConversionTask:
     source: Path

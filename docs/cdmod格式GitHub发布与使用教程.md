@@ -1,6 +1,6 @@
 # `.cdmod` 格式 GitHub 发布与使用教程
 
-本文是 `.cdmod` 正式公开时的教程基线。GitHub README、Release 说明和后续网页文档可以调整排版，但不能遗漏玩家操作、作者工作流、真实优势、支持矩阵、兼容边界和排障信息。
+本文说明玩家如何安装 `.cdmod`，以及模组作者如何使用同版本的独立控制台转换器。
 
 ## 1. 玩家快速开始
 
@@ -11,11 +11,7 @@
 G:\SteamLibrary\steamapps\common\Crimson Desert\mods
 ```
 
-3. 运行 VFS 加载器。源码版常用命令：
-
-```powershell
-.\run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning
-```
+3. 运行与 `.cdmod` 版本一致的 VFS 加载器。
 
 4. 等待加载器构建完成并启动游戏，然后在游戏内验证功能。
 
@@ -100,19 +96,7 @@ PALOC 实测样本：
 
 新包只保存 24 个 key 和追加 `({price})` 的规则，完整 PALOC 在玩家机器上从当前语言原版动态重建。
 
-### 4.5 冷构建和热构建可控
-
-61 个 `.cdmod` 的严格全冷基准，同时删除 `vfs_state.json`、`pamt_target_cache.json` 和 `vfs_package_cache`：
-
-```text
-优化前严格全冷：约 60.10 秒
-优化后严格全冷：约  9.99 秒
-未变化热构建：  约  1.7 秒
-```
-
-提速来自目标驱动 PAMT 解析、原生 C++ 热点、轻量 manifest 索引、PABGH 原生修正、PAZ 直接写盘、硬链接和分包缓存。性能数字必须连同测试集合和缓存定义发布，不能把保留分包缓存的结果称为严格冷构建。
-
-### 4.6 可验证、可缓存、可回退诊断
+### 4.5 可验证、可缓存、可回退诊断
 
 manifest、组件 schema 和 SHA-256 使输入可追踪。未变化分包可以直接复用；writer 会统计生成补丁、跳过项和原因。原生加速不可用时应保留正确的 Python fallback，速度可以下降，但结果不能变化。
 
@@ -163,57 +147,39 @@ VFS 构建时识别活动语言，读取该语言最新原版，按 key 修改�
 -> 冷构建与游戏内验证
 ```
 
-Format 3 转换入口：
-
-```powershell
-& '.\.venv\Scripts\python.exe' '.\tools\convert_format3_to_cdmod.py' `
-  '<输入Format3.json>' '<输出.cdmod>'
-```
-
-批量转换游戏 `mods` 目录：
-
-```powershell
-.\convert_all_mods_to_cdmod.bat
-```
-
-需要显式参数或自动化时直接调用 UTF-8 PowerShell 实现：
-
-```powershell
-& 'C:\Program Files\PowerShell\7\pwsh.exe' -File '.\convert_all_mods_to_cdmod.ps1'
-```
-
-PALOC 转换示例：
-
-```powershell
-& '.\.venv\Scripts\python.exe' '.\tools\convert_paloc_to_cdmod.py' `
-  '<修改后的PALOC>' '<输出.cdmod>' `
-  --game-dir '<Crimson Desert游戏目录>' `
-  --target 'gamedata/localizationstring_zho-cn.paloc' `
-  --value-contains '{price}' --append-suffix ' ({price})' `
-  --all-languages --name 'Display take and steal price' --version '1.0.8'
-```
-
-转换器应按模组结构选择通用适配器，禁止按模组名称写专用加载逻辑。转换完成不代表发布完成；作者还必须检查生成/跳过统计，并在真实游戏中验证。
-
-## 7. Writer、bridge family 与兼容边界
-
-Format 3 不是看到字段名就能自动写入任意表。每个复杂表都需要了解真实二进制布局的 writer。能力声明必须具体到：
+从 GitHub Release 下载与加载器版本一致的转换器，例如：
 
 ```text
-目标表 + 记录定位方式 + 字段路径 + bridge family + 支持的值结构
+cdmod-converter-v5.zip
 ```
 
-例如 `iteminfo.enchant_data_list[N].equip_buffs` 必须走独立的 `iteminfo-enchant-equip-buffs` family，不能误用普通 iteminfo writer。`statusinfo.stat_level_data[N]` 的实际载荷是 `u32 count + u64[count]`，也不能按普通标量处理。
-
-游戏更新已出现真实结构漂移：
+完整解压后双击：
 
 ```text
-BuffInfo tag 104：旧结构 9 字节 -> 当前结构 17 字节
-当前结构：f00:u8 + f01:u64 + f02:u64
-EnchantData：当前版本比旧结构多一个尾部 u32
+cdmod-converter-v5.exe
 ```
 
-因此 writer 必须用 PABGH 边界、记录长度、tag、count、连续层级和当前原版字节共同验证结构。结构不明确时应跳过并报告，不能猜测写入。没有 DMM 构建产物时，也可以依据这些证据和重复记录反推；有 DMM 成功结果时，应将其作为字节级 oracle 比较。
+控制台支持：
+
+```text
+1. 转换单个模组
+2. 批量转换 mods 目录
+3. 退出
+```
+
+按提示输入或把路径拖入窗口：
+
+```text
+游戏根目录
+旧模组文件或文件夹
+.cdmod 输出目录
+```
+
+转换器不会删除或修改旧模组。批量模式会生成 `conversion-report.json`，作者应检查转换、部分转换、跳过和失败数量。转换完成后仍需使用同版本加载器在游戏内验证。
+
+## 7. 兼容边界
+
+Format 3 并不代表任意表、任意字段都能自动转换。转换器只处理当前版本明确支持的结构；无法确认的内容会报告为跳过或失败，而不是猜测写入。转换器和加载器必须使用同一个 GitHub Tag 下的版本。
 
 ## 8. 游戏更新后的处理原则
 
@@ -280,24 +246,3 @@ INCOMPATIBLE  游戏结构或前置值已变化
 ```
 
 游戏崩溃、存档无响应还应保存最新 `C:\Users\<用户>\AppData\Local\Pearl Abyss\log\Launcher_*.log` 和 Windows Application 事件。日志中“已识别为 cdmod”不是最终成功标志；应继续确认组件应用数、最终映射和游戏内效果。
-
-## 11. GitHub 正式发布清单
-
-发布 `.cdmod` 格式时至少提供：
-
-- README 第一屏的下载、放置目录、启动、更新和卸载步骤；
-- 排序、冲突、禁用和缓存清理说明；
-- 面向作者的单包转换、批量转换与高级组件教程；
-- manifest、组件 schema、bridge family 和 writer 支持矩阵；
-- 完整示例包、最小示例包及其源输入；
-- 按“构建成功 + 游戏内确认”维护的真实验证矩阵；
-- 游戏更新后的 EXACT/MIGRATED/CONFLICT/INCOMPATIBLE 解释；
-- 冲突报告、跳过原因、日志位置和排障收集清单；
-- 严格冷构建与热构建的定义、模组集合、缓存条件和实测数据；
-- 原生扩展版本、正确性基线和 Python fallback 说明；
-- SHA-256、确定性构建、格式版本升级和旧版兼容策略；
-- 明确声明“不保证所有 Format 3 字段自动支持”；
-- 至少覆盖语义补丁、本地化、资源替换和 standalone 的真实案例；
-- 不要求普通玩家理解 PAZ/PAMT/PAPGT/PATHC 的快速开始页面。
-
-发布说明必须把“格式能装什么”“writer 能写什么”“哪些已在游戏内验证”分开陈述。只有这样，玩家和作者才能准确判断新格式带来的稳定性、兼容性和速度优势。
