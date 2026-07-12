@@ -6,6 +6,10 @@
 T:\python_pro\cdmm\dist_nuitka\cdloader-VFS-v3.exe
 ```
 
+`.cdmod` 玩家安装、模组作者转换、支持矩阵和兼容边界请参阅：
+
+- [`.cdmod` 格式发布与使用教程](docs/cdmod格式GitHub发布与使用教程.md)
+
 发布版本号统一由项目根目录的 `version.txt` 控制。VFS 打包脚本会据此生成成品文件名、控制台标题和 Windows PE 版本信息，发布时不需要再到源码中逐项修改版本号。
 
 VFS 版本会先在游戏目录下生成虚拟加载包，再通过内置 VFS runtime 启动游戏。它不会直接改写游戏原始 PAZ/PAMT 归档，主要输出都放在游戏根目录的 `.cdloader` 目录中。

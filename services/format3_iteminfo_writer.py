@@ -29,10 +29,16 @@ from cdmm.services.format3_iteminfo_record_writer import (
     should_use_iteminfo_record_writer,
 )
 from cdmm.services.iteminfo_native_parser import (
+    _Reader,
+    _read_EnchantStatData,
+    _read_EquipmentBuff,
+    _read_ItemPriceInfo,
     parse_iteminfo_drop_default_data,
     parse_iteminfo_prefab_data_list,
+    parse_iteminfo_visual_prefab_lists,
     serialize_iteminfo_drop_default_data,
     serialize_iteminfo_prefab_data_list,
+    serialize_iteminfo_visual_prefab_lists,
 )
 
 # Format 3 字段路径：装备可穿戴种族/性别数组。
@@ -44,6 +50,10 @@ DROP_DEFAULT_FIELD_RE = re.compile(
     r"^drop_default_data\.(?P<field>drop_enchant_level|socket_item_list|"
     r"add_socket_material_item_list|default_sub_item|"
     r"socket_valid_count|use_socket)$"
+)
+
+ENCHANT_EQUIP_BUFFS_FIELD_RE = re.compile(
+    r"^enchant_data_list\[(?P<index>\d+)]\.equip_buffs$"
 )
 
 ITEMINFO_SUPPORTED_FIELD_REASON = (
@@ -273,7 +283,10 @@ def build_iteminfo_prefab_result(
     intents: list[Format3Intent],
 ) -> Format3DispatchResult:
     """按字段能力自动分流到窄 writer 或 whole-table writer。"""
-    if intents and all(intent.field == "prefab_data_list" for intent in intents):
+    visual_fields = {"prefab_data_list", "gimmick_visual_prefab_data_list"}
+    if intents and all(intent.field in visual_fields for intent in intents):
+        if any(intent.field == "gimmick_visual_prefab_data_list" for intent in intents):
+            return _build_iteminfo_visual_lists_result(context, intents)
         return _build_iteminfo_prefab_list_result(context, intents)
     if should_use_iteminfo_record_writer(intents):
         return build_iteminfo_record_result(context, intents)
@@ -286,9 +299,14 @@ def build_iteminfo_prefab_result(
         intent for intent in intents
         if DROP_DEFAULT_FIELD_RE.match(intent.field) is not None
     ]
+    enchant_intents = [
+        intent for intent in intents
+        if ENCHANT_EQUIP_BUFFS_FIELD_RE.match(intent.field) is not None
+    ]
     non_drop_default_intents = [
         intent for intent in intents
         if DROP_DEFAULT_FIELD_RE.match(intent.field) is None
+        and ENCHANT_EQUIP_BUFFS_FIELD_RE.match(intent.field) is None
     ]
     if drop_default_intents:
         fallback_result = _build_drop_default_record_fallback_result(
@@ -297,6 +315,11 @@ def build_iteminfo_prefab_result(
         )
         changes.extend(fallback_result.changes)
         skipped.extend(fallback_result.skipped)
+
+    if enchant_intents:
+        enchant_result = _build_enchant_equip_buffs_result(context, enchant_intents)
+        changes.extend(enchant_result.changes)
+        skipped.extend(enchant_result.skipped)
 
     for intent in non_drop_default_intents:
         change, reason = _build_single_change_with_reason(
@@ -318,6 +341,126 @@ def build_iteminfo_prefab_result(
         changes=tuple(changes),
         skipped=tuple(skipped),
     )
+
+
+def _build_enchant_equip_buffs_result(
+    context: Format3RuntimeContext,
+    intents: list[Format3Intent],
+) -> Format3DispatchResult:
+    """窄写入现有EnchantData数组中的equip_buffs，保留live尾部u32。"""
+    grouped: dict[int, tuple[tuple[int, int, str, int], list[Format3Intent]]] = {}
+    skipped: list[Format3SkippedIntent] = []
+    for intent in intents:
+        bounds, reason = _resolve_entry_bounds(context.entry_bounds, intent.to_legacy_dict())
+        if bounds is None:
+            skipped.append(Format3SkippedIntent(intent, reason or "目标entry未命中"))
+            continue
+        grouped.setdefault(bounds[0], (bounds, []))[1].append(intent)
+
+    changes: list[dict] = []
+    for bounds, entry_intents in grouped.values():
+        entry_off, entry_end, entry_name, name_end = bounds
+        max_index = max(
+            int(ENCHANT_EQUIP_BUFFS_FIELD_RE.match(intent.field).group("index"))  # type: ignore[union-attr]
+            for intent in entry_intents
+        )
+        record = context.body[entry_off:entry_end]
+        located = _locate_live_enchant_data(record, name_end - entry_off, max_index + 1)
+        if located is None:
+            skipped.extend(
+                Format3SkippedIntent(intent, "iteminfo live EnchantData数组未唯一定位")
+                for intent in entry_intents
+            )
+            continue
+        array_start, array_end, buff_ranges = located
+        replacements: list[tuple[int, int, bytes, Format3Intent]] = []
+        for intent in entry_intents:
+            if intent.op != "set":
+                skipped.append(Format3SkippedIntent(intent, "enchant equip_buffs仅支持op=set"))
+                continue
+            index = int(ENCHANT_EQUIP_BUFFS_FIELD_RE.match(intent.field).group("index"))  # type: ignore[union-attr]
+            patched = _pack_equipment_buffs(intent.new)
+            if patched is None:
+                skipped.append(Format3SkippedIntent(intent, "equip_buffs必须是buff/level u32数组"))
+                continue
+            start, end = buff_ranges[index]
+            original = record[start:end]
+            if original == patched:
+                skipped.append(Format3SkippedIntent(intent, "目标字节已是期望值"))
+                continue
+            replacements.append((start, end, patched, intent))
+        if not replacements:
+            continue
+        original_array = record[array_start:array_end]
+        patched_array = bytearray(original_array)
+        for start, end, patched, _intent in sorted(replacements, reverse=True):
+            local_start = start - array_start
+            local_end = end - array_start
+            patched_array[local_start:local_end] = patched
+        changes.append(
+            {
+                "entry": entry_name or entry_intents[0].entry,
+                "rel_offset": entry_off + array_start - name_end,
+                "original": original_array.hex(),
+                "patched": bytes(patched_array).hex(),
+                "label": f"{entry_name}.enchant_data_list.equip_buffs",
+                "_dynamic_entry_offset": True,
+            }
+        )
+    return Format3DispatchResult(tuple(changes), tuple(skipped))
+
+
+def _locate_live_enchant_data(
+    record: bytes,
+    scan_start: int,
+    expected_count: int,
+) -> tuple[int, int, list[tuple[int, int]]] | None:
+    """定位count+EnchantData数组；每条live记录比旧结构多一个尾部u32。"""
+    candidates: list[tuple[int, int, list[tuple[int, int]]]] = []
+    for offset in range(max(0, scan_start), len(record) - 4):
+        if struct.unpack_from("<I", record, offset)[0] != expected_count:
+            continue
+        reader = _Reader(record)
+        reader.pos = offset + 4
+        buff_ranges: list[tuple[int, int]] = []
+        try:
+            levels: list[int] = []
+            for _ in range(expected_count):
+                levels.append(reader.u16())
+                _read_EnchantStatData(reader)
+                reader.carray(_read_ItemPriceInfo)
+                buff_start = reader.pos
+                reader.carray(_read_EquipmentBuff)
+                buff_ranges.append((buff_start, reader.pos))
+                reader.u32()
+        except (ValueError, struct.error):
+            continue
+        if levels != list(range(expected_count)):
+            continue
+        candidates.append((reader.pos - offset, offset, buff_ranges))
+    if not candidates:
+        return None
+    candidates.sort(reverse=True, key=lambda item: item[0])
+    if len(candidates) > 1 and candidates[0][0] == candidates[1][0]:
+        return None
+    span, offset, ranges = candidates[0]
+    return offset, offset + span, ranges
+
+
+def _pack_equipment_buffs(value: object) -> bytes | None:
+    """序列化CArray<EquipmentBuff>。"""
+    if not isinstance(value, list):
+        return None
+    output = bytearray(struct.pack("<I", len(value)))
+    for item in value:
+        if not isinstance(item, dict):
+            return None
+        buff = item.get("buff")
+        level = item.get("level")
+        if any(isinstance(item_value, bool) or not isinstance(item_value, int) or not 0 <= item_value <= 0xFFFFFFFF for item_value in (buff, level)):
+            return None
+        output += struct.pack("<II", buff, level)
+    return bytes(output)
 
 
 def _build_iteminfo_prefab_list_result(
@@ -405,6 +548,171 @@ def _build_iteminfo_prefab_list_result(
     )
 
 
+def _build_iteminfo_visual_lists_result(
+    context: Format3RuntimeContext,
+    intents: list[Format3Intent],
+) -> Format3DispatchResult:
+    """按单条记录同时替换 prefab 与 gimmick visual prefab 列表。"""
+    grouped: dict[int, tuple[tuple[int, int, str, int], list[Format3Intent]]] = {}
+    skipped: list[Format3SkippedIntent] = []
+    for intent in intents:
+        if intent.op != "set":
+            skipped.append(Format3SkippedIntent(intent=intent, reason="visual prefab 列表仅支持 op=set"))
+            continue
+        bounds, reason = _resolve_entry_bounds(context.entry_bounds, intent.to_legacy_dict())
+        if bounds is None:
+            skipped.append(Format3SkippedIntent(intent=intent, reason=reason or "目标 entry 未命中"))
+            continue
+        grouped.setdefault(bounds[0], (bounds, []))[1].append(intent)
+
+    changes: list[dict] = []
+    for bounds, entry_intents in grouped.values():
+        legacy_copy, legacy_reason = _build_legacy_visual_copy_change(
+            context,
+            bounds,
+            entry_intents,
+        )
+        if legacy_copy is not None:
+            changes.append(legacy_copy)
+            continue
+        if legacy_reason not in {None, "visual intent 未成对"}:
+            skipped.extend(
+                Format3SkippedIntent(intent=intent, reason=legacy_reason)
+                for intent in entry_intents
+            )
+            continue
+        entry_off, entry_end, entry_name, name_end = bounds
+        entry_bytes = context.body[entry_off:entry_end]
+        try:
+            prefab_values, gimmick_values, field_start, field_end = (
+                parse_iteminfo_visual_prefab_lists(entry_bytes)
+            )
+        except Exception as exc:
+            skipped.extend(
+                Format3SkippedIntent(intent=intent, reason=f"visual prefab 列表定位失败：{exc}")
+                for intent in entry_intents
+            )
+            continue
+
+        new_prefab = prefab_values
+        new_gimmick = gimmick_values
+        valid = True
+        for intent in entry_intents:
+            if intent.field == "prefab_data_list":
+                incoming_prefab = intent.new
+                if not prefab_values and isinstance(incoming_prefab, list):
+                    incoming_prefab = [
+                        {"tag_name_hash": 0, **item} if isinstance(item, dict) else item
+                        for item in incoming_prefab
+                    ]
+                new_prefab, reason = _coerce_prefab_data_list(prefab_values, incoming_prefab)
+                if reason is not None or not shape_matches(prefab_values, new_prefab):
+                    skipped.append(
+                        Format3SkippedIntent(
+                            intent=intent,
+                            reason=reason or "prefab_data_list 新值结构不匹配",
+                        )
+                    )
+                    valid = False
+            elif not shape_matches(gimmick_values, intent.new):
+                skipped.append(
+                    Format3SkippedIntent(
+                        intent=intent,
+                        reason="gimmick_visual_prefab_data_list 新值结构不匹配",
+                    )
+                )
+                valid = False
+            else:
+                new_gimmick = intent.new
+        if not valid:
+            continue
+        try:
+            patched = serialize_iteminfo_visual_prefab_lists(new_prefab, new_gimmick)
+        except Exception as exc:
+            skipped.extend(
+                Format3SkippedIntent(intent=intent, reason=f"visual prefab 列表序列化失败：{exc}")
+                for intent in entry_intents
+            )
+            continue
+        original = entry_bytes[field_start:field_end]
+        if patched == original:
+            skipped.extend(
+                Format3SkippedIntent(intent=intent, reason="目标字节已是期望值")
+                for intent in entry_intents
+            )
+            continue
+        changes.append(
+            {
+                "entry": entry_name or str(entry_intents[0].entry or entry_intents[0].key),
+                "rel_offset": entry_off + field_start - name_end,
+                "original": original.hex(),
+                "patched": patched.hex(),
+                "label": f"{entry_name}.visual_prefab_lists",
+            }
+        )
+    return Format3DispatchResult(changes=tuple(changes), skipped=tuple(skipped))
+
+
+def _build_legacy_visual_copy_change(
+    context: Format3RuntimeContext,
+    bounds: tuple[int, int, str, int],
+    intents: list[Format3Intent],
+) -> tuple[dict | None, str | None]:
+    """从当前表中唯一使用目标 prefab hash 的记录复制合法 legacy visual 块。"""
+    prefab_intent = next((intent for intent in intents if intent.field == "prefab_data_list"), None)
+    gimmick_intent = next(
+        (intent for intent in intents if intent.field == "gimmick_visual_prefab_data_list"),
+        None,
+    )
+    if prefab_intent is None or gimmick_intent is None:
+        return None, "visual intent 未成对"
+    prefab_hash = _first_prefab_hash(prefab_intent.new)
+    if prefab_hash is None:
+        return None, "prefab_data_list 缺少源 prefab hash"
+    gimmick_hash = _first_prefab_hash(gimmick_intent.new)
+    if gimmick_hash != prefab_hash:
+        return None, "prefab 与 gimmick visual hash 不一致"
+
+    target_off, target_end, target_name, target_name_end = bounds
+    target_record = context.body[target_off:target_end]
+    target_loc = _locate_legacy_prefab_data_list(target_record, prefab_intent.new)
+    if target_loc is None:
+        return None, "目标记录未找到 legacy visual 块"
+
+    needle = struct.pack("<I", prefab_hash)
+    candidates: list[bytes] = []
+    for source_off, source_end, _source_name, _source_name_end in context.entry_bounds.values():
+        if source_off == target_off:
+            continue
+        source_record = context.body[source_off:source_end]
+        if needle not in source_record:
+            continue
+        source_loc = _locate_legacy_prefab_data_list(source_record, prefab_intent.new)
+        if source_loc is None:
+            continue
+        source_block = source_record[source_loc[0]:source_loc[1]]
+        if source_block.count(needle) >= 2:
+            candidates.append(source_block)
+    unique_candidates = list(dict.fromkeys(candidates))
+    if len(unique_candidates) != 1:
+        return None, f"legacy visual 源块不唯一：{len(unique_candidates)}"
+
+    original = target_record[target_loc[0]:target_loc[1]]
+    patched = unique_candidates[0]
+    if original == patched:
+        return None, "legacy visual 已是目标值"
+    return (
+        {
+            "entry": target_name or str(prefab_intent.entry or prefab_intent.key),
+            "rel_offset": target_off + target_loc[0] - target_name_end,
+            "original": original.hex(),
+            "patched": patched.hex(),
+            "label": f"{target_name}.legacy_visual_copy",
+        },
+        None,
+    )
+
+
 def _build_legacy_prefab_list_change(
     entry_bytes: bytes,
     entry_off: int,
@@ -487,8 +795,13 @@ def _locate_legacy_prefab_data_list(
     relaxed_strong_candidates: list[int] = []
     relaxed_candidates: list[int] = []
     limit = len(entry_bytes) - len(LEGACY_PREFAB_SCALE_NEEDLE) - 4
-    for offset in range(scan_start, max(scan_start, limit + 1)):
-        if not _looks_like_legacy_prefab_scale_start(entry_bytes, offset):
+    scale_offset = entry_bytes.find(LEGACY_PREFAB_SCALE_NEEDLE, scan_start + 4)
+    while scale_offset >= 0:
+        offset = scale_offset - 4
+        if offset > limit:
+            break
+        if offset < scan_start or not _looks_like_legacy_prefab_scale_start(entry_bytes, offset):
+            scale_offset = entry_bytes.find(LEGACY_PREFAB_SCALE_NEEDLE, scale_offset + 1)
             continue
         if _has_legacy_prefab_strict_prefix(entry_bytes, offset):
             candidates.append(offset)
@@ -506,6 +819,7 @@ def _locate_legacy_prefab_data_list(
                 first_hash,
             ):
                 relaxed_strong_candidates.append(offset)
+        scale_offset = entry_bytes.find(LEGACY_PREFAB_SCALE_NEEDLE, scale_offset + 1)
 
     if len(strong_candidates) == 1:
         return _legacy_prefab_bounds(entry_bytes, strong_candidates[0])

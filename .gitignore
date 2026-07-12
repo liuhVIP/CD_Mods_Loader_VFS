@@ -6,6 +6,9 @@ dist_nuitka/
 AGENTS.md
 .codex/
 docs/
+!docs/
+docs/*
+!docs/cdmod格式GitHub发布与使用教程.md
 test/
 
 # Python 运行缓存文件

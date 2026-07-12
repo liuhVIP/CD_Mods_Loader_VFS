@@ -155,7 +155,9 @@ _VARIANT_TAIL_SIZES: dict[int, int] = {
     82: 16,   # round 1
     89: 4,    # round 2: 1 homogeneous entry
     90: 12,   # round 2: 1 homogeneous entry
-    104: 9,   # round 2: 8 homogeneous entries
+    # 当前游戏10级 FallDamageReduce 记录逐项边界确认是17字节；旧版9字节
+    # 布局会从第2项开始错位。结构为 f00:u8 + f01:u64 + f02:u64。
+    104: 17,
     105: 5,   # round 2: 5 homogeneous entries
     106: 12,  # round 2: 6 homogeneous entries
     107: 2,   # round 2: 1 homogeneous entry
@@ -216,7 +218,8 @@ _VARIANT_BODY_FIELDS: dict[int, tuple[str, list[tuple[str, str, int, int]]]] = {
          [("f00", "u32", 0, 4), ("f01", "u32", 4, 4),
           ("f02", "u32", 8, 4)]),
     104: ("AddPercentInGameContentsBuffData",
-          [("f00", "u8", 0, 1), ("f01", "u64", 1, 8)]),
+          [("f00", "u8", 0, 1), ("f01", "u64", 1, 8),
+           ("f02", "u64", 9, 8)]),
     105: ("VaryCustomIntInGameContentsBuffData",
           [("f00", "u8", 0, 1), ("f01", "u32", 1, 4)]),
     106: ("TribeAdditionalDamageRateBuffData",

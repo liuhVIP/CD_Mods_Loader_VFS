@@ -25,11 +25,22 @@ _native_hashlittle = (
 _native_pattern_scan = (
     getattr(_native, "pattern_scan", None) if _native is not None else None
 )
+_native_parse_pamt_filtered = (
+    getattr(_native, "parse_pamt_filtered", None) if _native is not None else None
+)
+_native_fixup_pabgh_offsets = (
+    getattr(_native, "fixup_pabgh_offsets", None) if _native is not None else None
+)
 
 
 def is_native_available() -> bool:
     """返回当前进程是否加载到了 C++ hashlittle 实现。"""
     return _native_hashlittle is not None
+
+
+def is_native_pamt_available() -> bool:
+    """返回原生PAMT目标过滤接口是否可用。"""
+    return _native_parse_pamt_filtered is not None
 
 
 def native_status_text() -> str:
@@ -112,6 +123,27 @@ def pattern_scan(
         if abs(nearest - original_offset) <= NEAR_PATTERN_RELOCATION_LIMIT:
             return nearest
     return None
+
+
+def parse_pamt_filtered(
+    data: bytes,
+    desired_basenames: set[str],
+    desired_exact: set[str],
+) -> list[tuple[str, int, int, int, int, str | None]] | None:
+    """调用原生PAMT目标过滤；扩展未提供该能力时返回None。"""
+    if _native_parse_pamt_filtered is None:
+        return None
+    return list(_native_parse_pamt_filtered(data, desired_basenames, desired_exact))
+
+
+def fixup_pabgh_offsets(
+    data: bytes,
+    inserts: list[tuple[int, int]],
+) -> bytes | None:
+    """调用原生PABGH指针修正；旧扩展缺少接口时返回None。"""
+    if _native_fixup_pabgh_offsets is None:
+        return None
+    return bytes(_native_fixup_pabgh_offsets(data, inserts))
 
 
 def _as_bytes(data: bytes | bytearray | memoryview | None) -> bytes:

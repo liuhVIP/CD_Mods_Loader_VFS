@@ -18,6 +18,9 @@ class PazEntry:
     flags: int
     paz_index: int
     encrypted_override: bool | None = field(default=None, compare=False)
+    # PAMT folder record 中的真实目录。entry.path 只保留查询用的扁平路径，
+    # overlay 重打包时应优先复用这里，避免再次完整解析大型 PAMT。
+    resolved_dir_path: str | None = field(default=None, compare=False)
 
     @property
     def compressed(self) -> bool:
@@ -47,6 +50,7 @@ class PazEntry:
             flags=self.flags,
             paz_index=self.paz_index,
             encrypted_override=value,
+            resolved_dir_path=self.resolved_dir_path,
         )
 
 
@@ -80,6 +84,9 @@ class OverlayInputEntry:
     compression_type: int
     encrypted: bool = False
     crypto_filename: str | None = None
+    preserve_entry_dir: bool = False
+    # 已由目标驱动 PAMT 解析得到的最终目录；为空时兼容旧逻辑现场恢复。
+    resolved_dir_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -103,7 +110,7 @@ class OverlayBuildResult:
     """overlay 构建结果。"""
 
     overlay_dir: str
-    paz_bytes: bytes
+    paz_bytes: bytes | bytearray
     pamt_bytes: bytes
     entries: list[BuiltOverlayEntry]
 

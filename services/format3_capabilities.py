@@ -70,6 +70,10 @@ _ITEMINFO_CAPABILITY = Format3TableCapability(
             ),
         ),
         Format3FieldRule(
+            pattern=re.compile(r"^enchant_data_list\[\d+]\.equip_buffs$"),
+            reason_when_miss="iteminfo当前仅支持既有EnchantData的equip_buffs窄写入",
+        ),
+        Format3FieldRule(
             pattern=re.compile(
                 "^("
                 + "|".join(re.escape(field) for field in sorted(ITEMINFO_WHOLE_TABLE_DIRECT_FIELDS))
@@ -135,6 +139,16 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
                 reason_when_miss=(
                     "buffinfo 当前仅支持 clean-room parser 可解析的 wrapper 字段和 buff_data_list item path"
                 ),
+            ),
+        ),
+        supports_whole_table=False,
+    ),
+    "statusinfo": Format3TableCapability(
+        table_name="statusinfo",
+        field_rules=(
+            Format3FieldRule(
+                pattern=re.compile(r"^stat_level_data\[\d+]$"),
+                reason_when_miss="statusinfo 当前仅支持 stat_level_data[N]",
             ),
         ),
         supports_whole_table=False,

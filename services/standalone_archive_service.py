@@ -17,6 +17,8 @@ from cdmm.common.constants import (
 )
 from cdmm.common.models import DiscoveredMod, PazEntry
 from cdmm.services.json_loader import decompress_entry
+from cdmm.services.cdmod_package import load_cdmod_package
+from cdmm.services.scanner import MOD_TYPE_CDMOD
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,26 @@ def collect_standalone_archives(
                 pamt_bytes=(source_dir / OVERLAY_PAMT_NAME).read_bytes(),
             )
         )
+    for mod in ordered_mods or []:
+        if mod.mod_type != MOD_TYPE_CDMOD:
+            continue
+        package = load_cdmod_package(mod.path)
+        for index, archive in enumerate(package.standalone_archives):
+            source_dir = mod.path / f"standalone-{index}-{archive.name}"
+            source_key = _source_key(game_dir, source_dir)
+            assigned_dir = previous_by_source.get(source_key)
+            if assigned_dir is None or not _can_reuse_assigned_dir(game_dir, assigned_dir, used_dirs):
+                assigned_dir = _next_free_dir(used_dirs)
+            used_dirs.add(int(assigned_dir))
+            result.append(
+                StandaloneArchive(
+                    mod_name=package.name,
+                    source_dir=source_dir,
+                    assigned_dir=assigned_dir,
+                    paz_bytes=archive.paz_bytes,
+                    pamt_bytes=archive.pamt_bytes,
+                )
+            )
     return result
 
 

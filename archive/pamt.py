@@ -9,6 +9,7 @@ from pathlib import Path
 
 from cdmm.common.constants import GAME_DIR_NAME_LENGTH, OVERLAY_PAMT_NAME
 from cdmm.common.models import PazEntry
+from cdmm.cdloader_native import parse_pamt_filtered as native_parse_pamt_filtered
 from cdmm.utils.path_utils import lower_game_rel_path
 
 logger = logging.getLogger(__name__)
@@ -78,6 +79,27 @@ def _parse_pamt_impl(
     paz_dir = paz_dir or pamt_path.parent
     pamt_stem = pamt_path.stem
 
+    if desired_basenames or desired_exact:
+        native_matches = native_parse_pamt_filtered(
+            data,
+            desired_basenames or set(),
+            desired_exact or set(),
+        )
+        if native_matches is not None:
+            return [
+                PazEntry(
+                    path=path,
+                    paz_file=str(paz_dir / f"{int(pamt_stem) + (flags & 0xFF)}.paz"),
+                    offset=paz_offset,
+                    comp_size=comp_size,
+                    orig_size=orig_size,
+                    flags=flags,
+                    paz_index=flags & 0xFF,
+                    resolved_dir_path=resolved_dir_path,
+                )
+                for path, paz_offset, comp_size, orig_size, flags, resolved_dir_path in native_matches
+            ]
+
     if len(data) < 32:
         raise ValueError(f"损坏的 PAMT {pamt_path.name}: 文件过小")
 
@@ -96,16 +118,44 @@ def _parse_pamt_impl(
     folder_size = struct.unpack_from("<I", data, offset)[0]
     offset += 4
     _check_section(pamt_path, "folder_size", offset, folder_size, len(data))
+    folder_start = offset
     folder_end = offset + folder_size
     folder_prefix = ""
+    folders: dict[int, tuple[int, str]] = {}
     while offset < folder_end:
+        rel = offset - folder_start
         parent = struct.unpack_from("<I", data, offset)[0]
         name_len = data[offset + 4]
         name = data[offset + 5:offset + 5 + name_len].decode("utf-8", errors="replace")
+        folders[rel] = (parent, name)
         if parent == 0xFFFFFFFF:
             folder_prefix = name
         offset += 5 + name_len
     folder_prefix_lower = folder_prefix.lower()
+
+    folder_path_cache: dict[int, str] = {}
+
+    def build_folder_path(folder_ref: int) -> str:
+        """还原 folder record 的真实路径，并缓存共享父链。"""
+        cached = folder_path_cache.get(folder_ref)
+        if cached is not None:
+            return cached
+        parts: list[str] = []
+        current = folder_ref
+        while current != 0xFFFFFFFF and len(parts) < 64:
+            cached_parent = folder_path_cache.get(current)
+            if cached_parent is not None:
+                parts.append(cached_parent)
+                break
+            item = folders.get(current)
+            if item is None:
+                break
+            parent, name = item
+            parts.append(name)
+            current = parent
+        path = "".join(reversed(parts)).rstrip("/\\")
+        folder_path_cache[folder_ref] = path
+        return path
 
     node_size = struct.unpack_from("<I", data, offset)[0]
     offset += 4
@@ -144,7 +194,12 @@ def _parse_pamt_impl(
         return node_path
 
     folder_count = struct.unpack_from("<I", data, offset)[0]
-    offset += 4 + folder_count * 16
+    offset += 4
+    folder_ranges: list[tuple[int, int, str]] = []
+    for _ in range(folder_count):
+        _hash, folder_ref, file_index, range_count = struct.unpack_from("<IIII", data, offset)
+        offset += 16
+        folder_ranges.append((file_index, file_index + range_count, build_folder_path(folder_ref)))
     _ = struct.unpack_from("<I", data, offset)[0]
     offset += 4
 
@@ -152,12 +207,25 @@ def _parse_pamt_impl(
     exact_targets = desired_exact or set()
     basename_targets = desired_basenames or set()
     should_filter = bool(exact_targets or basename_targets)
+    file_index = 0
+    folder_range_index = 0
     while offset + 20 <= len(data):
         node_ref, paz_offset, comp_size, orig_size, flags = struct.unpack_from(
             "<IIIII", data, offset
         )
         offset += 20
         paz_index = flags & 0xFF
+        while (
+            folder_range_index + 1 < len(folder_ranges)
+            and file_index >= folder_ranges[folder_range_index][1]
+        ):
+            folder_range_index += 1
+        resolved_dir_path = None
+        if folder_ranges:
+            range_start, range_end, range_path = folder_ranges[folder_range_index]
+            if range_start <= file_index < range_end:
+                resolved_dir_path = range_path
+        file_index += 1
         node_path = build_node_path(node_ref)
         if should_filter:
             # node_path 是 PAMT 当前 folder 下的文件名主体；这里直接用它判断
@@ -181,6 +249,7 @@ def _parse_pamt_impl(
                 orig_size=orig_size,
                 flags=flags,
                 paz_index=paz_index,
+                resolved_dir_path=resolved_dir_path,
             )
         )
     return entries

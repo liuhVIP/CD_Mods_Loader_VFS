@@ -30,7 +30,8 @@ STATE_FILE_NAME = "state.json"
 PAMT_TARGET_CACHE_FILE_NAME = "pamt_target_cache.json"
 
 # PAMT 目标命中缓存 schema 版本，结构变化时递增以强制重建。
-PAMT_TARGET_CACHE_SCHEMA = 2
+# v3 持久化 PAMT folder record 的真实目录，供 overlay 打包直接复用。
+PAMT_TARGET_CACHE_SCHEMA = 3
 
 # 冷启动构建 PAMT 索引时并行解析的线程数，只读原版 0.pamt，不参与游戏文件写入。
 PAMT_INDEX_WORKER_COUNT = 4

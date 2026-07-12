@@ -14,7 +14,24 @@ from cdmm.common.models import DiscoveredMod, OverlayInputEntry
 from cdmm.services.cdmod_build_plan import CDMOD_PLAN_VALID, compile_cdmod_package_plan
 from cdmm.services.cdmod_converter import convert_format3_intent
 from cdmm.services.cdmod_format3_bridge import write_format3_bridge
-from cdmm.services.cdmod_package import CdmodOperation, CdmodPackage, load_cdmod_package
+from cdmm.services.cdmod_file_loader import (
+    build_file_replacement_overlay_entries,
+    collect_file_replacement_pamt_targets,
+)
+from cdmm.services.cdmod_localization_loader import (
+    build_localization_overlay_entries,
+    collect_localization_pamt_targets,
+)
+from cdmm.services.cdmod_package import (
+    CdmodOperation,
+    CdmodPackage,
+    collect_cdmod_declared_targets,
+    load_cdmod_package,
+)
+from cdmm.services.cdmod_resource_loader import (
+    build_resource_overlay_entries,
+    collect_resource_pamt_targets,
+)
 from cdmm.services.format3_loader import build_format3_overlay_entries
 from cdmm.services.format3_capabilities import partition_supported_intents
 from cdmm.services.format3_parser import parse_format3_file
@@ -38,12 +55,30 @@ def collect_semantic_warnings(mods: list[DiscoveredMod]) -> list[str]:
 def collect_semantic_pamt_targets(mods: list[DiscoveredMod]) -> list[str]:
     """收集统一语义阶段需要查询的PABGB/PABGH目标。"""
     targets: list[str] = []
-    for package in _normalize_semantic_packages(mods, errors=[]):
+    legacy_mods: list[DiscoveredMod] = []
+    for mod in mods:
+        if mod.mod_type == MOD_TYPE_CDMOD:
+            try:
+                declared_targets = collect_cdmod_declared_targets(mod.path)
+            except (OSError, ValueError):
+                continue
+            for target in declared_targets:
+                normalized = lower_game_rel_path(target)
+                targets.append(normalized)
+                if normalized.endswith(".pabgb"):
+                    targets.append(normalized.rsplit(".", 1)[0] + ".pabgh")
+            continue
+        legacy_mods.append(mod)
+
+    for package in _normalize_semantic_packages(legacy_mods, errors=[]):
         for operation in package.operations:
             body_target = lower_game_rel_path(operation.target)
             if not body_target.endswith(".pabgb"):
                 body_target += ".pabgb"
             targets.extend((body_target, body_target.rsplit(".", 1)[0] + ".pabgh"))
+        targets.extend(collect_localization_pamt_targets([package]))
+        targets.extend(collect_resource_pamt_targets([package]))
+        targets.extend(collect_file_replacement_pamt_targets([package]))
     return list(dict.fromkeys(targets))
 
 
@@ -67,23 +102,64 @@ def build_semantic_overlay_entries(
         return []
     warnings.extend(f"cdmod合并：{resolution}" for resolution in plan.resolutions)
 
-    with tempfile.TemporaryDirectory(prefix="cdmod-runtime-") as temp_dir:
-        bridge_path = Path(temp_dir) / f"semantic-{plan.plan_hash[:16]}.json"
-        write_format3_bridge(plan, bridge_path)
-        bridge_mod = DiscoveredMod(
-            name=f"cdmod语义计划-{plan.plan_hash[:12]}",
-            path=bridge_path,
-            mod_type=MOD_TYPE_FORMAT3,
-            fingerprint=plan.plan_hash,
-        )
-        return build_format3_overlay_entries(
-            game_dir,
-            [bridge_mod],
-            vanilla_store,
-            warnings,
-            errors,
-            base_entries,
-        )
+    table_entries: list[OverlayInputEntry] = []
+    if plan.targets:
+        with tempfile.TemporaryDirectory(prefix="cdmod-runtime-") as temp_dir:
+            bridge_path = Path(temp_dir) / f"semantic-{plan.plan_hash[:16]}.json"
+            write_format3_bridge(plan, bridge_path)
+            bridge_mod = DiscoveredMod(
+                name=f"cdmod语义计划-{plan.plan_hash[:12]}",
+                path=bridge_path,
+                mod_type=MOD_TYPE_FORMAT3,
+                fingerprint=plan.plan_hash,
+            )
+            table_entries = build_format3_overlay_entries(
+                game_dir,
+                [bridge_mod],
+                vanilla_store,
+                warnings,
+                errors,
+                base_entries,
+            )
+    localization_entries = build_localization_overlay_entries(
+        game_dir,
+        packages,
+        vanilla_store,
+        warnings,
+        errors,
+        [*(base_entries or []), *table_entries],
+    )
+    resource_entries = build_resource_overlay_entries(
+        game_dir,
+        packages,
+        vanilla_store,
+        warnings,
+        errors,
+        [*(base_entries or []), *table_entries, *localization_entries],
+    )
+    return [*table_entries, *localization_entries, *resource_entries]
+
+
+def build_cdmod_file_base_entries(
+    game_dir: Path,
+    mods: list[DiscoveredMod],
+    vanilla_store: VanillaStore,
+    warnings: list[str],
+    errors: list[str],
+    base_entries: list[OverlayInputEntry] | None = None,
+) -> list[OverlayInputEntry]:
+    """在 JSON/Format 3 之前构建 cdmod 完整资源 base。"""
+    packages = _normalize_semantic_packages(mods, errors, warnings)
+    if errors:
+        return []
+    return build_file_replacement_overlay_entries(
+        game_dir,
+        packages,
+        vanilla_store,
+        warnings,
+        errors,
+        base_entries,
+    )
 
 
 def _normalize_semantic_packages(

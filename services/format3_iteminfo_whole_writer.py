@@ -43,6 +43,7 @@ ITEMINFO_WHOLE_TABLE_DIRECT_FIELDS = frozenset(
         "item_charge_type",
         "respawn_time_seconds",
         "prefab_data_list",
+        "gimmick_visual_prefab_data_list",
         "equip_passive_skill_list",
         "occupied_equip_slot_data_list",
         "item_tag_list",
@@ -89,6 +90,7 @@ _LIST_ELEMENT_KINDS: dict[str, type] = {
     "multi_change_info_list": int,
     "gimmick_tag_list": str,
     "prefab_data_list": dict,
+    "gimmick_visual_prefab_data_list": dict,
 }
 
 

@@ -12,10 +12,11 @@ from time import perf_counter
 from cdmm.archive.pamt import derive_pamt_dir
 from cdmm.archive.paz_crypto import decrypt, lz4_decompress
 from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
+from cdmm.cdloader_native import fixup_pabgh_offsets as native_fixup_pabgh_offsets
 from cdmm.services.pabgh_rewrite import rewrite_pabgh_offsets
 from cdmm.services.pab_table_service import parse_entry_name_end, parse_pabgh_index
 from cdmm.services.pamt_index_service import get_game_pamt_index
-from cdmm.services.scanner import load_json_file
+from cdmm.services.scanner import MOD_TYPE_CDMOD, load_json_file
 from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.path_utils import lower_game_rel_path
 
@@ -50,26 +51,27 @@ def build_json_overlay_entries(
     for mod in mods:
         mod_started = perf_counter()
         try:
-            data = load_json_file(mod.path)
+            documents = _load_patch_documents(mod)
         except Exception as exc:
             errors.append(f"{mod.name}: JSON 读取失败：{exc}")
             continue
         mod_patch_count = 0
         mod_change_count = 0
-        for patch in data.get("patches", []):
-            if not _is_patch_block(patch):
-                continue
-            patch = dict(patch)
-            patch["_allow_partial_apply"] = _allow_partial_apply(data)
-            game_file = str(patch["game_file"])
-            group_key = lower_game_rel_path(game_file)
-            resolved = _find_patch_target_entry(game_file, game_dir)
-            if resolved is not None:
-                group_key = lower_game_rel_path(resolved.path)
-                resolved_game_files[group_key] = resolved.path
-            grouped.setdefault(group_key, []).append((mod, patch))
-            mod_patch_count += 1
-            mod_change_count += len(patch.get("changes", []))
+        for data in documents:
+            for patch in data.get("patches", []):
+                if not _is_patch_block(patch):
+                    continue
+                patch = dict(patch)
+                patch["_allow_partial_apply"] = _allow_partial_apply(data)
+                game_file = str(patch["game_file"])
+                group_key = lower_game_rel_path(game_file)
+                resolved = _find_patch_target_entry(game_file, game_dir)
+                if resolved is not None:
+                    group_key = lower_game_rel_path(resolved.path)
+                    resolved_game_files[group_key] = resolved.path
+                grouped.setdefault(group_key, []).append((mod, patch))
+                mod_patch_count += 1
+                mod_change_count += len(patch.get("changes", []))
         mod_stats[mod.name] = {
             "load_group_seconds": perf_counter() - mod_started,
             "patch_count": mod_patch_count,
@@ -101,18 +103,32 @@ def collect_json_pamt_targets(mods: list[DiscoveredMod]) -> list[str]:
     """收集传统 JSON byte patch 会查询的目标路径。"""
     targets: list[str] = []
     for mod in mods:
+        if mod.mod_type == MOD_TYPE_CDMOD:
+            # cdmod 的 legacy JSON 目标已包含在轻量组件索引中；这里不能为
+            # 收集路径而完整解压数百MB payload。语义目标收集阶段会统一注册。
+            continue
         try:
-            data = load_json_file(mod.path)
+            documents = _load_patch_documents(mod)
         except Exception:
             continue
-        for patch in data.get("patches", []):
-            if not _is_patch_block(patch):
-                continue
-            game_file = str(patch["game_file"])
-            targets.append(game_file)
-            if game_file.lower().endswith(".pabgb"):
-                targets.append(game_file.rsplit(".", 1)[0] + ".pabgh")
+        for data in documents:
+            for patch in data.get("patches", []):
+                if not _is_patch_block(patch):
+                    continue
+                game_file = str(patch["game_file"])
+                targets.append(game_file)
+                if game_file.lower().endswith(".pabgb"):
+                    targets.append(game_file.rsplit(".", 1)[0] + ".pabgh")
     return targets
+
+
+def _load_patch_documents(mod: DiscoveredMod) -> list[dict]:
+    """统一读取旧 JSON 文件和 cdmod 内的 legacy-byte-patch 组件。"""
+    if mod.mod_type != MOD_TYPE_CDMOD:
+        return [load_json_file(mod.path)]
+    from cdmm.services.cdmod_package import load_cdmod_package
+
+    return [dict(document) for document in load_cdmod_package(mod.path).legacy_json_patches]
 
 
 def build_patch_overlay_entries(
@@ -271,6 +287,7 @@ def build_patch_overlay_entries(
                 compression_type=vanilla_entry.compression_type,
                 encrypted=vanilla_entry.encrypted,
                 crypto_filename=os.path.basename(vanilla_entry.path),
+                resolved_dir_path=vanilla_entry.resolved_dir_path,
             )
         )
 
@@ -548,6 +565,9 @@ def fixup_pabgh_after_inserts(pabgh: bytes, inserts: list[tuple[int, int]]) -> b
     """PABGB 长度变化后修正 PABGH 指针表，支持正负 delta。"""
     if not inserts or len(pabgh) < 2:
         return pabgh
+    native_result = native_fixup_pabgh_offsets(pabgh, inserts)
+    if native_result is not None:
+        return native_result
     data = bytearray(pabgh)
     ushort_count = struct.unpack_from("<H", data, 0)[0]
     fmt2 = ushort_count > 0 and 2 + ushort_count * 8 <= len(data) and 2 + ushort_count * 8 >= len(data) - 16
@@ -623,6 +643,7 @@ def _build_pabgh_companion(
         compression_type=vanilla_entry.compression_type,
         encrypted=vanilla_entry.encrypted,
         crypto_filename=os.path.basename(vanilla_entry.path),
+        resolved_dir_path=vanilla_entry.resolved_dir_path,
     )
 
 

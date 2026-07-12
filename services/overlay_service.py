@@ -154,7 +154,15 @@ def build_overlay(overlay_dir: str, entries: list[OverlayInputEntry], game_dir: 
         # 同一最终 PAMT 路径采用最后写入结果，避免不同源路径解析到同一
         # dir_path/filename 后在 0.pamt 中留下重复记录，导致 PATHC 与 PAZ 尺寸错配。
         filename = entry.entry_path.rsplit("/", 1)[-1]
-        dir_path = _resolve_dir_path(entry.entry_path, entry.pamt_dir, game_dir, path_map_cache)
+        dir_path = (
+            entry.resolved_dir_path
+            if entry.resolved_dir_path is not None
+            else (
+                entry.entry_path.rsplit("/", 1)[0]
+                if entry.preserve_entry_dir and "/" in entry.entry_path
+                else _resolve_dir_path(entry.entry_path, entry.pamt_dir, game_dir, path_map_cache)
+            )
+        )
         final_key = f"{dir_path}/{filename}".lower() if dir_path else filename.lower()
         previous = seen.get(final_key)
         if previous is not None:
@@ -207,7 +215,9 @@ def build_overlay(overlay_dir: str, entries: list[OverlayInputEntry], game_dir: 
             )
         )
 
-    paz_bytes = bytes(paz_buffer)
+    # bytearray 本身就是连续 bytes-like 缓冲，native hashlittle 与文件写入均可
+    # 直接消费。大型 nppsa 若再转成 bytes，会无意义复制约 483MB。
+    paz_bytes = paz_buffer
     pamt_bytes = _build_multi_pamt(built_entries, len(paz_bytes))
     pamt_buffer = bytearray(pamt_bytes)
     struct.pack_into("<I", pamt_buffer, 16, hashlittle(paz_bytes, HASH_SEED))

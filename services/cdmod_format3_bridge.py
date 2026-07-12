@@ -22,6 +22,11 @@ ITEMINFO_PREFAB_NARROW_PATTERN = re.compile(
     r"^prefab_data_list\[\d+]\.tribe_gender_list$"
 )
 
+# live ItemInfo中已验证的EnchantData窄路径，必须与whole-table批次隔离。
+ITEMINFO_ENCHANT_EQUIP_BUFFS_PATTERN = re.compile(
+    r"^enchant_data_list\[\d+]\.equip_buffs$"
+)
+
 
 def build_format3_bridge_document(plan: CdmodBuildPlan) -> dict[str, Any]:
     """将一个VALID计划转换为现有Format 3多目标文档。"""
@@ -30,6 +35,11 @@ def build_format3_bridge_document(plan: CdmodBuildPlan) -> dict[str, Any]:
     targets: list[dict[str, Any]] = []
     for target_plan in plan.targets:
         intent_batches: dict[str, list[dict[str, Any]]] = {}
+        visual_selectors = {
+            json.dumps(operation.selector, ensure_ascii=False, sort_keys=True)
+            for operation in target_plan.operations
+            if operation.path == "gimmick_visual_prefab_data_list"
+        }
         for operation in target_plan.operations:
             selector = operation.selector
             intent: dict[str, Any] = {
@@ -39,7 +49,12 @@ def build_format3_bridge_document(plan: CdmodBuildPlan) -> dict[str, Any]:
                 "op": "set",
                 "new": operation.payload,
             }
-            family = _bridge_family(target_plan.target, operation.path)
+            family = _bridge_family(
+                target_plan.target,
+                operation.path,
+                operation.selector,
+                visual_selectors,
+            )
             intent_batches.setdefault(family, []).append(intent)
         for family in _ordered_bridge_families(intent_batches):
             targets.append(
@@ -70,16 +85,28 @@ def build_format3_bridge_document(plan: CdmodBuildPlan) -> dict[str, Any]:
     }
 
 
-def _bridge_family(target: str, field: str) -> str:
+def _bridge_family(
+    target: str,
+    field: str,
+    selector: dict[str, Any],
+    visual_selectors: set[str],
+) -> str:
     """把ItemInfo操作路由到已验证的窄/整表writer批次。"""
     if target.rsplit("/", 1)[-1].lower() != "iteminfo.pabgb":
         return "default"
     if field == "prefab_data_list":
+        selector_key = json.dumps(selector, ensure_ascii=False, sort_keys=True)
+        if selector_key in visual_selectors:
+            return "iteminfo-visual-prefab"
         return "iteminfo-prefab-whole"
+    if field == "gimmick_visual_prefab_data_list":
+        return "iteminfo-visual-prefab"
     if ITEMINFO_PREFAB_NARROW_PATTERN.fullmatch(field):
         return "iteminfo-prefab-narrow"
     if field.startswith("drop_default_data."):
         return "iteminfo-drop-default"
+    if ITEMINFO_ENCHANT_EQUIP_BUFFS_PATTERN.fullmatch(field):
+        return "iteminfo-enchant-equip-buffs"
     return "iteminfo-whole-fields"
 
 
@@ -87,10 +114,12 @@ def _ordered_bridge_families(batches: dict[str, list[dict[str, Any]]]) -> list[s
     """固定批次顺序，保证同输入输出稳定且保持基础表到细粒度修改的层次。"""
     preferred = (
         "default",
+        "iteminfo-whole-fields",
+        "iteminfo-enchant-equip-buffs",
+        "iteminfo-drop-default",
         "iteminfo-prefab-whole",
         "iteminfo-prefab-narrow",
-        "iteminfo-whole-fields",
-        "iteminfo-drop-default",
+        "iteminfo-visual-prefab",
     )
     return [family for family in preferred if family in batches]
 

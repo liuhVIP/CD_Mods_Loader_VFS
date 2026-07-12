@@ -29,10 +29,12 @@ from cdmm.common.constants import (
 )
 from cdmm.common.models import BuiltOverlayEntry, DiscoveredMod, OverlayBuildResult, OverlayInputEntry
 from cdmm.services.cdmod_semantic_loader import (
+    build_cdmod_file_base_entries,
     build_semantic_overlay_entries,
     collect_semantic_pamt_targets,
     collect_semantic_warnings,
 )
+from cdmm.services.cdmod_localization_loader import detect_active_paloc_language
 from cdmm.services.json_loader import build_json_overlay_entries, collect_json_pamt_targets
 from cdmm.services.loader import validate_game_dir
 from cdmm.services.loose_file_service import build_loose_overlay_entries, collect_loose_pamt_targets
@@ -68,7 +70,7 @@ VFS_STATE_FILE_NAME = "vfs_state.json"
 VFS_PACKAGE_CACHE_DIR_NAME = "vfs_package_cache"
 
 # VFS 状态结构版本。分包策略变化时必须提升，避免复用旧 mapping。
-VFS_STATE_SCHEMA = 4
+VFS_STATE_SCHEMA = 5
 
 # 分包构建算法版本，必须参与缓存key。当前版本要求按最终PAMT路径去重，
 # 防止复用旧版可能含重复entry的PAZ/PAMT缓存。
@@ -112,6 +114,15 @@ class VfsOverlayPackage:
 
 
 @dataclass(frozen=True)
+class _OverlayPackageMaterial:
+    """分包构建结果及其可复用缓存位置。"""
+
+    overlay: OverlayBuildResult
+    cache_dir: Path
+    cache_hit: bool
+
+
+@dataclass(frozen=True)
 class VfsBuildResult:
     """VFS 构建结果摘要。"""
 
@@ -151,6 +162,7 @@ def build_vfs_package(
         _log_vfs_stage("VFS 构建总耗时", total_started)
         return _empty_result(game_dir, mods, warnings, errors)
     current_fingerprint = fingerprint_mods(mods)
+    active_language = detect_active_paloc_language(game_dir)
     _log_vfs_stage("扫描 mods / 指纹", stage_started)
 
     stage_started = perf_counter()
@@ -160,6 +172,7 @@ def build_vfs_package(
         warnings,
         current_fingerprint,
         allow_missing_targets,
+        active_language,
     )
     if cached_result is not None:
         _log_vfs_stage("整包缓存检查", stage_started)
@@ -170,7 +183,7 @@ def build_vfs_package(
 
     stage_started = perf_counter()
     _notify_progress(progress_callback, "统计 JSON / Format 3 / loose 目标")
-    json_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_JSON_PATCH]
+    json_mods = [mod for mod in mods if mod.mod_type in {MOD_TYPE_JSON_PATCH, MOD_TYPE_CDMOD}]
     semantic_mods = [mod for mod in mods if mod.mod_type in {MOD_TYPE_FORMAT3, MOD_TYPE_CDMOD}]
     warnings.extend(collect_semantic_warnings(semantic_mods))
 
@@ -197,6 +210,15 @@ def build_vfs_package(
         errors,
         mods,
     )
+    cdmod_file_base_inputs = build_cdmod_file_base_entries(
+        game_dir,
+        semantic_mods,
+        vanilla_store,
+        warnings,
+        errors,
+        loose_overlay_inputs,
+    )
+    loose_overlay_inputs = [*loose_overlay_inputs, *cdmod_file_base_inputs]
     _log_vfs_stage("构建 loose 覆盖输入", stage_started)
 
     stage_started = perf_counter()
@@ -268,10 +290,23 @@ def build_vfs_package(
     for package in overlay_packages:
         stage_started = perf_counter()
         _notify_progress(progress_callback, f"写入 VFS overlay 包：{package.name}")
-        overlay = _build_or_reuse_overlay_package(game_dir, package)
+        material = _build_or_reuse_overlay_package(game_dir, package)
+        overlay = material.overlay
         paz_rel, pamt_rel = overlay_rel_paths(package.name)
-        _write_vfs_file(vfs_root, paz_rel, overlay.paz_bytes)
-        _write_vfs_file(vfs_root, pamt_rel, overlay.pamt_bytes)
+        paz_output = vfs_root / paz_rel.replace("/", "\\")
+        pamt_output = vfs_root / pamt_rel.replace("/", "\\")
+        if material.cache_hit:
+            _materialize_cached_file(material.cache_dir / OVERLAY_PAZ_NAME, paz_output)
+            _materialize_cached_file(material.cache_dir / OVERLAY_PAMT_NAME, pamt_output)
+        else:
+            _write_vfs_file(vfs_root, paz_rel, overlay.paz_bytes)
+            _write_vfs_file(vfs_root, pamt_rel, overlay.pamt_bytes)
+            _write_overlay_package_cache_from_outputs(
+                material.cache_dir,
+                overlay,
+                paz_output,
+                pamt_output,
+            )
         mapped_files.extend([paz_rel, pamt_rel])
         modified_pamts[package.name] = overlay.pamt_bytes
         package_built_entries.extend(overlay.entries)
@@ -341,6 +376,7 @@ def build_vfs_package(
         warnings,
         mapped_files,
         allow_missing_targets,
+        active_language,
     )
     save_game_pamt_target_cache(game_dir)
     _log_vfs_stage("写入 VFS 状态和目标缓存", stage_started)
@@ -403,6 +439,7 @@ def _try_reuse_vfs_package(
     warnings: list[str],
     current_fingerprint: str,
     allow_missing_targets: bool,
+    active_language: str | None,
 ) -> VfsBuildResult | None:
     """模组未变化且 VFS 产物完整时，直接复用上次构建结果。"""
     state_path = game_dir / WORK_DIR_NAME / VFS_STATE_FILE_NAME
@@ -417,6 +454,8 @@ def _try_reuse_vfs_package(
     if state.get("last_fingerprint") != current_fingerprint:
         return None
     if bool(state.get("allow_missing_targets")) != bool(allow_missing_targets):
+        return None
+    if state.get("active_language") != active_language:
         return None
 
     vfs_root = Path(str(state.get("vfs_root") or game_dir / WORK_DIR_NAME / VFS_ACTIVE_DIR_NAME))
@@ -486,7 +525,9 @@ def _build_dmm_like_overlay_packages(
         entry for entry in json_overlay_inputs if _entry_key(entry) not in format3_targets
     )
     for entry in format3_overlay_inputs:
-        package_name = _format3_package_name(entry) or NPP_JSON_PACKAGE
+        package_name = _format3_package_name(entry) or (
+            NPP_JSON_PACKAGE if entry.entry_path.lower().endswith((".pabgb", ".pabgh")) else NPP_LOOSE_PACKAGE
+        )
         grouped[package_name].append(entry)
 
     return [
@@ -514,18 +555,17 @@ def _format3_package_name(entry: OverlayInputEntry) -> str | None:
     return NPP_V3_PACKAGE_BY_TABLE.get(stem)
 
 
-def _build_or_reuse_overlay_package(game_dir: Path, package: VfsOverlayPackage) -> OverlayBuildResult:
+def _build_or_reuse_overlay_package(game_dir: Path, package: VfsOverlayPackage) -> _OverlayPackageMaterial:
     """构建或复用单个 VFS overlay 分包。"""
     cache_key = _overlay_package_cache_key(package)
     cache_dir = _overlay_package_cache_dir(game_dir, package.name, cache_key)
     cached = _read_overlay_package_cache(package.name, cache_dir)
     if cached is not None:
         logger.info("VFS package cache hit: %s", package.name)
-        return cached
+        return _OverlayPackageMaterial(cached, cache_dir, True)
 
     overlay = build_overlay(package.name, package.entries, game_dir)
-    _write_overlay_package_cache(cache_dir, overlay)
-    return overlay
+    return _OverlayPackageMaterial(overlay, cache_dir, False)
 
 
 def _overlay_package_cache_key(package: VfsOverlayPackage) -> str:
@@ -550,6 +590,8 @@ def _overlay_package_cache_key(package: VfsOverlayPackage) -> str:
         digest.update(b"1" if entry.encrypted else b"0")
         digest.update(b"\0")
         digest.update((entry.crypto_filename or "").encode("utf-8"))
+        digest.update(b"\0")
+        digest.update((entry.resolved_dir_path or "").encode("utf-8"))
         digest.update(b"\0")
         digest.update(len(entry.content).to_bytes(8, "little"))
         digest.update(entry.content)
@@ -577,7 +619,8 @@ def _read_overlay_package_cache(package_name: str, cache_dir: Path) -> OverlayBu
             return None
         return OverlayBuildResult(
             overlay_dir=package_name,
-            paz_bytes=paz_path.read_bytes(),
+            # 命中时由同盘硬链接直接物化到 vfs_active，无需把大型 PAZ 读入内存。
+            paz_bytes=b"",
             pamt_bytes=pamt_path.read_bytes(),
             entries=[entry for entry in entries if entry is not None],
         )
@@ -602,6 +645,46 @@ def _write_overlay_package_cache(cache_dir: Path, overlay: OverlayBuildResult) -
         )
     except OSError as exc:
         logger.warning("VFS package cache write failed: %s", exc)
+
+
+def _write_overlay_package_cache_from_outputs(
+    cache_dir: Path,
+    overlay: OverlayBuildResult,
+    paz_output: Path,
+    pamt_output: Path,
+) -> None:
+    """由已落盘 VFS 输出建立分包缓存，避免首次构建重复写大型 PAZ。"""
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        _replace_with_hardlink_or_copy(paz_output, cache_dir / OVERLAY_PAZ_NAME)
+        _replace_with_hardlink_or_copy(pamt_output, cache_dir / OVERLAY_PAMT_NAME)
+        payload = {
+            "schema": 1,
+            "overlay_dir": overlay.overlay_dir,
+            "entries": [_built_entry_to_json(entry) for entry in overlay.entries],
+        }
+        (cache_dir / "entries.json").write_text(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        logger.warning("VFS package cache link failed: %s", exc)
+
+
+def _materialize_cached_file(source: Path, target: Path) -> None:
+    """把同盘缓存零拷贝物化到 VFS 目录，失败时回退普通复制。"""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    _replace_with_hardlink_or_copy(source, target)
+
+
+def _replace_with_hardlink_or_copy(source: Path, target: Path) -> None:
+    """优先创建NTFS硬链接，并兼容不支持硬链接的文件系统。"""
+    if target.exists():
+        target.unlink()
+    try:
+        target.hardlink_to(source)
+    except OSError:
+        shutil.copy2(source, target)
 
 
 def _built_entry_to_json(entry: BuiltOverlayEntry) -> dict[str, object]:
@@ -652,7 +735,7 @@ def _reset_vfs_active_dir(game_dir: Path) -> Path:
     return vfs_root
 
 
-def _write_vfs_file(vfs_root: Path, relative_path: str, content: bytes) -> None:
+def _write_vfs_file(vfs_root: Path, relative_path: str, content: bytes | bytearray) -> None:
     """把单个虚拟文件写入 VFS 输出目录。"""
     target = vfs_root / relative_path.replace("/", "\\")
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -703,6 +786,7 @@ def _write_vfs_state(
     warnings: list[str],
     mapped_files: list[str],
     allow_missing_targets: bool,
+    active_language: str | None,
 ) -> None:
     """写入 VFS 构建摘要，便于后续排障。"""
     payload = {
@@ -714,6 +798,7 @@ def _write_vfs_state(
         "overlay_packages": overlay_packages,
         "last_fingerprint": fingerprint_mods(mods),
         "allow_missing_targets": bool(allow_missing_targets),
+        "active_language": active_language,
         "loaded_mods": [mod.name for mod in mods],
         "warnings": warnings,
         "mapped_files": mapped_files,

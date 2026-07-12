@@ -85,6 +85,19 @@ if ($BuildOnly) {
     exit 0
 }
 
+# 源码入口必须与打包版复用同一套 Steam 冷启动预热判断。此前这里直接调用
+# vfsDmoe，绕过了 tools/vfs_launcher.py，导致本次开机首场 VFS 偶发在 2/12 崩溃。
+if (-not $UseRemoteInjection) {
+    $warmupArgs = @("-m", "cdmm.tools.vfs_warmup", "--game-dir", $GameDir)
+    if (-not [string]::IsNullOrWhiteSpace($SteamAppId)) {
+        $warmupArgs += @("--steam-app-id", $SteamAppId)
+    }
+    & $PythonPath @warmupArgs
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+}
+
 # Crimson Desert 的 ASI 插件应按游戏目录原生文件加载。
 # 默认清理进程级残留开关，避免 VFS runtime 二次 patch ASI 模块或强制扩大 NT Hook 面。
 if ($PatchAsiModules) {

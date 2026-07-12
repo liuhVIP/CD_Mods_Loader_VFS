@@ -32,6 +32,7 @@ from cdmm.services.format3_multichangeinfo_writer import build_multichangeinfo_r
 from cdmm.services.format3_skill_writer import build_skill_whole_table_result
 from cdmm.services.format3_stringinfo_writer import build_stringinfo_result
 from cdmm.services.format3_storeinfo_writer import build_storeinfo_result
+from cdmm.services.format3_statusinfo_writer import build_statusinfo_result
 from cdmm.services.format3_parser import Format3Intent, parse_format3_file
 from cdmm.services.format3_runtime import (
     Format3DispatchResult,
@@ -71,6 +72,7 @@ _FORMAT3_WRITERS: dict[str, Format3Writer] = {
     "skill": build_skill_whole_table_result,
     "stringinfo": build_stringinfo_result,
     "storeinfo": build_storeinfo_result,
+    "statusinfo": build_statusinfo_result,
 }
 
 

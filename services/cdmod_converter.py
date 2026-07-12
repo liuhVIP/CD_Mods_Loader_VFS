@@ -31,6 +31,21 @@ CDMOD_MANIFEST_PATH = "manifest.json"
 CDMOD_PATCH_PATH = "patches/semantic.json"
 CDMOD_REPORT_PATH = "reports/conversion.json"
 
+# 本地化组件类型独立于表语义组件，允许后续按资源能力扩展容器。
+CDMOD_LOCALIZATION_COMPONENT_TYPE = "localization-patch"
+
+# 资源变换组件保存源目标映射或等长字节规则，不携带可从游戏重建的大文件。
+CDMOD_RESOURCE_TRANSFORM_COMPONENT_TYPE = "resource-transform"
+
+# 完整资源替换组件用于无法安全语义化或从游戏动态重建的二进制资源。
+CDMOD_FILE_REPLACEMENT_COMPONENT_TYPE = "file-replacement"
+
+# 传统 JSON byte patch 作为原语组件封装，运行时复用现有稳定补丁器。
+CDMOD_LEGACY_JSON_COMPONENT_TYPE = "legacy-byte-patch"
+
+# standalone 组件携带原始 PAZ/PAMT，由加载器统一分配目录和重建 PAPGT。
+CDMOD_STANDALONE_COMPONENT_TYPE = "standalone-archive"
+
 # ZIP 固定时间戳，保证相同输入生成字节一致的包，便于缓存和分发校验。
 DETERMINISTIC_ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
 
@@ -224,16 +239,22 @@ def _read_json_object(path: Path) -> dict[str, Any]:
     return value
 
 
-def _write_cdmod_zip(output_path: Path, documents: dict[str, dict[str, Any]]) -> None:
+def _write_cdmod_zip(output_path: Path, documents: dict[str, dict[str, Any] | bytes]) -> None:
     """按固定顺序、固定时间戳写入确定性 ZIP。"""
     with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for archive_path in sorted(documents):
-            payload = json.dumps(
-                documents[archive_path],
-                ensure_ascii=False,
-                indent=2,
-                sort_keys=True,
-            ).encode("utf-8") + b"\n"
+            document = documents[archive_path]
+            payload = (
+                document
+                if isinstance(document, bytes)
+                else json.dumps(
+                    document,
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                ).encode("utf-8")
+                + b"\n"
+            )
             info = zipfile.ZipInfo(archive_path, DETERMINISTIC_ZIP_TIMESTAMP)
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o100644 << 16

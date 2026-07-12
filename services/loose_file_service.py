@@ -307,6 +307,7 @@ def _build_entry_from_loose_file(
         compression_type=vanilla_entry.compression_type,
         encrypted=vanilla_entry.encrypted,
         crypto_filename=Path(vanilla_entry.path).name,
+        resolved_dir_path=vanilla_entry.resolved_dir_path,
     )
 
 

@@ -455,6 +455,45 @@ def serialize_iteminfo_prefab_data_list(values: list[dict]) -> bytes:
     return bytes(w.buf)
 
 
+def parse_iteminfo_visual_prefab_lists(
+    data: bytes,
+) -> tuple[list[dict], list[dict], int, int]:
+    """解析相邻的普通 prefab 与 gimmick visual prefab 两个列表。"""
+    r = _Reader(data, 0, rec_end=len(data))
+    out: dict[str, Any] = {}
+    prefab_values: list[dict] | None = None
+    start = 0
+    for spec in _ITEM_FIELDS:
+        name = spec[0]
+        if name == "item_desc" and out.get("equip_type_info") == LANTERN_EQ_TYPE:
+            out["lantern_unk_a"] = r.u32()
+            out["lantern_unk_b"] = r.u32()
+            out["lantern_unk_c"] = r.u32()
+        if name == "prefab_data_list":
+            start = r.pos
+            prefab_values = r.carray(spec[2])
+            out[name] = prefab_values
+            continue
+        if name == "gimmick_visual_prefab_data_list":
+            gimmick_values = r.carray(spec[2])
+            if prefab_values is None:
+                raise ValueError("prefab_data_list field not found before gimmick list")
+            return prefab_values, gimmick_values, start, r.pos
+        out[name] = _read_item_field_for_prefab_seek(r, out, spec)
+    raise ValueError("gimmick_visual_prefab_data_list field not found")
+
+
+def serialize_iteminfo_visual_prefab_lists(
+    prefab_values: list[dict],
+    gimmick_values: list[dict],
+) -> bytes:
+    """连续序列化普通 prefab 与 gimmick visual prefab 两个列表。"""
+    w = _Writer()
+    w.carray(prefab_values, _write_PrefabData)
+    w.carray(gimmick_values, _write_GimmickVisualPrefabData)
+    return bytes(w.buf)
+
+
 def _read_item_field_for_prefab_seek(
     r: _Reader,
     out: dict[str, Any],

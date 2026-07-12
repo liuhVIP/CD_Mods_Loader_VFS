@@ -548,6 +548,7 @@ def _entry_to_json(entry: PazEntry) -> dict[str, Any]:
         "flags": entry.flags,
         "paz_index": entry.paz_index,
         "encrypted_override": entry.encrypted_override,
+        "resolved_dir_path": entry.resolved_dir_path,
     }
 
 
@@ -564,6 +565,7 @@ def _entry_from_json(raw_entry: Any) -> PazEntry | None:
         flags = raw_entry["flags"]
         paz_index = raw_entry["paz_index"]
         encrypted_override = raw_entry.get("encrypted_override")
+        resolved_dir_path = raw_entry.get("resolved_dir_path")
     except KeyError:
         return None
     if not isinstance(path, str) or not isinstance(paz_file, str):
@@ -571,6 +573,8 @@ def _entry_from_json(raw_entry: Any) -> PazEntry | None:
     if not all(isinstance(value, int) for value in (offset, comp_size, orig_size, flags, paz_index)):
         return None
     if encrypted_override is not None and not isinstance(encrypted_override, bool):
+        return None
+    if resolved_dir_path is not None and not isinstance(resolved_dir_path, str):
         return None
     return PazEntry(
         path=path,
@@ -581,6 +585,7 @@ def _entry_from_json(raw_entry: Any) -> PazEntry | None:
         flags=flags,
         paz_index=paz_index,
         encrypted_override=encrypted_override,
+        resolved_dir_path=resolved_dir_path,
     )
 
 

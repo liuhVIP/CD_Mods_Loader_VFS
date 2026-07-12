@@ -233,9 +233,9 @@ def detect_mod_type(path: Path) -> str | None:
     """识别传统 JSON patch、Format 3 JSON 或目录型组件。"""
     if path.is_file() and path.suffix.lower() == CDMOD_SUFFIX:
         try:
-            from cdmm.services.cdmod_package import load_cdmod_package
+            from cdmm.services.cdmod_package import validate_cdmod_header
 
-            load_cdmod_package(path)
+            validate_cdmod_header(path)
         except (OSError, ValueError):
             return None
         return MOD_TYPE_CDMOD

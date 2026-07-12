@@ -24,6 +24,7 @@ from cdmm.common.constants import (
 from cdmm.common.models import LoaderResult
 from cdmm.io.transaction import Transaction, recover_interrupted
 from cdmm.services.cdmod_semantic_loader import (
+    build_cdmod_file_base_entries,
     build_semantic_overlay_entries,
     collect_semantic_pamt_targets,
     collect_semantic_warnings,
@@ -105,7 +106,7 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
     invalid_cdmods = [warning for warning in scan_warnings if warning.startswith(INVALID_CDMOD_WARNING_PREFIX)]
     if invalid_cdmods:
         return LoaderResult(overlay_dir=None, loaded_mods=mods, warnings=warnings, errors=invalid_cdmods)
-    json_mods = [mod for mod in mods if mod.mod_type == MOD_TYPE_JSON_PATCH]
+    json_mods = [mod for mod in mods if mod.mod_type in {MOD_TYPE_JSON_PATCH, MOD_TYPE_CDMOD}]
     semantic_mods = [mod for mod in mods if mod.mod_type in {MOD_TYPE_FORMAT3, MOD_TYPE_CDMOD}]
     warnings.extend(collect_semantic_warnings(semantic_mods))
     pamt_targets = [
@@ -129,6 +130,15 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
         errors,
         mods,
     )
+    cdmod_file_base_inputs = build_cdmod_file_base_entries(
+        game_dir,
+        semantic_mods,
+        vanilla_store,
+        warnings,
+        errors,
+        loose_overlay_inputs,
+    )
+    loose_overlay_inputs = [*loose_overlay_inputs, *cdmod_file_base_inputs]
     _log_phase("构建 loose overlay 输入", phase_started)
     _notify_progress(progress_callback, "构建 loose overlay 输入")
     phase_started = perf_counter()
