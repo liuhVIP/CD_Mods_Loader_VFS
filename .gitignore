@@ -22,3 +22,4 @@ __pycache__/
 !native/*.pyd
 _triage_snapshots
 nexusmods/
+prototype_output/
