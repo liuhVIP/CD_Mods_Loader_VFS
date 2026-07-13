@@ -1,9 +1,10 @@
-# cdloader VFS 专用 Nuitka 单体 exe 打包脚本。
+# cdloader VFS 专用 Nuitka 目录版打包脚本。
 param(
     [string]$PythonPath = "",
     [string]$DistDir = "dist_nuitka",
     [string]$OutputName = "",
-    [string]$RequiredPython = "3.10"
+    [string]$RequiredPython = "3.10",
+    [switch]$NexusLite
 )
 
 $ErrorActionPreference = "Stop"
@@ -40,6 +41,10 @@ if ([string]::IsNullOrWhiteSpace($PythonPath)) {
 $OutputDir = Join-Path $ScriptDir $DistDir
 $BuildDir = Join-Path $ScriptDir "build\nuitka-vfs"
 $EntryFile = Join-Path $BuildDir "cdloader_vfs_nuitka_entry.py"
+$BootstrapSource = Join-Path $BuildDir "cdloader_vfs_bootstrap.cpp"
+$BootstrapResource = Join-Path $BuildDir "cdloader_vfs_bootstrap.rc"
+$BootstrapResourceObject = Join-Path $BuildDir "cdloader_vfs_bootstrap.res"
+$PackageDir = Join-Path $BuildDir "package"
 $NuitkaVenvDir = Join-Path $ScriptDir ".venv-nuitka"
 $VfsRuntimeDir = Join-Path $ScriptDir "private\vfs_runtime"
 $VfsLauncherFile = Join-Path $VfsRuntimeDir "nppvfs_launcher.exe"
@@ -263,10 +268,9 @@ $NuitkaArgs = @(
     "-m",
     "nuitka",
     "--standalone",
-    "--onefile",
     "--assume-yes-for-downloads",
-    "--output-filename=$OutputName.exe",
-    "--output-dir=$OutputDir",
+    "--output-filename=cdloader-vfs-core.exe",
+    "--output-dir=$(Join-Path $BuildDir 'output')",
     "--remove-output",
     "--windows-console-mode=force",
     "--company-name=cdmm",
@@ -315,12 +319,137 @@ finally {
     Remove-Item -LiteralPath $EntryFile -Force -ErrorAction SilentlyContinue
 }
 
-$ExePath = Join-Path $OutputDir "$OutputName.exe"
-if (-not (Test-Path -LiteralPath $ExePath)) {
-    Write-Host "Nuitka 已结束，但未找到输出文件：$ExePath" -ForegroundColor Red
-    exit 1
+$NuitkaDistDir = Get-ChildItem -LiteralPath (Join-Path $BuildDir "output") -Directory -Filter "*.dist" |
+    Select-Object -First 1
+if ($null -eq $NuitkaDistDir -or -not (Test-Path -LiteralPath (Join-Path $NuitkaDistDir.FullName "cdloader-vfs-core.exe"))) {
+    throw "Nuitka 已结束，但未找到目录版 core 输出。"
 }
 
-$ExeSize = (Get-Item -LiteralPath $ExePath).Length / 1MB
-Write-Host ("VFS 专用 Nuitka 打包完成：{0}（{1:N2} MB）" -f $ExePath, $ExeSize) -ForegroundColor Green
-Write-Host "复制 $OutputName.exe 到游戏根目录后双击，即默认构建 VFS 并启动游戏。" -ForegroundColor Green
+# 正式目录结构：外层原生 bootstrap 只负责把参数转发给 cdloader 内的 core。
+if (Test-Path -LiteralPath $PackageDir) {
+    Remove-Item -LiteralPath $PackageDir -Recurse -Force
+}
+New-Item -ItemType Directory -Path $PackageDir -Force | Out-Null
+$CorePackageDir = Join-Path $PackageDir "cdloader"
+Copy-Item -LiteralPath $NuitkaDistDir.FullName -Destination $CorePackageDir -Recurse
+
+if ($NexusLite) {
+    $EmbeddedRuntimeDir = Join-Path $CorePackageDir "cdmm\private\vfs_runtime"
+    if (Test-Path -LiteralPath $EmbeddedRuntimeDir) {
+        Remove-Item -LiteralPath $EmbeddedRuntimeDir -Recurse -Force
+    }
+    "Download vfs_runtime.zip from the matching GitHub Release and extract it beside this package." |
+        Set-Content -LiteralPath (Join-Path $PackageDir "VFS-RUNTIME-REQUIRED.txt") -Encoding ASCII
+}
+
+@'
+#include <windows.h>
+#include <string>
+#include <vector>
+
+int wmain() {
+    wchar_t self_path[MAX_PATH] = {};
+    if (!GetModuleFileNameW(nullptr, self_path, MAX_PATH)) return 2;
+    std::wstring root(self_path);
+    const size_t slash = root.find_last_of(L"\\/");
+    if (slash == std::wstring::npos) return 2;
+    root.resize(slash);
+    const std::wstring core = root + L"\\cdloader\\cdloader-vfs-core.exe";
+    if (GetFileAttributesW(core.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        MessageBoxW(nullptr, L"Missing cdloader\\cdloader-vfs-core.exe. Please extract the complete ZIP first.",
+                    L"Crimson Desert VFS Mod Loader", MB_OK | MB_ICONERROR);
+        return 3;
+    }
+
+    const wchar_t* original = GetCommandLineW();
+    const wchar_t* tail = original;
+    if (*tail == L'\"') {
+        ++tail;
+        while (*tail && *tail != L'\"') ++tail;
+        if (*tail == L'\"') ++tail;
+    } else {
+        while (*tail && *tail != L' ') ++tail;
+    }
+    while (*tail == L' ') ++tail;
+    std::wstring command = L"\"" + core + L"\"";
+    if (*tail) command += L" " + std::wstring(tail);
+    std::vector<wchar_t> buffer(command.begin(), command.end());
+    buffer.push_back(L'\0');
+
+    STARTUPINFOW startup = {};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION process = {};
+    if (!CreateProcessW(core.c_str(), buffer.data(), nullptr, nullptr, TRUE, 0, nullptr,
+                        root.c_str(), &startup, &process)) {
+        MessageBoxW(nullptr, L"Failed to start cdloader-vfs-core.exe.",
+                    L"Crimson Desert VFS Mod Loader", MB_OK | MB_ICONERROR);
+        return static_cast<int>(GetLastError());
+    }
+    CloseHandle(process.hThread);
+    WaitForSingleObject(process.hProcess, INFINITE);
+    DWORD exit_code = 1;
+    GetExitCodeProcess(process.hProcess, &exit_code);
+    CloseHandle(process.hProcess);
+    return static_cast<int>(exit_code);
+}
+'@ | Set-Content -LiteralPath $BootstrapSource -Encoding UTF8
+
+@"
+1 VERSIONINFO
+FILEVERSION $($VersionNumbers -join ',')
+PRODUCTVERSION $($VersionNumbers -join ',')
+FILEOS 0x40004L
+FILETYPE 0x1L
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", "cdmm\0"
+      VALUE "FileDescription", "Crimson Desert VFS Mod Loader Bootstrap\0"
+      VALUE "FileVersion", "$PeVersion\0"
+      VALUE "OriginalFilename", "$OutputName.exe\0"
+      VALUE "ProductName", "Crimson Desert VFS Mod Loader\0"
+      VALUE "ProductVersion", "$PeVersion\0"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0409, 1200
+  END
+END
+"@ | Set-Content -LiteralPath $BootstrapResource -Encoding ASCII
+
+$VsWhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+if (-not (Test-Path -LiteralPath $VsWhere)) {
+    throw "未找到 Visual Studio vswhere，无法构建原生 bootstrap。"
+}
+$VsInstall = & $VsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+$VsDevCmd = Join-Path $VsInstall "Common7\Tools\VsDevCmd.bat"
+if (-not (Test-Path -LiteralPath $VsDevCmd)) {
+    throw "未找到 Visual Studio x64 构建环境：$VsDevCmd"
+}
+$BootstrapExe = Join-Path $PackageDir "$OutputName.exe"
+$CompileCommand = ('call "{0}" -arch=x64 -host_arch=x64 >nul && rc /nologo /fo "{1}" "{2}" && cl /nologo /O2 /EHsc /utf-8 "{3}" "{1}" /link /SUBSYSTEM:CONSOLE /OUT:"{4}" user32.lib' -f $VsDevCmd, $BootstrapResourceObject, $BootstrapResource, $BootstrapSource, $BootstrapExe)
+& $env:ComSpec /d /s /c $CompileCommand
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $BootstrapExe)) {
+    throw "原生 bootstrap 构建失败。"
+}
+
+# 为目录版全部运行文件生成相对路径 SHA256，便于发布后核验。
+$HashLines = Get-ChildItem -LiteralPath $CorePackageDir -Recurse -File |
+    Sort-Object FullName |
+    ForEach-Object {
+        $Relative = [System.IO.Path]::GetRelativePath($CorePackageDir, $_.FullName).Replace('\', '/')
+        "{0}  {1}" -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $Relative
+    }
+$HashLines | Set-Content -LiteralPath (Join-Path $CorePackageDir "SHA256SUMS.txt") -Encoding UTF8
+
+$ZipSuffix = if ($NexusLite) { "-Nexus" } else { "" }
+$ZipPath = Join-Path $OutputDir "$OutputName$ZipSuffix.zip"
+if (Test-Path -LiteralPath $ZipPath) {
+    Remove-Item -LiteralPath $ZipPath -Force
+}
+Compress-Archive -Path (Join-Path $PackageDir "*") -DestinationPath $ZipPath -CompressionLevel Optimal
+$ZipSize = (Get-Item -LiteralPath $ZipPath).Length / 1MB
+Write-Host ("VFS 目录版打包完成：{0}（{1:N2} MB）" -f $ZipPath, $ZipSize) -ForegroundColor Green

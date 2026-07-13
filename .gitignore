@@ -21,3 +21,4 @@ __pycache__/
 !native/__init__.py
 !native/*.pyd
 _triage_snapshots
+nexusmods/
