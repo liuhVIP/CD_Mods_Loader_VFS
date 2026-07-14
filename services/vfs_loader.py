@@ -11,9 +11,9 @@ import logging
 import shutil
 from hashlib import sha256
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-from time import perf_counter
+from time import perf_counter, sleep
 
 from cdmm.common.constants import (
     LOGS_DIR_NAME,
@@ -49,7 +49,10 @@ from cdmm.services.scanner import (
     MOD_TYPE_JSON_PATCH,
     scan_mods,
 )
-from cdmm.services.standalone_archive_service import collect_standalone_archives
+from cdmm.services.standalone_archive_service import (
+    STANDALONE_CONFLICT_WARNING_PREFIX,
+    collect_standalone_archives,
+)
 from cdmm.storage.state_store import load_state
 from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.hash_utils import fingerprint_mods
@@ -75,6 +78,11 @@ VFS_STATE_SCHEMA = 5
 # 分包构建算法版本，必须参与缓存key。当前版本要求按最终PAMT路径去重，
 # 防止复用旧版可能含重复entry的PAZ/PAMT缓存。
 VFS_PACKAGE_BUILD_SCHEMA = 2
+
+# 冷构建返回后只读取文件元数据确认稳定，不重复读取或哈希大型 PAZ。
+VFS_STABILITY_CHECK_INTERVAL_SECONDS = 0.1
+VFS_REQUIRED_STABLE_CHECKS = 2
+VFS_STABILITY_MAX_CHECKS = 50
 
 # DMM 已验证的高风险表分包名。这里用 ASCII 常量，避免后续脚本编码踩坑。
 NPP_V3_STATUSINFO_PACKAGE = "nppv3_statusinfo"
@@ -135,6 +143,54 @@ class VfsBuildResult:
     errors: list[str]
     mapped_files: list[str]
     cache_hit: bool = False
+
+
+def build_vfs_package_for_launch(
+    game_dir: Path,
+    allow_missing_targets: bool = False,
+    progress_callback: Callable[[str], None] | None = None,
+) -> VfsBuildResult:
+    """两阶段准备 VFS：完成构建后确认文件稳定，并复核整包缓存完整性。"""
+    initial_result = build_vfs_package(
+        game_dir,
+        allow_missing_targets=allow_missing_targets,
+        progress_callback=progress_callback,
+    )
+    if initial_result.errors or initial_result.cache_hit:
+        return initial_result
+
+    _notify_progress(progress_callback, "冷构建完成，等待 VFS 文件稳定")
+    try:
+        _wait_for_vfs_outputs_stable(initial_result)
+    except (OSError, ValueError) as exc:
+        return replace(
+            initial_result,
+            errors=[*initial_result.errors, f"VFS 冷构建稳定性检查失败：{exc}"],
+        )
+
+    _notify_progress(progress_callback, "第二阶段：复核 VFS 缓存完整性")
+    verified_result = build_vfs_package(
+        game_dir,
+        allow_missing_targets=allow_missing_targets,
+        progress_callback=None,
+    )
+    if verified_result.errors:
+        return replace(
+            initial_result,
+            errors=[*initial_result.errors, *verified_result.errors],
+        )
+    if not verified_result.cache_hit:
+        return replace(
+            initial_result,
+            errors=[*initial_result.errors, "VFS 冷构建复核未命中缓存，已阻止启动游戏"],
+        )
+
+    _notify_progress(progress_callback, "第二阶段完成，VFS 文件已稳定")
+    return replace(
+        verified_result,
+        warnings=initial_result.warnings,
+        cache_hit=False,
+    )
 
 
 def build_vfs_package(
@@ -451,6 +507,9 @@ def _try_reuse_vfs_package(
         return None
     if not isinstance(state, dict) or state.get("schema") != VFS_STATE_SCHEMA:
         return None
+    # 旧状态没有持久化 standalone 冲突；只强制重建一次，确保后续每次热启动均可提示。
+    if state.get("standalone_conflicts_checked") is not True:
+        return None
     if state.get("last_fingerprint") != current_fingerprint:
         return None
     if bool(state.get("allow_missing_targets")) != bool(allow_missing_targets):
@@ -474,6 +533,17 @@ def _try_reuse_vfs_package(
     if not isinstance(overlay_packages, list):
         overlay_packages = []
     overlay_dir = state.get("overlay_dir")
+    saved_warnings = state.get("warnings")
+    if isinstance(saved_warnings, list):
+        existing = set(warnings)
+        for warning in saved_warnings:
+            if (
+                isinstance(warning, str)
+                and warning.startswith(STANDALONE_CONFLICT_WARNING_PREFIX)
+                and warning not in existing
+            ):
+                warnings.append(warning)
+                existing.add(warning)
     logger.info("VFS cache hit: %s", mapping_path)
     return VfsBuildResult(
         game_dir=game_dir,
@@ -486,6 +556,37 @@ def _try_reuse_vfs_package(
         mapped_files=normalized_files,
         cache_hit=True,
     )
+
+
+def _wait_for_vfs_outputs_stable(result: VfsBuildResult) -> None:
+    """等待所有映射产物连续两次保持大小和修改时间不变。"""
+    previous = _vfs_output_snapshot(result)
+    stable_checks = 0
+    for _ in range(VFS_STABILITY_MAX_CHECKS):
+        sleep(VFS_STABILITY_CHECK_INTERVAL_SECONDS)
+        current = _vfs_output_snapshot(result)
+        if current == previous:
+            stable_checks += 1
+            if stable_checks >= VFS_REQUIRED_STABLE_CHECKS:
+                return
+        else:
+            stable_checks = 0
+            previous = current
+    raise ValueError("VFS 文件在稳定等待窗口内持续变化")
+
+
+def _vfs_output_snapshot(result: VfsBuildResult) -> tuple[tuple[str, int, int], ...]:
+    """生成轻量文件快照；只执行 stat，不读取大型构建内容。"""
+    paths = [
+        result.mapping_path,
+        result.game_dir / WORK_DIR_NAME / VFS_STATE_FILE_NAME,
+        *(result.vfs_root / relative_path.replace("/", "\\") for relative_path in result.mapped_files),
+    ]
+    snapshot: list[tuple[str, int, int]] = []
+    for path in paths:
+        stat = path.stat()
+        snapshot.append((str(path), stat.st_size, stat.st_mtime_ns))
+    return tuple(snapshot)
 
 
 def _downgrade_missing_target_errors(errors: list[str], warnings: list[str]) -> list[str]:
@@ -799,6 +900,7 @@ def _write_vfs_state(
         "last_fingerprint": fingerprint_mods(mods),
         "allow_missing_targets": bool(allow_missing_targets),
         "active_language": active_language,
+        "standalone_conflicts_checked": True,
         "loaded_mods": [mod.name for mod in mods],
         "warnings": warnings,
         "mapped_files": mapped_files,

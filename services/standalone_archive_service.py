@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 
 from cdmm.archive.pamt import parse_pamt
@@ -19,6 +20,10 @@ from cdmm.common.models import DiscoveredMod, PazEntry
 from cdmm.services.json_loader import decompress_entry
 from cdmm.services.cdmod_package import load_cdmod_package
 from cdmm.services.scanner import MOD_TYPE_CDMOD
+
+
+# standalone 冲突提示前缀，用于构建日志、状态缓存与控制台醒目输出。
+STANDALONE_CONFLICT_WARNING_PREFIX = "[STANDALONE-CONFLICT]"
 
 
 @dataclass(frozen=True)
@@ -50,48 +55,136 @@ def collect_standalone_archives(
     previous_by_source = _previous_assigned_dirs(game_dir, previous_items or [])
 
     result: list[StandaloneArchive] = []
-    for source_dir in _iter_standalone_dirs(mods_dir, ordered_mods):
-        if _standalone_archive_is_duplicated_by_loose(source_dir):
-            if warnings is not None:
-                warnings.append(
-                    f"{source_dir.parent.name}/{source_dir.name}: standalone 内容已被同模组 loose 文件完整覆盖，已跳过重复 PAZ/PAMT"
+    for mod in ordered_mods or []:
+        if mod.path.is_dir():
+            for source_dir in _iter_standalone_dirs_for_mod(mod.path):
+                _append_directory_archive(
+                    game_dir,
+                    source_dir,
+                    previous_by_source,
+                    used_dirs,
+                    result,
+                    warnings,
                 )
-            continue
-        source_key = _source_key(game_dir, source_dir)
-        assigned_dir = previous_by_source.get(source_key)
-        if assigned_dir is None or not _can_reuse_assigned_dir(game_dir, assigned_dir, used_dirs):
-            assigned_dir = _next_free_dir(used_dirs)
-        used_dirs.add(int(assigned_dir))
+        elif mod.mod_type == MOD_TYPE_CDMOD:
+            _append_cdmod_archives(
+                game_dir,
+                mod,
+                previous_by_source,
+                used_dirs,
+                result,
+            )
+
+    # ordered_mods 为空仅用于兼容直接调用；正常构建始终采用 scan_mods 的最终顺序。
+    if ordered_mods is None:
+        for source_dir in _iter_standalone_dirs(mods_dir):
+            _append_directory_archive(
+                game_dir,
+                source_dir,
+                previous_by_source,
+                used_dirs,
+                result,
+                warnings,
+            )
+
+    if warnings is not None:
+        _append_standalone_conflict_warnings(result, warnings)
+    return result
+
+
+def _append_directory_archive(
+    game_dir: Path,
+    source_dir: Path,
+    previous_by_source: dict[str, str],
+    used_dirs: set[int],
+    result: list[StandaloneArchive],
+    warnings: list[str] | None,
+) -> None:
+    """按最终加载顺序添加一个目录型 standalone archive。"""
+    if _standalone_archive_is_duplicated_by_loose(source_dir):
+        if warnings is not None:
+            warnings.append(
+                f"{source_dir.parent.name}/{source_dir.name}: standalone 内容已被同模组 loose 文件完整覆盖，已跳过重复 PAZ/PAMT"
+            )
+        return
+    assigned_dir = _assign_archive_dir(game_dir, source_dir, previous_by_source, used_dirs)
+    result.append(
+        StandaloneArchive(
+            mod_name=source_dir.parent.name,
+            source_dir=source_dir,
+            assigned_dir=assigned_dir,
+            paz_bytes=(source_dir / OVERLAY_PAZ_NAME).read_bytes(),
+            pamt_bytes=(source_dir / OVERLAY_PAMT_NAME).read_bytes(),
+        )
+    )
+
+
+def _append_cdmod_archives(
+    game_dir: Path,
+    mod: DiscoveredMod,
+    previous_by_source: dict[str, str],
+    used_dirs: set[int],
+    result: list[StandaloneArchive],
+) -> None:
+    """按最终加载顺序添加一个 cdmod 中的 standalone archive。"""
+    package = load_cdmod_package(mod.path)
+    for index, archive in enumerate(package.standalone_archives):
+        source_dir = mod.path / f"standalone-{index}-{archive.name}"
+        assigned_dir = _assign_archive_dir(game_dir, source_dir, previous_by_source, used_dirs)
         result.append(
             StandaloneArchive(
-                mod_name=source_dir.parent.name,
+                mod_name=package.name,
                 source_dir=source_dir,
                 assigned_dir=assigned_dir,
-                paz_bytes=(source_dir / OVERLAY_PAZ_NAME).read_bytes(),
-                pamt_bytes=(source_dir / OVERLAY_PAMT_NAME).read_bytes(),
+                paz_bytes=archive.paz_bytes,
+                pamt_bytes=archive.pamt_bytes,
             )
         )
-    for mod in ordered_mods or []:
-        if mod.mod_type != MOD_TYPE_CDMOD:
+
+
+def _assign_archive_dir(
+    game_dir: Path,
+    source_dir: Path,
+    previous_by_source: dict[str, str],
+    used_dirs: set[int],
+) -> str:
+    """复用或分配 standalone 目录，并立即占用该编号。"""
+    assigned_dir = previous_by_source.get(_source_key(game_dir, source_dir))
+    if assigned_dir is None or not _can_reuse_assigned_dir(game_dir, assigned_dir, used_dirs):
+        assigned_dir = _next_free_dir(used_dirs)
+    used_dirs.add(int(assigned_dir))
+    return assigned_dir
+
+
+def _append_standalone_conflict_warnings(
+    archives: list[StandaloneArchive],
+    warnings: list[str],
+) -> None:
+    """提示同一 PAMT 对应不同 PAZ；该风险只告警，不阻止用户尝试启动。"""
+    by_pamt: dict[str, list[StandaloneArchive]] = {}
+    for archive in archives:
+        by_pamt.setdefault(sha256(archive.pamt_bytes).hexdigest(), []).append(archive)
+
+    for pamt_digest, group in by_pamt.items():
+        if len(group) < 2:
             continue
-        package = load_cdmod_package(mod.path)
-        for index, archive in enumerate(package.standalone_archives):
-            source_dir = mod.path / f"standalone-{index}-{archive.name}"
-            source_key = _source_key(game_dir, source_dir)
-            assigned_dir = previous_by_source.get(source_key)
-            if assigned_dir is None or not _can_reuse_assigned_dir(game_dir, assigned_dir, used_dirs):
-                assigned_dir = _next_free_dir(used_dirs)
-            used_dirs.add(int(assigned_dir))
-            result.append(
-                StandaloneArchive(
-                    mod_name=package.name,
-                    source_dir=source_dir,
-                    assigned_dir=assigned_dir,
-                    paz_bytes=archive.paz_bytes,
-                    pamt_bytes=archive.pamt_bytes,
-                )
-            )
-    return result
+        # 只对 PAMT 已重复的小组比较 PAZ，避免冷构建额外哈希所有大型归档。
+        paz_signatures = {
+            (len(archive.paz_bytes), sha256(archive.paz_bytes).digest())
+            for archive in group
+        }
+        if len(paz_signatures) < 2:
+            continue
+        sources = "; ".join(
+            f"{archive.mod_name}/{archive.source_dir.name} -> {archive.assigned_dir}"
+            for archive in group
+        )
+        warnings.append(
+            f"{STANDALONE_CONFLICT_WARNING_PREFIX}\n"
+            f"PAMT 索引 SHA-256: {pamt_digest[:12]}\n"
+            f"冲突 archive（加载顺序）: {sources}\n"
+            f"同一 PAMT 索引对应 {len(paz_signatures)} 份不同 PAZ；加载器将继续启动，实际结果由游戏决定。"
+        )
 
 
 def cleanup_stale_standalone_dirs(
@@ -136,13 +229,20 @@ def _iter_standalone_dirs(
     """按稳定顺序枚举 standalone archive 目录。"""
     result: list[Path] = []
     for mod_dir in _iter_ordered_mod_dirs(mods_dir, ordered_mods):
+        result.extend(_iter_standalone_dirs_for_mod(mod_dir))
+    return result
+
+
+def _iter_standalone_dirs_for_mod(mod_dir: Path) -> list[Path]:
+    """枚举单个模组目录内的 standalone archive。"""
+    return [
+        child
         for child in sorted(
             (item for item in mod_dir.iterdir() if item.is_dir() and _is_dir_name(item.name)),
             key=_path_sort_key,
-        ):
-            if (child / OVERLAY_PAZ_NAME).is_file() and (child / OVERLAY_PAMT_NAME).is_file():
-                result.append(child)
-    return result
+        )
+        if (child / OVERLAY_PAZ_NAME).is_file() and (child / OVERLAY_PAMT_NAME).is_file()
+    ]
 
 
 def _standalone_archive_is_duplicated_by_loose(source_dir: Path) -> bool:

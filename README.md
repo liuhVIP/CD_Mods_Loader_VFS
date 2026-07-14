@@ -129,8 +129,7 @@ Windows file versions are all derived from it.
 Example layout:
 
 ```text
-G:\SteamLibrary\steamapps\common\Crimson Desert\
-  bin64\CrimsonDesert.exe
+G:\SteamLibrary\steamapps\common\Crimson Desert
   mods\
     SomeMod.cdmod
     SomeLegacyMod.json
@@ -358,15 +357,14 @@ cdmod-converter-v<版本>.zip   转换旧模组为 .cdmod
 
 1. 从 [GitHub Releases](https://github.com/liuhVIP/cdmm/releases) 下载与模组匹配的
    `cdloader-VFS-v<版本>.zip`，并完整解压。
-2. 将 ZIP 解压出的外层 `cdloader-VFS-v<版本>.exe` 和同级 `cdloader` 目录一起复制到游戏根目录。
+2. 将 ZIP 解压出的外层 `cdloader-VFS-v<版本>.exe` 和同级 `cdloader` 目录一起复制到游戏根目录。G:\SteamLibrary\steamapps\common\Crimson Desert
    不能只复制 EXE。
 3. 确认游戏根目录中存在 `bin64\CrimsonDesert.exe`，模组放在 `mods` 目录。
 
 示例目录：
 
 ```text
-G:\SteamLibrary\steamapps\common\Crimson Desert\
-  bin64\CrimsonDesert.exe
+G:\SteamLibrary\steamapps\common\Crimson Desert
   mods\
     SomeMod.cdmod
     SomeLegacyMod.json
