@@ -22,7 +22,8 @@ from time import perf_counter
 
 from cdmm import cdloader_native
 from cdmm.common.constants import GAME_BIN_DIR_NAME, GAME_EXECUTABLE_NAME, LOGS_DIR_NAME, WORK_DIR_NAME
-from cdmm.services.vfs_loader import VfsBuildResult, build_vfs_package
+from cdmm.services.vfs_loader import VfsBuildResult, build_vfs_package_for_launch
+from cdmm.utils.console_alert import is_standalone_conflict, print_standalone_conflict
 
 # 默认等待秒数，保持 run_cdmm_vfs.ps1 的启动行为。
 DEFAULT_WAIT_SECONDS = 15
@@ -211,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
         progress = VfsBuildProgressPrinter()
         progress.start()
         try:
-            result = build_vfs_package(
+            result = build_vfs_package_for_launch(
                 game_dir,
                 allow_missing_targets=not args.strict_targets,
                 progress_callback=progress.update,
@@ -506,6 +507,10 @@ def file_sha256(path: Path) -> str:
 def print_vfs_result(result: VfsBuildResult) -> None:
     """输出 VFS 构建摘要。"""
     for warning in result.warnings:
+        if is_standalone_conflict(warning):
+            logging.warning(warning)
+            print_standalone_conflict(warning)
+            continue
         logging.warning(warning)
     for error in result.errors:
         logging.error(error)

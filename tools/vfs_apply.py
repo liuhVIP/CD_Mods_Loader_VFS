@@ -10,7 +10,8 @@ import argparse
 import logging
 from pathlib import Path
 
-from cdmm.services.vfs_loader import build_vfs_package
+from cdmm.services.vfs_loader import build_vfs_package_for_launch
+from cdmm.utils.console_alert import is_standalone_conflict, print_standalone_conflict
 
 
 def main() -> int:
@@ -25,11 +26,14 @@ def main() -> int:
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    result = build_vfs_package(
+    result = build_vfs_package_for_launch(
         Path(args.game_dir),
         allow_missing_targets=args.allow_missing_targets,
     )
     for warning in result.warnings:
+        if is_standalone_conflict(warning):
+            print_standalone_conflict(warning)
+            continue
         print(f"WARNING: {warning}")
     for error in result.errors:
         print(f"ERROR: {error}")
