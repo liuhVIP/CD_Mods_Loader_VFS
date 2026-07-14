@@ -26,7 +26,7 @@ from cdmm.services.cdmod_package import load_cdmod_package  # noqa: E402
 
 RELEASE_NAME = "All Non-Elemental Spears - Lightning Effects"
 RELEASE_VERSION = "2.0"
-RELEASE_SLUG = "all-non-elemental-spears-lightning-effects-v2"
+RELEASE_SLUG = "12-all-non-elemental-spears-lightning-effects-v2"
 SOURCE_FILE_NAME = "NoSpecialEffect_Polearms_Lightning_V2.field.cdmod"
 CDMOD_FILE_NAME = f"{RELEASE_NAME}-{RELEASE_VERSION}.cdmod"
 ZIP_FILE_NAME = f"{RELEASE_NAME}-{RELEASE_VERSION}.zip"
