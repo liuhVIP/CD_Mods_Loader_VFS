@@ -168,6 +168,10 @@ Do not disable a mod by deleting it from `load_order.json`; missing entries are 
 scanning. Use `disabled_mods.json`. If another manager is used, let it download, install, or organize
 mods only. Do not let another manager mount mods or launch the game while using cdloader-VFS.
 
+When no explicit order exists, mods are ordered by modification time from oldest to newest. Newer
+mods load later and therefore have higher overwrite priority; equal timestamps use the path name as
+a stable tiebreaker.
+
 Run the loader again after changing or removing mods; it detects the change and rebuilds as needed.
 If the game directory is not recognized, confirm that both the EXE and `cdloader` directory are in
 the directory containing `bin64\CrimsonDesert.exe`. If DMM or another tool has directly modified
@@ -399,6 +403,9 @@ VFS 构建数据和日志保存在游戏根目录的 `.cdloader`：
 不要通过删除 `load_order.json` 中的条目禁用模组，扫描时缺失项会自动补回；请使用
 `disabled_mods.json`。如果使用其他管理器，只让它负责下载、安装与排序，不能让它挂载
 模组或启动游戏。
+
+未提供显式排序时，模组默认按修改时间从旧到新加载；修改时间越新越靠后、覆盖优先级越高，
+时间相同则按路径名称稳定排序。
 
 切换或删除模组后再次运行加载器即可；它会检测变化并重建。若提示未识别游戏目录，请确认
 EXE 与 `cdloader` 目录都在 `bin64\CrimsonDesert.exe` 所在目录。游戏曾被 DMM 或其他工具

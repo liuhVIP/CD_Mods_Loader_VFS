@@ -23,7 +23,14 @@ from time import perf_counter
 from cdmm import cdloader_native
 from cdmm.common.constants import GAME_BIN_DIR_NAME, GAME_EXECUTABLE_NAME, LOGS_DIR_NAME, WORK_DIR_NAME
 from cdmm.services.vfs_loader import VfsBuildResult, build_vfs_package_for_launch
-from cdmm.utils.console_alert import is_standalone_conflict, print_standalone_conflict
+from cdmm.services.vfs_memory_service import (
+    VfsMemoryStatus,
+    format_gib,
+    format_memory_change,
+    format_memory_status,
+    get_vfs_memory_status,
+)
+from cdmm.utils.console_alert import is_standalone_conflict, print_standalone_conflict, print_status_line
 
 # 默认等待秒数，保持 run_cdmm_vfs.ps1 的启动行为。
 DEFAULT_WAIT_SECONDS = 15
@@ -578,6 +585,7 @@ def start_game_with_vfs(game_dir: Path, runtime_dir: Path, args: argparse.Namesp
         # 非 Steam 发行版不能伪造 AppID；保持平台无关的 ASI 直接启动路径。
         print("未识别到匹配当前游戏目录的 Steam manifest，跳过 Steam 冷启动预热。")
         logging.info("Steam 冷启动预热：非 Steam 安装或未识别到匹配 manifest，已跳过")
+    prelaunch_memory_status = print_vfs_prelaunch_memory_status("启动前内存状态")
     configure_vfs_environment(args)
     clear_native_runtime_logs(runtime_dir)
     command = build_vfs_command(game_dir, runtime_dir, args)
@@ -598,7 +606,15 @@ def start_game_with_vfs(game_dir: Path, runtime_dir: Path, args: argparse.Namesp
         game_dir / GAME_BIN_DIR_NAME / GAME_EXECUTABLE_NAME
     )
     launcher_alive = process.poll() is None
-    print_vfs_smoke_result(runtime_dir, process.pid, launcher_alive, process.returncode, target_pid, game_pid)
+    print_vfs_smoke_result(
+        runtime_dir,
+        process.pid,
+        launcher_alive,
+        process.returncode,
+        target_pid,
+        game_pid,
+        prelaunch_memory_status,
+    )
     if not launcher_alive and game_pid is None:
         return int(process.returncode or 1)
     if args.no_keep_running:
@@ -922,6 +938,7 @@ def print_vfs_smoke_result(
     launcher_exit_code: int | None,
     target_pid: int | None,
     game_pid: int | None,
+    prelaunch_memory_status: VfsMemoryStatus | None,
 ) -> None:
     """输出和旧 run_target.ps1 接近的启动验证结果。"""
     logs_dir = runtime_dir / VFS_RUNTIME_LOG_DIR_NAME
@@ -932,8 +949,54 @@ def print_vfs_smoke_result(
     print(f"  目标PID(日志)：{target_pid if target_pid else '未记录'}")
     print(f"  游戏PID：{game_pid if game_pid else '未找到'}")
     print(f"  游戏仍在运行：{bool(game_pid)}")
+    print_vfs_postlaunch_memory_status("  内存状态", prelaunch_memory_status)
     print(f"  launcher日志：{logs_dir / VFS_NATIVE_LAUNCHER_LOG_NAME}")
     print(f"  runtime日志：{logs_dir / VFS_NATIVE_RUNTIME_LOG_NAME}")
+
+
+def print_vfs_prelaunch_memory_status(label: str) -> VfsMemoryStatus | None:
+    """启动前按固定风险线显示红绿状态，但永远不阻止游戏启动。"""
+    try:
+        status = get_vfs_memory_status()
+    except OSError as exc:
+        message = f"{label}：读取失败（{exc}），继续启动游戏。"
+        print_status_line(message, success=False)
+        logging.warning(message)
+        return None
+
+    summary = format_memory_status(status)
+    print_status_line(f"{label}：{summary}", success=status.sufficient)
+    if status.sufficient:
+        print_status_line("  内存余量正常。", success=True)
+    else:
+        print_status_line(
+            "  警告：启动前内存余量偏低，游戏可能闪退或无响应；"
+            f"建议至少保留物理内存 {format_gib(status.physical_warning_threshold_bytes)}、"
+            f"提交余量 {format_gib(status.commit_warning_threshold_bytes)}。"
+            "请关闭 Edge、浏览器或其他高内存程序。",
+            success=False,
+        )
+    logging.info("%s：%s；状态=%s", label.strip(), summary, "充足" if status.sufficient else "不足")
+    return status
+
+
+def print_vfs_postlaunch_memory_status(label: str, before: VfsMemoryStatus | None) -> None:
+    """启动后只显示当前余量和变化量，不使用启动前风险线判红。"""
+    try:
+        status = get_vfs_memory_status()
+    except OSError as exc:
+        logging.warning("%s：读取失败（%s）", label.strip(), exc)
+        print(f"{label}：读取失败（{exc}）")
+        return
+
+    summary = format_memory_status(status)
+    print(f"{label}：{summary}")
+    if before is not None:
+        change = format_memory_change(before, status)
+        print(f"  启动期间余量变化：{change}")
+        logging.info("%s：%s；启动期间余量变化：%s", label.strip(), summary, change)
+        return
+    logging.info("%s：%s；没有启动前快照", label.strip(), summary)
 
 
 def pause_before_exit() -> None:

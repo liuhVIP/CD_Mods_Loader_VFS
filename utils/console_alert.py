@@ -16,6 +16,8 @@ from cdmm.services.standalone_archive_service import STANDALONE_CONFLICT_WARNING
 CONSOLE_ALERT_WIDTH = 78
 # ANSI 亮红色与复位序列；现代 Windows Terminal、PowerShell 7 和 CMD 均支持。
 ANSI_BRIGHT_RED = "\x1b[91m"
+# ANSI 亮绿色，用于明确显示运行前检查处于正常状态。
+ANSI_BRIGHT_GREEN = "\x1b[92m"
 ANSI_RESET = "\x1b[0m"
 
 
@@ -50,6 +52,16 @@ def print_standalone_conflict(message: str, stream: TextIO | None = None) -> Non
         print(f"{ANSI_BRIGHT_RED}{block}{ANSI_RESET}", file=output, flush=True)
         return
     print(block, file=output, flush=True)
+
+
+def print_status_line(message: str, *, success: bool, stream: TextIO | None = None) -> None:
+    """按成功绿色、告警红色输出状态行，重定向时保持纯文本。"""
+    output = stream or sys.stdout
+    if _supports_color(output):
+        color = ANSI_BRIGHT_GREEN if success else ANSI_BRIGHT_RED
+        print(f"{color}{message}{ANSI_RESET}", file=output, flush=True)
+        return
+    print(message, file=output, flush=True)
 
 
 def _supports_color(stream: TextIO) -> bool:

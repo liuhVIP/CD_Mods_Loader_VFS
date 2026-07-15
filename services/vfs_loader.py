@@ -75,6 +75,9 @@ VFS_PACKAGE_CACHE_DIR_NAME = "vfs_package_cache"
 # VFS 状态结构版本。分包策略变化时必须提升，避免复用旧 mapping。
 VFS_STATE_SCHEMA = 5
 
+# 空模组集合是合法状态：仍写入空映射，确保旧 VFS 映射被明确清除。
+VFS_EMPTY_MAPPING_WARNING = "没有生成 VFS overlay entry，已使用空映射启动"
+
 # 分包构建算法版本，必须参与缓存key。当前版本要求按最终PAMT路径去重，
 # 防止复用旧版可能含重复entry的PAZ/PAMT缓存。
 VFS_PACKAGE_BUILD_SCHEMA = 2
@@ -329,9 +332,18 @@ def build_vfs_package(
     _log_vfs_stage("收集 standalone 包", stage_started)
 
     if not overlay_packages and not standalone_archives:
-        warnings.append("没有生成 VFS overlay entry，mapping_tree.json 未写入")
+        warnings.append(VFS_EMPTY_MAPPING_WARNING)
+        result = _write_empty_vfs_package(
+            game_dir,
+            mods,
+            warnings,
+            allow_missing_targets,
+            active_language,
+        )
+        save_game_pamt_target_cache(game_dir)
+        _notify_progress(progress_callback, "VFS 空映射构建完成")
         _log_vfs_stage("VFS 构建总耗时", total_started)
-        return _empty_result(game_dir, mods, warnings, errors)
+        return result
 
     stage_started = perf_counter()
     vfs_root = _reset_vfs_active_dir(game_dir)
@@ -489,6 +501,43 @@ def _empty_result(
     )
 
 
+def _write_empty_vfs_package(
+    game_dir: Path,
+    mods: list[DiscoveredMod],
+    warnings: list[str],
+    allow_missing_targets: bool,
+    active_language: str | None,
+) -> VfsBuildResult:
+    """清除旧 VFS 输出并写入合法空映射，供无有效模组时正常启动。"""
+    vfs_root = _reset_vfs_active_dir(game_dir)
+    mapping_path = game_dir / WORK_DIR_NAME / VFS_MAPPING_FILE_NAME
+    mapped_files: list[str] = []
+    _write_mapping_manifest(game_dir, vfs_root, mapping_path, mapped_files)
+    _write_vfs_state(
+        game_dir,
+        vfs_root,
+        mapping_path,
+        None,
+        [],
+        mods,
+        warnings,
+        mapped_files,
+        allow_missing_targets,
+        active_language,
+    )
+    logger.info("VFS empty mapping built: %s", mapping_path)
+    return VfsBuildResult(
+        game_dir=game_dir,
+        vfs_root=vfs_root,
+        mapping_path=mapping_path,
+        overlay_dir=None,
+        loaded_mods=mods,
+        warnings=warnings,
+        errors=[],
+        mapped_files=mapped_files,
+    )
+
+
 def _try_reuse_vfs_package(
     game_dir: Path,
     mods: list[DiscoveredMod],
@@ -523,11 +572,16 @@ def _try_reuse_vfs_package(
     if not vfs_root.is_dir() or not mapping_path.is_file() or not isinstance(mapped_files, list):
         return None
     normalized_files = [item for item in mapped_files if isinstance(item, str)]
-    if len(normalized_files) != len(mapped_files) or not normalized_files:
+    if len(normalized_files) != len(mapped_files):
+        return None
+    if not normalized_files and state.get("empty_mapping") is not True:
         return None
     for relative_path in normalized_files:
         if not (vfs_root / relative_path.replace("/", "\\")).is_file():
             return None
+
+    if not normalized_files and VFS_EMPTY_MAPPING_WARNING not in warnings:
+        warnings.append(VFS_EMPTY_MAPPING_WARNING)
 
     overlay_packages = state.get("overlay_packages")
     if not isinstance(overlay_packages, list):
@@ -904,6 +958,7 @@ def _write_vfs_state(
         "loaded_mods": [mod.name for mod in mods],
         "warnings": warnings,
         "mapped_files": mapped_files,
+        "empty_mapping": not mapped_files,
     }
     state_path = game_dir / WORK_DIR_NAME / VFS_STATE_FILE_NAME
     state_path.write_text(

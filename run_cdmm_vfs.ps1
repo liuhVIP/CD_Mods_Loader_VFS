@@ -23,6 +23,8 @@ $PythonPath = Join-Path $ScriptDir ".venv\Scripts\python.exe"
 $TargetExe = Join-Path $GameDir "bin64\CrimsonDesert.exe"
 $MappingJson = Join-Path $GameDir ".cdloader\vfs_mapping_tree.json"
 $VfsRunScript = Join-Path $VfsDemoDir "run_target.ps1"
+$MemoryLog = Join-Path $GameDir ".cdloader\logs\vfs_exe_launch.log"
+$MemorySnapshot = Join-Path $GameDir ".cdloader\vfs_launch_memory_snapshot.json"
 
 function Find-PowerShellExecutable {
     # 优先使用 PowerShell 7；用户机器没有时自动降级到系统自带 Windows PowerShell。
@@ -98,6 +100,17 @@ if (-not $UseRemoteInjection) {
     }
 }
 
+# Steam 预热和 VFS 构建都可能改变可用内存，因此在原生 runtime 启动前最终复查。
+# 此检查只显示绿色正常或红色风险提示，绝不阻止启动。
+$memoryArgs = @(
+    "-m", "cdmm.tools.vfs_memory_check",
+    "--phase", "pre",
+    "--label", "启动前内存状态",
+    "--log-path", $MemoryLog,
+    "--snapshot-path", $MemorySnapshot
+)
+& $PythonPath @memoryArgs
+
 # Crimson Desert 的 ASI 插件应按游戏目录原生文件加载。
 # 默认清理进程级残留开关，避免 VFS runtime 二次 patch ASI 模块或强制扩大 NT Hook 面。
 if ($PatchAsiModules) {
@@ -141,4 +154,13 @@ Set-Location -LiteralPath $VfsDemoDir
 $PowerShellExe = Find-PowerShellExecutable
 & $PowerShellExe -NoLogo -NoProfile -ExecutionPolicy Bypass `
     -File $VfsRunScript @vfsArgs
-exit $LASTEXITCODE
+$vfsExitCode = $LASTEXITCODE
+
+# run_target.ps1 的“启动验证结果”输出完成后，补充同一时刻附近的系统内存状态。
+Set-Location -LiteralPath $RepoRoot
+& $PythonPath -m cdmm.tools.vfs_memory_check `
+    --phase post `
+    --label "启动验证内存状态" `
+    --log-path $MemoryLog `
+    --snapshot-path $MemorySnapshot
+exit $vfsExitCode

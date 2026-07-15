@@ -545,7 +545,7 @@ def _normalize_load_order(
     candidates: list[Path],
     configured_order: list[str],
 ) -> tuple[list[str], list[Path]]:
-    """删除过期排序项、补齐新增模组，并返回排序后的候选。"""
+    """删除过期排序项，并按修改时间补齐新增模组。"""
     by_key: dict[str, Path] = {}
     for candidate in candidates:
         rel = candidate.relative_to(mods_dir).as_posix()
@@ -562,7 +562,8 @@ def _normalize_load_order(
             used.add(match)
             synced_order.append(match.relative_to(mods_dir).as_posix())
 
-    for candidate in candidates:
+    # 未显式配置的模组按修改时间升序加载；时间越新越靠后，覆盖优先级越高。
+    for candidate in sorted(candidates, key=_modification_time_sort_key):
         if candidate in used:
             continue
         ordered.append(candidate)
@@ -570,6 +571,11 @@ def _normalize_load_order(
         synced_order.append(candidate.relative_to(mods_dir).as_posix())
 
     return synced_order, ordered
+
+
+def _modification_time_sort_key(path: Path) -> tuple[int, str]:
+    """返回稳定的修改时间排序键，同一时间戳再按路径名称排序。"""
+    return path.stat().st_mtime_ns, path.as_posix().lower()
 
 
 def _write_primary_load_order(game_dir: Path, synced_order: list[str], warnings: list[str]) -> None:
