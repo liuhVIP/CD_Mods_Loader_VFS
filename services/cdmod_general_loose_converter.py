@@ -156,7 +156,7 @@ def _prepare_target_matches(index, sources: list[_LooseSource]):
         if entry is None or item.declared_pamt_dir is not None:
             continue
         source_parent = str(Path(item.target).parent).replace("\\", "/").lower()
-        entry_parent = lower_game_rel_path(str(Path(entry.path).parent))
+        entry_parent = _entry_parent_path(entry)
         hint_candidates.setdefault(source_parent, set()).add(
             (derive_pamt_dir(entry.paz_file), entry_parent)
         )
@@ -191,12 +191,29 @@ def _resolve_target(
         target = f"{target_parent}/{Path(item.target).name}" if target_parent != "." else Path(item.target).name
         inferred = _infer_dds_target_from_pathc(game_dir, item.target)
         return inferred or lower_game_rel_path(target), pamt_dir, True
-    target = lower_game_rel_path(entry.path)
+    # PAMT 的 entry.path 可能只有扁平 basename，真实目录保存在 folder record。
+    # cdmod 必须保存完整最终路径，否则男女动作等同名资源会再次产生歧义。
+    target = _entry_final_path(entry)
     if item.target.endswith(".dds"):
         inferred = _infer_dds_target_from_pathc(game_dir, item.target)
         if inferred is not None:
             target = inferred
     return target, derive_pamt_dir(entry.paz_file), False
+
+
+def _entry_final_path(entry) -> str:
+    """使用 PAMT folder record 还原资源的真实最终路径。"""
+    entry_path = lower_game_rel_path(entry.path)
+    parent = _entry_parent_path(entry)
+    basename = entry_path.rsplit("/", 1)[-1]
+    return f"{parent}/{basename}" if parent and parent != "." else entry_path
+
+
+def _entry_parent_path(entry) -> str:
+    """优先返回 PAMT folder record，缺失时退回扁平 entry 父目录。"""
+    if entry.resolved_dir_path:
+        return lower_game_rel_path(entry.resolved_dir_path).rstrip("/")
+    return lower_game_rel_path(str(Path(entry.path).parent))
 
 
 def _read_metadata(source_dir: Path) -> dict[str, object]:

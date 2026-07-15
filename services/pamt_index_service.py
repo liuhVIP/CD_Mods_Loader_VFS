@@ -112,7 +112,7 @@ class GamePamtIndex:
         for dir_name, _mtime, _size in self.signature:
             for entry in self.entries_in_dir(dir_name):
                 entry_key = lower_game_rel_path(entry.path)
-                if entry_key == normalized:
+                if normalized in _entry_lookup_keys(entry):
                     exact_matches.append(entry)
                 if os.path.basename(entry_key) == basename:
                     basename_matches.append(entry)
@@ -234,7 +234,8 @@ class GamePamtIndex:
         basename_index: dict[str, list[PazEntry]] = {}
         for entry in self.by_dir.get(pamt_dir, []):
             entry_key = lower_game_rel_path(entry.path)
-            exact.setdefault(entry_key, []).append(entry)
+            for lookup_key in _entry_lookup_keys(entry):
+                exact.setdefault(lookup_key, []).append(entry)
             basename_index.setdefault(os.path.basename(entry_key), []).append(entry)
         self.by_dir_exact[pamt_dir] = exact
         self.by_dir_basename[pamt_dir] = basename_index
@@ -441,10 +442,23 @@ def _match_score(entry: PazEntry, normalized: str, basename: str) -> tuple[int, 
         pamt_number = int(derive_pamt_dir(entry.paz_file))
     except ValueError:
         pamt_number = 9999
-    exact_score = 0 if entry_key == normalized else 1
+    exact_score = 0 if normalized in _entry_lookup_keys(entry) else 1
     gamedata_score = 0 if entry_key.startswith("gamedata/") else 1
     basename_score = 0 if os.path.basename(entry_key) == basename else 1
     return exact_score, gamedata_score + basename_score, pamt_number
+
+
+def _entry_lookup_keys(entry: PazEntry) -> set[str]:
+    """返回扁平查询路径和 PAMT folder record 还原出的真实完整路径。"""
+    entry_key = lower_game_rel_path(entry.path)
+    keys = {entry_key}
+    if not entry.resolved_dir_path:
+        return keys
+    resolved_dir = lower_game_rel_path(entry.resolved_dir_path).rstrip("/")
+    basename = os.path.basename(entry_key)
+    if resolved_dir and basename:
+        keys.add(f"{resolved_dir}/{basename}")
+    return keys
 
 
 def _cache_path(game_dir: Path) -> Path:

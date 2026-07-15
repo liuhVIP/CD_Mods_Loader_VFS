@@ -303,12 +303,12 @@ def build_mod(
 
 def _parse_args() -> argparse.Namespace:
     """解析命令行参数。"""
-    parser = argparse.ArgumentParser(description="生成敌人五倍生命值 .cdmod")
+    parser = argparse.ArgumentParser(description="生成敌人生命倍率 .cdmod")
     parser.add_argument("--game-dir", type=Path, required=True, help="Crimson Desert 游戏目录")
     parser.add_argument(
         "--multiplier",
         type=int,
-        choices=(2, 3, 4, 5),
+        choices=(2, 3, 4, 5, 10, 20),
         default=5,
         help="敌人基础生命值倍率",
     )
