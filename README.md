@@ -96,7 +96,7 @@ in-game verification:
 
 | Capability | Representative verification |
 | --- | --- |
-| Format 3 cross-table and array fields | Equip Everything, No Fall Damage, 4xAtkSpd |
+| Format 3 cross-table and array fields | Equip Everything, No Fall Damage, Direct Attack Speed 4x and Direct Movement Speed 4x (always active without stat gear) |
 | Multilingual PALOC | Display Take and Steal Price preserves the active language and appends prices |
 | Resource transforms and replacements | K-Makeup for Cordelia, Male Glide Animation, Electro Mecha Longsword To Lightsaber |
 | Legacy and resource mods | legacy JSON, loose/DDS/WEM/PAA/PAC, standalone PAZ/PAMT |
@@ -152,8 +152,14 @@ game. Normal use does not require Python or manual PAZ, PAMT, PAPGT, or PATHC ed
 
 On the first Steam launch after each Windows restart, the loader performs one clean Steam warm-up.
 Enter the main menu and exit normally; the loader then continues automatically with the VFS launch.
-Later VFS launches in the same Windows boot session do not repeat the warm-up. Non-Steam editions
-skip this step.
+Later VFS launches in the same Windows boot session normally reuse that warm-up. If a later VFS
+launch stops at data load `2/12` and Windows reports `0xC0000005` at
+`CrimsonDesert.exe+0xAD164D0`, the earlier warm-up is invalidated and the loader automatically runs
+a clean recovery warm-up before trying VFS again. Non-Steam editions skip this step.
+
+Each cold build now writes to a unique immutable directory under `.cdloader\vfs_active` and only
+switches the mapping after the snapshot is complete. Removing a crashing mod therefore does not
+reuse the same absolute PAZ/PAMT source path that was active during the failed launch.
 
 VFS build data and logs are stored under `.cdloader` in the game root:
 
@@ -337,7 +343,7 @@ JSON v3.1 是表格修改的**语义描述格式**；`.cdmod` 是可以承载这
 
 | 能力 | 代表验证 |
 | --- | --- |
-| Format 3 跨表与数组字段 | Equip Everything、No Fall Damage、4xAtkSpd |
+| Format 3 跨表与数组字段 | Equip Everything、No Fall Damage、Direct Attack Speed 4x与Direct Movement Speed 4x（无需对应属性装备直接生效） |
 | 多语言 PALOC | Display Take and Steal Price 按活动语言保留原文并追加价格 |
 | 资源变换与替换 | K-Makeup for Cordelia、Male Glide Animation、Electro Mecha Longsword To Lightsaber |
 | 传统与资源型模组 | legacy JSON、loose/DDS/WEM/PAA/PAC、standalone PAZ/PAMT |
@@ -389,7 +395,12 @@ Format 3 / JSON v3.1 操作、loose files、DDS 与其他已支持资源，以�
 手动编辑 PAZ、PAMT、PAPGT 或 PATHC。
 
 Windows 每次重启后的首次 Steam 版启动会先进行一次纯 Steam 预热：进入游戏主菜单后正常退出，
-加载器会自动继续 VFS 启动。后续同一开机周期的 VFS 启动不会重复预热。非 Steam 版本会跳过该步骤。
+加载器会自动继续 VFS 启动。后续同一开机周期通常复用该预热；如果之后某次 VFS 启动停在数据加载
+`2/12`，且 Windows 报告 `0xC0000005 / CrimsonDesert.exe+0xAD164D0`，加载器会立即作废旧预热，
+并在下一次 VFS 启动前自动执行恢复性纯 Steam 预热。非 Steam 版本会跳过该步骤。
+
+每次冷构建会在 `.cdloader\vfs_active` 下创建唯一、不可变的活动快照，全部文件完成后才切换
+映射。这样删除导致崩溃的模组后，不会继续复用失败启动时相同的 PAZ/PAMT 绝对源路径。
 
 VFS 构建数据和日志保存在游戏根目录的 `.cdloader`：
 

@@ -56,7 +56,7 @@ DDS/PATHC、WEM、PAA/PAC 等资源通过统一资源组件进入最终 overlay�
 | 类型 | 代表案例 | 已验证结果 |
 | --- | --- | --- |
 | Format 3 跨表语义补丁 | Equip Everything、No Fall Damage | 装备表、物品表、Buff 表组合生效 |
-| Format 3 数组字段 | 4xAtkSpd | `statusinfo.stat_level_data[N]` 动态数组生效 |
+| Format 3 数组字段 | Direct Attack Speed 4x、Direct Movement Speed 4x | `statusinfo.stat_level_data[0-15]` 全档固定值，无需对应属性装备直接生效 |
 | PALOC 动态本地化 | Display take and steal price | 根据活动语言从游戏原文重建并追加价格 |
 | 角色资源变换 | K-Makeup for Cordelia | 头部资源映射到指定脸型后生效 |
 | 动画资源替换 | Male Glide Animation | PAA 动画替换生效，膨胀压缩自动改为原始存储 |

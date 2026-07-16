@@ -16,7 +16,7 @@ def main() -> int:
     args = parser.parse_args()
 
     work_dir = args.game_dir / ".cdloader"
-    active_dir = work_dir / "vfs_active"
+    active_dir = _resolve_active_snapshot_dir(work_dir)
     mapping_path = work_dir / "vfs_mapping_tree.json"
     errors: list[str] = []
     package_stats: list[dict[str, object]] = []
@@ -82,6 +82,17 @@ def main() -> int:
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result["valid"] else 2
+
+
+def _resolve_active_snapshot_dir(work_dir: Path) -> Path:
+    """优先读取状态中的不可变快照路径，并兼容旧版固定 vfs_active 目录。"""
+    state_path = work_dir / "vfs_state.json"
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return work_dir / "vfs_active"
+    configured = state.get("vfs_root") if isinstance(state, dict) else None
+    return Path(configured) if isinstance(configured, str) and configured else work_dir / "vfs_active"
 
 
 def _load_cached_final_paths(

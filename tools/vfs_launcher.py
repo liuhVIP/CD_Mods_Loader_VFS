@@ -30,6 +30,11 @@ from cdmm.services.vfs_memory_service import (
     format_memory_status,
     get_vfs_memory_status,
 )
+from cdmm.services.vfs_warmup_state_service import (
+    STEAM_WARMUP_MARKER_FILE_NAME,
+    SteamWarmupState,
+    evaluate_steam_warmup_state,
+)
 from cdmm.utils.console_alert import is_standalone_conflict, print_standalone_conflict, print_status_line
 
 # 默认等待秒数，保持 run_cdmm_vfs.ps1 的启动行为。
@@ -66,12 +71,6 @@ VFS_RUNTIME_FILE_NAMES = REQUIRED_VFS_RUNTIME_FILE_NAMES + VFS_RUNTIME_DEPENDENC
 
 # VFS runtime 日志目录名。
 VFS_RUNTIME_LOG_DIR_NAME = "logs"
-
-# 当前 Windows 开机会话完成纯净 Steam 预热后的标记文件。
-STEAM_WARMUP_MARKER_FILE_NAME = "steam_warmup_boot.marker"
-
-# 游戏自身日志目录，用于确认本次开机是否已经完整加载到 12/12。
-GAME_RUNTIME_LOG_REL_DIR = Path("Pearl Abyss") / "log"
 
 # Steam 冷启动等待游戏进程出现的最长秒数。
 STEAM_WARMUP_START_TIMEOUT_SECONDS = 120
@@ -623,16 +622,22 @@ def start_game_with_vfs(game_dir: Path, runtime_dir: Path, args: argparse.Namesp
 
 
 def ensure_steam_warmup_for_current_boot(game_dir: Path, steam_app_id: str) -> None:
-    """每次 Windows 开机先完成一次无 VFS 的 Steam 原生预热。"""
-    if steam_warmup_completed_for_current_boot(game_dir):
-        logging.info("Steam 冷启动预热：本次开机已完成，直接进入 VFS")
+    """每次 Windows 开机或固定偏移崩溃后完成无 VFS 的 Steam 原生预热。"""
+    warmup_state = steam_warmup_state_for_current_boot(game_dir)
+    if warmup_state.completed:
+        logging.info("Steam 冷启动预热：%s，直接进入 VFS", warmup_state.reason)
         return
 
     target_exe = (game_dir / GAME_BIN_DIR_NAME / GAME_EXECUTABLE_NAME).resolve()
     cleanup_owned_asi_runtime_files(target_exe.parent)
     previous_pids = set(find_processes_by_exact_paths([target_exe]))
     print("")
-    print("检测到本次开机尚未完成 Steam 冷启动预热。")
+    if warmup_state.recovery_required:
+        print("检测到上次 VFS 启动在数据加载 2/12 以 0xAD164D0 崩溃。")
+        print("之前的 Steam 预热状态已失效，正在执行恢复性纯净启动。")
+        logging.warning("Steam 预热状态失效：%s", warmup_state.reason)
+    else:
+        print("检测到本次开机尚未完成 Steam 冷启动预热。")
     print("正在先以纯净模式启动游戏；进入主菜单后请正常退出游戏。")
     print("退出后加载器会自动继续启动 VFS 模组，无需再次运行本程序。")
     logging.info("Steam 冷启动预热：请求纯净启动 AppID=%s", steam_app_id)
@@ -688,28 +693,14 @@ def current_boot_time_seconds() -> float:
 
 
 def steam_warmup_completed_for_current_boot(game_dir: Path) -> bool:
-    """检查本次开机是否已有加载器标记或游戏 12/12 成功日志。"""
-    boot_time = current_boot_time_seconds()
-    marker = game_dir / WORK_DIR_NAME / STEAM_WARMUP_MARKER_FILE_NAME
-    try:
-        if marker.stat().st_mtime >= boot_time:
-            return True
-    except OSError:
-        pass
+    """兼容旧调用方，返回当前预热状态是否有效。"""
+    return steam_warmup_state_for_current_boot(game_dir).completed
 
-    local_app_data = os.environ.get("LOCALAPPDATA", "")
-    if not local_app_data:
-        return False
-    log_dir = Path(local_app_data) / GAME_RUNTIME_LOG_REL_DIR
-    for log_path in sorted(log_dir.glob("Launcher_*.log"), reverse=True)[:20]:
-        try:
-            if log_path.stat().st_mtime < boot_time:
-                continue
-            if "(12/12)" in log_path.read_text(encoding="utf-8", errors="ignore"):
-                return True
-        except OSError:
-            continue
-    return False
+
+def steam_warmup_state_for_current_boot(game_dir: Path) -> SteamWarmupState:
+    """返回当前开机按成功与固定偏移崩溃时间线计算的预热状态。"""
+    boot_time = current_boot_time_seconds()
+    return evaluate_steam_warmup_state(game_dir, boot_time)
 
 
 def write_steam_warmup_marker(game_dir: Path) -> None:

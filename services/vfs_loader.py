@@ -14,6 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter, sleep
+from uuid import uuid4
 
 from cdmm.common.constants import (
     LOGS_DIR_NAME,
@@ -59,8 +60,17 @@ from cdmm.utils.hash_utils import fingerprint_mods
 
 logger = logging.getLogger(__name__)
 
-# VFS 输出目录名，所有虚拟产物都集中到这里，便于一键清理和重复试跑。
+# VFS 输出根目录名；每次冷构建在其下创建不可变快照，避免复用崩溃过的固定路径。
 VFS_ACTIVE_DIR_NAME = "vfs_active"
+
+# VFS 活动快照目录前缀，用于与旧版直接写在 vfs_active 下的包目录区分。
+VFS_ACTIVE_SNAPSHOT_PREFIX = "snapshot-"
+
+# 活动快照目录中保留的模组指纹长度，便于现场快速关联 vfs_state。
+VFS_ACTIVE_SNAPSHOT_FINGERPRINT_LENGTH = 16
+
+# 最多保留的活动快照数量；旧快照删除失败不能阻断下一次启动。
+VFS_ACTIVE_SNAPSHOT_RETAIN_COUNT = 3
 
 # vfsDmoe 精确映射清单文件名。
 VFS_MAPPING_FILE_NAME = "vfs_mapping_tree.json"
@@ -72,8 +82,8 @@ VFS_STATE_FILE_NAME = "vfs_state.json"
 # 打包大 PAZ 并计算纯 Python hashlittle。
 VFS_PACKAGE_CACHE_DIR_NAME = "vfs_package_cache"
 
-# VFS 状态结构版本。分包策略变化时必须提升，避免复用旧 mapping。
-VFS_STATE_SCHEMA = 5
+# VFS 状态结构版本。v6 改为不可变活动快照，禁止复用旧固定路径 mapping。
+VFS_STATE_SCHEMA = 6
 
 # 空模组集合是合法状态：仍写入空映射，确保旧 VFS 映射被明确清除。
 VFS_EMPTY_MAPPING_WARNING = "没有生成 VFS overlay entry，已使用空映射启动"
@@ -346,7 +356,7 @@ def build_vfs_package(
         return result
 
     stage_started = perf_counter()
-    vfs_root = _reset_vfs_active_dir(game_dir)
+    vfs_root = _create_vfs_active_snapshot_dir(game_dir, current_fingerprint)
     mapped_files: list[str] = []
     modified_pamts: dict[str, bytes] = {}
     package_built_entries: list[BuiltOverlayEntry] = []
@@ -446,6 +456,7 @@ def build_vfs_package(
         allow_missing_targets,
         active_language,
     )
+    _prune_inactive_vfs_snapshots(game_dir, vfs_root)
     save_game_pamt_target_cache(game_dir)
     _log_vfs_stage("写入 VFS 状态和目标缓存", stage_started)
     _notify_progress(progress_callback, "VFS 构建完成")
@@ -508,8 +519,8 @@ def _write_empty_vfs_package(
     allow_missing_targets: bool,
     active_language: str | None,
 ) -> VfsBuildResult:
-    """清除旧 VFS 输出并写入合法空映射，供无有效模组时正常启动。"""
-    vfs_root = _reset_vfs_active_dir(game_dir)
+    """创建独立空快照并写入合法空映射，供无有效模组时正常启动。"""
+    vfs_root = _create_vfs_active_snapshot_dir(game_dir, fingerprint_mods(mods))
     mapping_path = game_dir / WORK_DIR_NAME / VFS_MAPPING_FILE_NAME
     mapped_files: list[str] = []
     _write_mapping_manifest(game_dir, vfs_root, mapping_path, mapped_files)
@@ -525,6 +536,7 @@ def _write_empty_vfs_package(
         allow_missing_targets,
         active_language,
     )
+    _prune_inactive_vfs_snapshots(game_dir, vfs_root)
     logger.info("VFS empty mapping built: %s", mapping_path)
     return VfsBuildResult(
         game_dir=game_dir,
@@ -878,16 +890,52 @@ def _built_entry_from_json(raw: object) -> BuiltOverlayEntry | None:
         return None
 
 
-def _reset_vfs_active_dir(game_dir: Path) -> Path:
-    """重建本次 VFS 输出目录，只清理 .cdloader 内部实验目录。"""
-    vfs_root = game_dir / WORK_DIR_NAME / VFS_ACTIVE_DIR_NAME
-    expected_parent = (game_dir / WORK_DIR_NAME).resolve()
-    if vfs_root.exists() and vfs_root.resolve().parent != expected_parent:
-        raise ValueError(f"VFS 输出目录异常，拒绝清理：{vfs_root}")
-    if vfs_root.exists():
-        shutil.rmtree(vfs_root)
-    vfs_root.mkdir(parents=True, exist_ok=True)
-    return vfs_root
+def _create_vfs_active_snapshot_dir(game_dir: Path, fingerprint: str) -> Path:
+    """为本次冷构建创建唯一快照，避免覆盖仍被旧进程或保护层记住的路径。"""
+    active_root = game_dir / WORK_DIR_NAME / VFS_ACTIVE_DIR_NAME
+    active_root.mkdir(parents=True, exist_ok=True)
+    fingerprint_prefix = fingerprint[:VFS_ACTIVE_SNAPSHOT_FINGERPRINT_LENGTH]
+    for _ in range(3):
+        snapshot_name = f"{VFS_ACTIVE_SNAPSHOT_PREFIX}{fingerprint_prefix}-{uuid4().hex[:12]}"
+        snapshot_dir = active_root / snapshot_name
+        try:
+            snapshot_dir.mkdir()
+            return snapshot_dir
+        except FileExistsError:
+            continue
+    raise RuntimeError("无法创建唯一 VFS 活动快照目录")
+
+
+def _prune_inactive_vfs_snapshots(game_dir: Path, active_snapshot: Path) -> None:
+    """限量回收旧快照；残留句柄导致删除失败时保留现场并继续使用新快照。"""
+    active_root = game_dir / WORK_DIR_NAME / VFS_ACTIVE_DIR_NAME
+    try:
+        snapshots = sorted(
+            (
+                path
+                for path in active_root.iterdir()
+                if path.is_dir() and path.name.startswith(VFS_ACTIVE_SNAPSHOT_PREFIX)
+            ),
+            key=lambda path: path.stat().st_mtime_ns,
+            reverse=True,
+        )
+    except OSError as exc:
+        logger.warning("VFS 旧快照枚举失败，已保留现场：%s", exc)
+        return
+
+    retained = {active_snapshot.resolve()}
+    for snapshot in snapshots:
+        if len(retained) >= VFS_ACTIVE_SNAPSHOT_RETAIN_COUNT:
+            break
+        retained.add(snapshot.resolve())
+
+    for snapshot in snapshots:
+        try:
+            if snapshot.resolve() in retained:
+                continue
+            shutil.rmtree(snapshot)
+        except OSError as exc:
+            logger.warning("VFS 旧快照仍被占用，暂不清理 %s：%s", snapshot, exc)
 
 
 def _write_vfs_file(vfs_root: Path, relative_path: str, content: bytes | bytearray) -> None:
