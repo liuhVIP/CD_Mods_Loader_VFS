@@ -11,7 +11,23 @@ import logging
 from pathlib import Path
 
 from cdmm.services.vfs_loader import build_vfs_package_for_launch
-from cdmm.utils.console_alert import is_standalone_conflict, print_standalone_conflict
+from cdmm.utils.console_alert import (
+    is_high_risk_mod_warning,
+    is_standalone_conflict,
+    print_high_risk_mod_warning,
+    print_standalone_conflict,
+)
+
+
+def print_vfs_warning(warning: str) -> None:
+    """按风险类型输出 VFS 构建告警，高风险资源复用 CMD 亮红色块。"""
+    if is_high_risk_mod_warning(warning):
+        print_high_risk_mod_warning(warning)
+        return
+    if is_standalone_conflict(warning):
+        print_standalone_conflict(warning)
+        return
+    print(f"WARNING: {warning}")
 
 
 def main() -> int:
@@ -31,10 +47,7 @@ def main() -> int:
         allow_missing_targets=args.allow_missing_targets,
     )
     for warning in result.warnings:
-        if is_standalone_conflict(warning):
-            print_standalone_conflict(warning)
-            continue
-        print(f"WARNING: {warning}")
+        print_vfs_warning(warning)
     for error in result.errors:
         print(f"ERROR: {error}")
     if result.errors:

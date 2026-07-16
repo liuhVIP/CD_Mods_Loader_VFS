@@ -26,6 +26,7 @@ from cdmm.common.constants import (
     WORK_DIR_NAME,
 )
 from cdmm.common.models import DiscoveredMod
+from cdmm.services.mod_risk_service import collect_high_risk_mod_warnings
 from cdmm.utils.hash_utils import fingerprint_path
 from cdmm.utils.json_utils import load_json_object, load_json_optional
 from cdmm.utils.path_utils import game_rel_path
@@ -97,6 +98,7 @@ def scan_mods(game_dir: Path) -> tuple[list[DiscoveredMod], list[str]]:
         [mod.path.relative_to(mods_dir).as_posix() for mod in discovered],
         warnings,
     )
+    warnings.extend(collect_high_risk_mod_warnings(discovered))
     return discovered, warnings
 
 

@@ -35,7 +35,13 @@ from cdmm.services.vfs_warmup_state_service import (
     SteamWarmupState,
     evaluate_steam_warmup_state,
 )
-from cdmm.utils.console_alert import is_standalone_conflict, print_standalone_conflict, print_status_line
+from cdmm.utils.console_alert import (
+    is_high_risk_mod_warning,
+    is_standalone_conflict,
+    print_high_risk_mod_warning,
+    print_standalone_conflict,
+    print_status_line,
+)
 
 # 默认等待秒数，保持 run_cdmm_vfs.ps1 的启动行为。
 DEFAULT_WAIT_SECONDS = 15
@@ -513,6 +519,10 @@ def file_sha256(path: Path) -> str:
 def print_vfs_result(result: VfsBuildResult) -> None:
     """输出 VFS 构建摘要。"""
     for warning in result.warnings:
+        if is_high_risk_mod_warning(warning):
+            logging.warning(warning)
+            print_high_risk_mod_warning(warning)
+            continue
         if is_standalone_conflict(warning):
             logging.warning(warning)
             print_standalone_conflict(warning)

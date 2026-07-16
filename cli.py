@@ -39,6 +39,7 @@ from cdmm.services.scanner import (
     MOD_TYPE_STANDALONE_ARCHIVE,
 )
 from cdmm.storage.state_store import load_state
+from cdmm.utils.console_alert import is_high_risk_mod_warning, print_high_risk_mod_warning
 
 # 中文语言标识，写入用户界面配置文件。
 LANGUAGE_ZH = "zh-CN"
@@ -488,6 +489,9 @@ def run_apply_command(game_dir: Path, language: str = DEFAULT_LANGUAGE) -> Loade
 
 def print_result(command: str, result: LoaderResult, elapsed_seconds: float, language: str) -> int:
     """统一输出精简控制台结果。"""
+    for warning in result.warnings:
+        if is_high_risk_mod_warning(warning):
+            print_high_risk_mod_warning(warning)
     for error in result.errors:
         print(text("error", language, error=error), file=sys.stderr)
     if result.errors:
