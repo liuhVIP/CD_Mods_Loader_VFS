@@ -124,6 +124,9 @@ if (-not $EnableNtOpenFileHook) {
     [Environment]::SetEnvironmentVariable("VFS_DEMO_ENABLE_NT_OPEN_FILE", $null, "Process")
 }
 
+[Environment]::SetEnvironmentVariable("VFS_DEMO_PATCH_LATE_MODULES", $null, "Process")
+[Environment]::SetEnvironmentVariable("VFS_DEMO_HOOK_BACKEND", "safetyhook", "Process")
+
 $vfsArgs = @(
     "-TargetExe", $TargetExe,
     "-Configuration", "Release",

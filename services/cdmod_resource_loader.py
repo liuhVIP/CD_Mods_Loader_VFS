@@ -12,6 +12,10 @@ from cdmm.services.pamt_index_service import get_game_pamt_index
 from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.path_utils import lower_game_rel_path
 
+# resource-transform 需要显式处理游戏使用的下划线 XML；该规则只作用于
+# 资源复制链，不扩大 PazEntry 的全局加密后缀判断。
+ENCRYPTED_RESOURCE_TRANSFORM_SUFFIXES = ("_xml",)
+
 
 def collect_resource_pamt_targets(packages: list[CdmodPackage]) -> list[str]:
     """收集资源变换需要精确查询的源和目标。"""
@@ -95,7 +99,7 @@ def _build_copy_entry(
         operation.target,
         base_entries,
     )
-    content, _detected_source = extract_plaintext(source)
+    content, _detected_source = _extract_resource_plaintext(source)
     template = _entry_template(target, vanilla_store)
     return _with_content(template, content)
 
@@ -118,7 +122,7 @@ def _build_replace_entry(
         content = source.content
         template = source
     else:
-        content, detected = extract_plaintext(source)
+        content, detected = _extract_resource_plaintext(source)
         template = _entry_template(detected, vanilla_store)
     applied = 0
     already = 0
@@ -174,8 +178,22 @@ def _entry_template(
         entry_path=entry.path,
         pamt_dir=derive_pamt_dir(entry.paz_file),
         compression_type=entry.compression_type,
-        encrypted=entry.encrypted,
+        encrypted=_is_resource_transform_encrypted(entry),
         crypto_filename=Path(entry.path).name,
+    )
+
+
+def _extract_resource_plaintext(entry: PazEntry) -> tuple[bytes, PazEntry]:
+    """读取资源变换明文，并对下划线 XML 显式启用加密探测。"""
+    if _is_resource_transform_encrypted(entry):
+        entry = entry.with_encrypted_override(True)
+    return extract_plaintext(entry)
+
+
+def _is_resource_transform_encrypted(entry: PazEntry) -> bool:
+    """判断资源变换目标是否使用按文件名派生密钥的加密。"""
+    return entry.encrypted or entry.path.casefold().endswith(
+        ENCRYPTED_RESOURCE_TRANSFORM_SUFFIXES
     )
 
 

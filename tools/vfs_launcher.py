@@ -689,7 +689,14 @@ def wait_for_new_target_process(target_exe: Path, previous_pids: set[int], timeo
 
 def cleanup_owned_asi_runtime_files(game_bin_dir: Path) -> None:
     """纯净预热前清理加载器自有的临时 ASI 和 sidecar。"""
-    for pattern in ("nppvfs_runtime_*.asi", "nppvfs_runtime_*.asi.env"):
+    for pattern in (
+        "zzz_nppvfs_runtime_*.asi",
+        "zzz_nppvfs_runtime_*.asi.env",
+        "000_nppvfs_runtime_*.asi",
+        "000_nppvfs_runtime_*.asi.env",
+        "nppvfs_runtime_*.asi",
+        "nppvfs_runtime_*.asi.env",
+    ):
         for path in game_bin_dir.glob(pattern):
             try:
                 path.unlink()
@@ -763,6 +770,8 @@ def ensure_no_running_target(game_dir: Path, allow_running_target: bool) -> None
 
 def configure_vfs_environment(args: argparse.Namespace) -> None:
     """配置 vfsDmoe runtime 环境变量，默认跳过 ASI patch 和 NT OpenFile Hook。"""
+    os.environ["VFS_DEMO_HOOK_BACKEND"] = "safetyhook"
+    os.environ.pop("VFS_DEMO_PATCH_LATE_MODULES", None)
     if args.patch_asi_modules:
         os.environ["VFS_DEMO_PATCH_ASI_MODULES"] = "1"
     else:

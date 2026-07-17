@@ -39,6 +39,9 @@ PARTICLE_TEXTURE_NAME = FLIGHT_CLOAK_TEXTURE_NAMES[3]
 # 低亮暖红粒子，避免重新形成一整片高亮披风轮廓。
 SUBTLE_RED_PARTICLE_RGB = (160, 28, 12)
 
+# 默认版本名保持与已实机确认的红色轻量版一致。
+DEFAULT_SLIM_VARIANT_NAME = "Slim Red Flight Cloak - Particle Accents"
+
 
 @dataclass(frozen=True)
 class HiddenFlightCloakBuildResult:
@@ -49,14 +52,17 @@ class HiddenFlightCloakBuildResult:
     hidden_texture_count: int
     particle_texture_count: int
     payload_bytes: int
+    particle_rgb: tuple[int, int, int]
+    variant_name: str
 
 
 def build_hidden_flight_cloak_particle_mod(
     source_dir: Path,
     output_path: Path,
     particle_rgb: tuple[int, int, int] = SUBTLE_RED_PARTICLE_RGB,
+    variant_name: str = DEFAULT_SLIM_VARIANT_NAME,
 ) -> HiddenFlightCloakBuildResult:
-    """基于已验证白色资源生成无实体披风、红色粒子版 cdmod。"""
+    """基于已验证白色资源生成轻量披风、指定颜色粒子版 cdmod。"""
     source_dir = source_dir.resolve()
     output_path = output_path.resolve()
     texture_root = source_dir / "files" / TARGET_PAMT_DIR / TARGET_TEXTURE_DIR
@@ -95,12 +101,12 @@ def build_hidden_flight_cloak_particle_mod(
     manifest_document = {
         "format": CDMOD_FORMAT_NAME,
         "format_version": CDMOD_FORMAT_VERSION,
-        "id": "cdmm-slim-red-flight-cloak-particle-accents",
-        "name": "Slim Red Flight Cloak - Particle Accents",
+        "id": f"cdmm-slim-flight-cloak-{particle_hex[1:].lower()}-particle-accents",
+        "name": variant_name,
         "version": "1.0",
         "author": "Destriee / Deletriuz reference / cdmm",
         "description": (
-            "Creates a slimmer red flight-cloak appearance with subtle red spline "
+            f"Creates a slimmer flight-cloak appearance with subtle {particle_hex} spline "
             "particle accents. This variant does not fully remove the cloak mesh."
         ),
         "dependencies": [],
@@ -153,6 +159,8 @@ def build_hidden_flight_cloak_particle_mod(
         hidden_texture_count=len(HIDDEN_TEXTURE_NAMES),
         particle_texture_count=1,
         payload_bytes=payload_bytes,
+        particle_rgb=particle_rgb,
+        variant_name=variant_name,
     )
 
 

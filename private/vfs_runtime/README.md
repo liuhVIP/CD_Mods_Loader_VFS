@@ -11,6 +11,8 @@
 
 `nppvfs_launcher.exe` 负责启动目标游戏并注入 VFS runtime，`vfs_runtime.dll`
 负责在游戏进程内按 `.cdloader/vfs_mapping_tree.json` 执行虚拟文件重定向。
+源码工程生成的 `vfs_launcher.exe` 同步到本目录时必须重命名为
+`nppvfs_launcher.exe`，以匹配 Python 启动器与发布目录的固定资产名称。
 后四个 DLL 是原生启动器常见的 VC/UCRT 运行库依赖，用于减少用户机器缺少运行库时
 出现连环系统弹窗。它们不是完整依赖清单，用户机器仍建议安装完整 Microsoft Visual C++
 2015-2022 x64 运行库。
@@ -20,5 +22,14 @@
 否则用户会缺少 `MSVCP140D.dll`、`VCRUNTIME140D.dll`、`VCRUNTIME140_1D.dll`、
 `ucrtbased.dll` 这类 Debug CRT；这些 DLL 不包含在普通 VC Redistributable 中。
 
-打包脚本会把这些文件打进 `cdloader-VFS-v2.exe`，运行时释放到游戏目录的
+2026-07-16 当前实机稳定基线：
+
+```text
+nppvfs_launcher.exe SHA-256: 5FB8C58286C1A70E98A5496C9F93B6AD626AEA0981178BF98D3C7C22019CB33B
+vfs_runtime.dll SHA-256: C5E24060509D0C4A67910FEFBBB9ED84F8E2883F8B942260F9B70E55F9197AE2
+```
+
+该 runtime 使用 `SafetyHook=7 + stable system NT IAT=14` 窄混合后端，SafetyHook、
+Zydis 与 Zycore 已静态链接，不需要额外发布对应 DLL。打包脚本会把本目录文件打进
+当前 `cdloader-VFS-v<版本>` 目录版，运行时释放到游戏目录的
 `.cdloader/vfs_runtime/` 后再调用。

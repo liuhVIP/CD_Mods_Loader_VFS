@@ -82,8 +82,11 @@ VFS_STATE_FILE_NAME = "vfs_state.json"
 # 打包大 PAZ 并计算纯 Python hashlittle。
 VFS_PACKAGE_CACHE_DIR_NAME = "vfs_package_cache"
 
-# VFS 状态结构版本。v6 改为不可变活动快照，禁止复用旧固定路径 mapping。
-VFS_STATE_SCHEMA = 6
+# VFS 状态结构版本。v8 保留唯一不可变快照，并恢复分包缓存到快照的硬链接物化。
+VFS_STATE_SCHEMA = 8
+
+# 活动快照物化模式写入状态，确保旧复制快照只冷构建一次后切换到硬链接。
+VFS_MATERIALIZATION_MODE = "hardlink"
 
 # 空模组集合是合法状态：仍写入空映射，确保旧 VFS 映射被明确清除。
 VFS_EMPTY_MAPPING_WARNING = "没有生成 VFS overlay entry，已使用空映射启动"
@@ -568,6 +571,8 @@ def _try_reuse_vfs_package(
         return None
     if not isinstance(state, dict) or state.get("schema") != VFS_STATE_SCHEMA:
         return None
+    if state.get("materialization_mode") != VFS_MATERIALIZATION_MODE:
+        return None
     # 旧状态没有持久化 standalone 冲突；只强制重建一次，确保后续每次热启动均可提示。
     if state.get("standalone_conflicts_checked") is not True:
         return None
@@ -786,7 +791,7 @@ def _read_overlay_package_cache(package_name: str, cache_dir: Path) -> OverlayBu
             return None
         return OverlayBuildResult(
             overlay_dir=package_name,
-            # 命中时由同盘硬链接直接物化到 vfs_active，无需把大型 PAZ 读入内存。
+            # 命中时从缓存真实复制到活动快照，确保不同冷构建不共享 NTFS File ID。
             paz_bytes=b"",
             pamt_bytes=pamt_path.read_bytes(),
             entries=[entry for entry in entries if entry is not None],
@@ -820,11 +825,13 @@ def _write_overlay_package_cache_from_outputs(
     paz_output: Path,
     pamt_output: Path,
 ) -> None:
-    """由已落盘 VFS 输出建立分包缓存，避免首次构建重复写大型 PAZ。"""
+    """由已落盘输出建立缓存，再把活动快照切换为缓存硬链接。"""
     try:
         cache_dir.mkdir(parents=True, exist_ok=True)
-        _replace_with_hardlink_or_copy(paz_output, cache_dir / OVERLAY_PAZ_NAME)
-        _replace_with_hardlink_or_copy(pamt_output, cache_dir / OVERLAY_PAMT_NAME)
+        _replace_with_copy(paz_output, cache_dir / OVERLAY_PAZ_NAME)
+        _replace_with_copy(pamt_output, cache_dir / OVERLAY_PAMT_NAME)
+        _replace_with_hardlink(cache_dir / OVERLAY_PAZ_NAME, paz_output)
+        _replace_with_hardlink(cache_dir / OVERLAY_PAMT_NAME, pamt_output)
         payload = {
             "schema": 1,
             "overlay_dir": overlay.overlay_dir,
@@ -835,23 +842,31 @@ def _write_overlay_package_cache_from_outputs(
             encoding="utf-8",
         )
     except OSError as exc:
-        logger.warning("VFS package cache link failed: %s", exc)
+        logger.warning("VFS package cache copy failed: %s", exc)
 
 
 def _materialize_cached_file(source: Path, target: Path) -> None:
-    """把同盘缓存零拷贝物化到 VFS 目录，失败时回退普通复制。"""
+    """把缓存硬链接到唯一活动快照，避免重复复制大型分包。"""
     target.parent.mkdir(parents=True, exist_ok=True)
-    _replace_with_hardlink_or_copy(source, target)
+    _replace_with_hardlink(source, target)
 
 
-def _replace_with_hardlink_or_copy(source: Path, target: Path) -> None:
-    """优先创建NTFS硬链接，并兼容不支持硬链接的文件系统。"""
+def _replace_with_hardlink(source: Path, target: Path) -> None:
+    """先创建临时硬链接再原子替换目标，避免失败时留下缺失文件。"""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(f".{target.name}.hardlink-{uuid4().hex}")
+    try:
+        temporary.hardlink_to(source)
+        temporary.replace(target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _replace_with_copy(source: Path, target: Path) -> None:
+    """先解除旧目标再复制，避免覆盖已有硬链接时改写共享文件对象。"""
     if target.exists():
         target.unlink()
-    try:
-        target.hardlink_to(source)
-    except OSError:
-        shutil.copy2(source, target)
+    shutil.copy2(source, target)
 
 
 def _built_entry_to_json(entry: BuiltOverlayEntry) -> dict[str, object]:
@@ -994,6 +1009,7 @@ def _write_vfs_state(
     """写入 VFS 构建摘要，便于后续排障。"""
     payload = {
         "schema": VFS_STATE_SCHEMA,
+        "materialization_mode": VFS_MATERIALIZATION_MODE,
         "game_dir": str(game_dir),
         "vfs_root": str(vfs_root),
         "mapping_path": str(mapping_path),
