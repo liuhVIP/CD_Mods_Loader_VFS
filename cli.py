@@ -179,8 +179,6 @@ UI_TEXTS = {
             "Small and lightweight: focused standalone loading without the full GUI manager.",
             "Multithreading + target index cache: less repeated parsing and faster mod builds.",
             "Minute-level loading: large mod sets are kept within a practical wait time where possible.",
-            "Works with the creator-made N++ Mod Manager: one-click install and uninstall for Crimson Desert mods.",
-            "N++ download: https://github.com/liuhVIP/nexus-mods-update-warehouse/releases",
             "Chinese / English support: choose once on first launch, then it is remembered.",
         ),
         "language_prompt_title": "请选择界面语言 / Please select language:",
