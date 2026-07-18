@@ -28,6 +28,16 @@ class VanillaStore:
             if source.exists():
                 self.ensure_file_backup(rel)
 
+    def refresh_meta_backup(self) -> None:
+        """游戏更新后用当前原版 PAPGT/PATHC 刷新小型 meta 备份。"""
+        for rel in (f"{META_DIR_NAME}/{PAPGT_FILE_NAME}", f"{META_DIR_NAME}/{PATHC_FILE_NAME}"):
+            source = self.game_dir / fs_rel_path(rel)
+            target = self.root / fs_rel_path(rel)
+            if not source.exists():
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+
     def ensure_entry_backup(self, entry: PazEntry) -> PazEntry:
         """返回原始游戏 entry，不再复制大型 PAZ/PAMT。"""
         return entry

@@ -1,11 +1,9 @@
-"""通过条件装配映射生成“战场之光”替换白鸦帽子的独立测试模组。
+"""生成“战场之光”女性头饰替换为女巫帽子的结构适配型变体。
 
-直接覆盖 ``cd_phw_00_hel_00_0151.prefab`` 已实机确认会在完成 SaveSlot105
-后立即崩溃。本工具改为复用 Female Armor Module 已验证的
-``conditionalpartprefab_transmog.xml`` 机制，只新增一条 0151 到 0164 的
-条件映射。游戏会合并解析同路径 standalone XML，因此输出必须完整替代原
-Female Armor standalone，不能与原包并存；原始 Prefab、PAC、HKX、材质和
-纹理均保持不变。
+已实机证伪的两条路线分别是：完整复制 ``0164.prefab`` 覆盖 ``0151`` 会在
+存档加载后崩溃；注册第二份同路径条件表会在数据加载 ``2/12`` 阶段把同一表
+重复解析。当前方案以原版目标 Prefab 为基底，仅等长替换内部唯一主 PAC 路径，
+保留组件布局、UID、骨骼 socket 和文件长度。所有变体覆盖同一目标，只能单选。
 """
 
 from __future__ import annotations
@@ -16,97 +14,232 @@ import json
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
-from cdmm.archive.pamt import parse_pamt, parse_pamt_filtered
+from cdmm.archive.pamt import parse_pamt_filtered
 from cdmm.services.cdmod_converter import (
+    CDMOD_FILE_REPLACEMENT_COMPONENT_TYPE,
     CDMOD_FORMAT_NAME,
     CDMOD_FORMAT_VERSION,
     CDMOD_MANIFEST_PATH,
     CDMOD_REPORT_PATH,
-    CDMOD_STANDALONE_COMPONENT_TYPE,
     _write_cdmod_zip,
 )
 from cdmm.services.cdmod_package import load_cdmod_package
 from cdmm.services.json_loader import extract_plaintext
 
-# 头饰资源所在的原版 PAMT 目录。
+# 头饰 Prefab 所在的原版 PAMT 目录。
 HAT_PAMT_DIR = "0009"
 
-# “战场之光”头饰和白鸦白色帽子的真实游戏路径。
+# “战场之光”女性头饰是全部互斥变体共同覆盖的目标。
 BATTLEFIELD_LIGHT_HAT_PATH = "character/cd_phw_00_hel_00_0151.prefab"
-WHITE_CROW_HAT_PATH = "character/cd_phw_00_hel_00_0164.prefab"
-
-# 条件装配系统使用不带扩展名的 PartPrefab 身份。
-BATTLEFIELD_LIGHT_HAT_IDENTITY = "cd_phw_00_hel_00_0151"
-WHITE_CROW_HAT_IDENTITY = "cd_phw_00_hel_00_0164"
-FEMALE_BODY_MATCH_GROUP = "ForDamiane"
-
-# 白鸦帽子 Prefab 必须保留的原版主帽和附属配件引用。
-WHITE_CROW_REQUIRED_REFERENCES = (
-    b"cd_phw_00_hel_00_0164.pac",
-    b"cd_phw_00_hel_00_0164_sub01.pac",
+BATTLEFIELD_LIGHT_MAIN_PAC = (
+    b"character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_00_0151.pac"
 )
 
-# Female Armor Module standalone 中的条件装配表。
-CONDITIONAL_ENTRY_NAME = "conditionalpartprefab_transmog.xml"
+# 当前 1.13.01 原版目标字节的安全锚点，游戏更新后拒绝盲目生成。
+EXPECTED_TARGET_SHA256 = "bc4479f5de7905660d273b4af46223d2a364fe6290faac36fe5ed9c895277f14"
 
-# standalone 组件在 cdmod 内的固定路径。
-STANDALONE_ARCHIVE_INDEX_PATH = "archives/000/archive.json"
-STANDALONE_PAMT_PATH = "archives/000/0.pamt"
-STANDALONE_PAZ_PATH = "archives/000/0.paz"
+# file-replacement 组件在 cdmod 内的固定路径。
+FILE_REPLACEMENT_PATH = "files/replacements.json"
+PREFAB_PAYLOAD_PATH = "assets/00000/cd_phw_00_hel_00_0151.prefab"
 
-# 测试包展示信息。
-PACKAGE_NAME = "Light of the Battlefield - White Crow Hat Conditional Swap"
-PACKAGE_VERSION = "0.3-test"
+
+@dataclass(frozen=True)
+class WitchHatVariant:
+    """一位女巫的原生帽子资源与测试包元数据。"""
+
+    key: str
+    display_name: str
+    source_prefab_path: str
+    source_main_pac: bytes
+    expected_source_sha256: str
+    expected_source_model_reference_count: int
+    appearance_entry_path: str
+    package_id: str
+    package_name: str
+    package_version: str
+    output_filename: str
+
+
+# Head 与 Hair 组合已从原版 app_xml 唯一反查到以下帽子 Prefab。
+HAT_VARIANTS = (
+    WitchHatVariant(
+        key="areciel",
+        display_name="Areciel",
+        source_prefab_path="character/cd_phw_00_hel_0177.prefab",
+        source_main_pac=(
+            b"character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_00_0177.pac"
+        ),
+        expected_source_sha256=(
+            "200d390c68fd04a1ba90e7e17082893fdfead8ac8cadb06dc08316c75da33527"
+        ),
+        expected_source_model_reference_count=2,
+        appearance_entry_path="character/cd_nhw_south_20165.app_xml",
+        package_id="battlefield-light-areciel-hat-structural",
+        package_name="Light of the Battlefield - Areciel Main Hat Structural Swap",
+        package_version="0.1-test",
+        output_filename=(
+            "ZZZ - Light of the Battlefield Areciel Hat Structural-0.1-test.cdmod"
+        ),
+    ),
+    WitchHatVariant(
+        key="bari",
+        display_name="Bari",
+        source_prefab_path="character/cd_phw_00_hel_00_0187.prefab",
+        source_main_pac=(
+            b"character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_00_0187.pac"
+        ),
+        expected_source_sha256=(
+            "38f18dfa83d9ce1654a9d1d0f45b3e1b123d7342c5626a6463bcb9c0b9ac71e6"
+        ),
+        expected_source_model_reference_count=1,
+        appearance_entry_path="character/cd_nhw_south_20167.app_xml",
+        package_id="battlefield-light-bari-hat-structural",
+        package_name="Light of the Battlefield - Bari Hat Structural Swap",
+        package_version="0.1-test",
+        output_filename="ZZZ - Light of the Battlefield Bari Hat Structural-0.1-test.cdmod",
+    ),
+    WitchHatVariant(
+        key="elowen",
+        display_name="Elowen",
+        source_prefab_path="character/cd_phw_00_hel_00_0186.prefab",
+        source_main_pac=(
+            b"character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_00_0186.pac"
+        ),
+        expected_source_sha256=(
+            "c05212247c3c7ec4b90028fe8f2925f7ed8897d957ff1c8fbb2f7e298aef573e"
+        ),
+        expected_source_model_reference_count=2,
+        appearance_entry_path="character/cd_nhw_south_20168.app_xml",
+        package_id="battlefield-light-elowen-hat-structural",
+        package_name="Light of the Battlefield - Elowen Main Hat Structural Swap",
+        package_version="0.1-test",
+        output_filename=(
+            "ZZZ - Light of the Battlefield Elowen Hat Structural-0.1-test.cdmod"
+        ),
+    ),
+    WitchHatVariant(
+        key="lyselia",
+        display_name="Lyselia",
+        source_prefab_path="character/cd_phw_00_hel_0185.prefab",
+        source_main_pac=(
+            b"character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_00_0185.pac"
+        ),
+        expected_source_sha256=(
+            "d637822a39d97451f7de42c2bc059e8241a35c380e3e64e288f39e15cf1653d7"
+        ),
+        expected_source_model_reference_count=1,
+        appearance_entry_path="character/cd_nhw_south_20166.app_xml",
+        package_id="battlefield-light-lyselia-hat-structural",
+        package_name="Light of the Battlefield - Lyselia Hat Structural Swap",
+        package_version="0.1-test",
+        output_filename=(
+            "ZZZ - Light of the Battlefield Lyselia Hat Structural-0.1-test.cdmod"
+        ),
+    ),
+    WitchHatVariant(
+        key="white-crow",
+        display_name="White Crow",
+        source_prefab_path="character/cd_phw_00_hel_00_0164.prefab",
+        source_main_pac=(
+            b"character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_00_0164.pac"
+        ),
+        expected_source_sha256=(
+            "8f51daa6f36a246076b3bf3b36fef7c4c200dea14d9b2cb44fa57a2414252dc6"
+        ),
+        expected_source_model_reference_count=2,
+        appearance_entry_path="character/cd_m0001_00_phw_north_44001.app_xml",
+        package_id="battlefield-light-white-crow-hat-structural",
+        package_name="Light of the Battlefield - White Crow Main Hat Structural Swap",
+        package_version="0.5-test",
+        output_filename=(
+            "ZZZ - Light of the Battlefield White Crow Main Hat Structural-0.5-test.cdmod"
+        ),
+    ),
+)
+HAT_VARIANTS_BY_KEY = {variant.key: variant for variant in HAT_VARIANTS}
+
+# 保留旧白鸦生成器的公开常量，避免现有脚本和专项测试因多变体扩展失效。
+WHITE_CROW_VARIANT = HAT_VARIANTS_BY_KEY["white-crow"]
+WHITE_CROW_HAT_PATH = WHITE_CROW_VARIANT.source_prefab_path
+WHITE_CROW_MAIN_PAC = WHITE_CROW_VARIANT.source_main_pac
+WHITE_CROW_SUB_PAC = (
+    b"character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_00_0164_sub01.pac"
+)
+EXPECTED_SOURCE_SHA256 = WHITE_CROW_VARIANT.expected_source_sha256
+PACKAGE_ID = WHITE_CROW_VARIANT.package_id
+PACKAGE_NAME = WHITE_CROW_VARIANT.package_name
+PACKAGE_VERSION = WHITE_CROW_VARIANT.package_version
 
 
 @dataclass(frozen=True)
 class PrefabAudit:
-    """原版源/目标 Prefab 的构建前审计结果。"""
+    """原版 Prefab 与等长结构补丁的审计结果。"""
 
-    source_path: str
-    source_size: int
-    source_sha256: str
+    variant_key: str
     target_path: str
     target_size: int
     target_sha256: str
-    required_reference_count: int
-
-
-@dataclass(frozen=True)
-class ConditionalMappingAudit:
-    """Female Armor Module 条件表的补丁审计结果。"""
-
-    source_package_sha256: str
-    source_entry_path: str
-    source_entry_sha256: str
-    source_entry_size: int
-    original_condition_count: int
-    patched_entry_sha256: str
-    patched_entry_size: int
-    patched_condition_count: int
+    source_path: str
+    source_size: int
+    source_sha256: str
+    patched_size: int
+    patched_sha256: str
+    changed_byte_count: int
+    target_model_reference_count: int
+    source_model_reference_count: int
 
 
 @dataclass(frozen=True)
 class HatSwapBuildResult:
-    """条件式帽子替换测试包生成结果。"""
+    """结构适配型帽子替换测试包生成结果。"""
 
+    variant_key: str
     output_path: Path
     package_sha256: str
-    archive_pamt_sha256: str
-    archive_paz_sha256: str
     prefab_audit: PrefabAudit
-    mapping_audit: ConditionalMappingAudit
 
 
-def audit_original_prefabs(game_dir: Path) -> PrefabAudit:
-    """从原版 0009 精确读取源/目标 Prefab，并验证白鸦双部件引用。"""
+def get_hat_variant(variant_key: str) -> WitchHatVariant:
+    """按稳定 key 获取女巫帽子变体。"""
+    try:
+        return HAT_VARIANTS_BY_KEY[variant_key]
+    except KeyError as exc:
+        choices = ", ".join(HAT_VARIANTS_BY_KEY)
+        raise ValueError(f"未知女巫帽子变体 {variant_key!r}，可选：{choices}") from exc
+
+
+def build_structural_hat_prefab(
+    target_content: bytes,
+    source_main_pac: bytes | None = None,
+) -> bytes:
+    """只在原目标结构内等长替换唯一主 PAC 路径。"""
+    source_main_pac = source_main_pac or get_hat_variant("white-crow").source_main_pac
+    if len(BATTLEFIELD_LIGHT_MAIN_PAC) != len(source_main_pac):
+        raise ValueError("主帽 PAC 路径长度不一致，不能执行结构内等长替换")
+    if target_content.count(BATTLEFIELD_LIGHT_MAIN_PAC) != 1:
+        raise ValueError("原版 0151 Prefab 中主 PAC 路径数量异常")
+    if source_main_pac in target_content:
+        raise ValueError("目标 Prefab 已经引用所选女巫的主帽 PAC")
+    patched = target_content.replace(BATTLEFIELD_LIGHT_MAIN_PAC, source_main_pac, 1)
+    if len(patched) != len(target_content):
+        raise ValueError("结构补丁意外改变 Prefab 长度")
+    if patched.count(source_main_pac) != 1:
+        raise ValueError("补丁后的女巫主帽 PAC 引用数量异常")
+    if BATTLEFIELD_LIGHT_MAIN_PAC in patched:
+        raise ValueError("补丁后仍残留战场之光 0151 主 PAC 引用")
+    return patched
+
+
+def _load_original_prefabs(
+    game_dir: Path,
+    variant: WitchHatVariant,
+) -> tuple[bytes, bytes]:
+    """读取目标和来源明文，并用固定 SHA 防止跨版本误改。"""
     pamt_path = game_dir.resolve() / HAT_PAMT_DIR / "0.pamt"
     if not pamt_path.is_file():
         raise FileNotFoundError(f"缺少原版头饰 PAMT：{pamt_path}")
-
-    desired_paths = {BATTLEFIELD_LIGHT_HAT_PATH, WHITE_CROW_HAT_PATH}
+    desired_paths = {BATTLEFIELD_LIGHT_HAT_PATH, variant.source_prefab_path}
     entries = parse_pamt_filtered(
         pamt_path,
         paz_dir=pamt_path.parent,
@@ -116,280 +249,230 @@ def audit_original_prefabs(game_dir: Path) -> PrefabAudit:
     missing = sorted(path for path in desired_paths if path.casefold() not in entries_by_path)
     if missing:
         raise ValueError(f"原版 0009 缺少头饰 Prefab：{missing}")
-
-    source = entries_by_path[WHITE_CROW_HAT_PATH.casefold()]
-    target = entries_by_path[BATTLEFIELD_LIGHT_HAT_PATH.casefold()]
-    source_content, _source_entry = extract_plaintext(source)
-    target_content, _target_entry = extract_plaintext(target)
-    missing_references = [
-        reference.decode("ascii")
-        for reference in WHITE_CROW_REQUIRED_REFERENCES
-        if reference not in source_content
-    ]
-    if missing_references:
-        raise ValueError(f"白鸦帽子 Prefab 缺少预期资源引用：{missing_references}")
-    if b"cd_phw_00_hel_00_0151.pac" not in target_content:
-        raise ValueError("战场之光头饰 Prefab 不再引用 0151 PAC，疑似游戏资源已更新")
-
-    return PrefabAudit(
-        source_path=source.path,
-        source_size=len(source_content),
-        source_sha256=hashlib.sha256(source_content).hexdigest(),
-        target_path=target.path,
-        target_size=len(target_content),
-        target_sha256=hashlib.sha256(target_content).hexdigest(),
-        required_reference_count=len(WHITE_CROW_REQUIRED_REFERENCES),
+    target, _target_entry = extract_plaintext(
+        entries_by_path[BATTLEFIELD_LIGHT_HAT_PATH.casefold()]
     )
-
-
-def patch_conditional_part_prefab_xml(xml_bytes: bytes) -> bytes:
-    """利用空白预算等长新增 0151 到 0164 条件映射。"""
-    text = xml_bytes.decode("utf-8-sig")
-    group_marker = f'<PartPrefabGroup Name="{FEMALE_BODY_MATCH_GROUP}">'
-    if text.count(group_marker) != 1:
-        raise ValueError(f"条件表中的 {FEMALE_BODY_MATCH_GROUP} 分组数量异常")
-
-    source_pattern = re.compile(
-        rf'<Condition\s+SourcePartPrefab="{re.escape(BATTLEFIELD_LIGHT_HAT_IDENTITY)}"(?=\s|>)',
-        re.IGNORECASE,
+    source, _source_entry = extract_plaintext(
+        entries_by_path[variant.source_prefab_path.casefold()]
     )
-    if source_pattern.search(text):
-        raise ValueError("条件表已经存在战场之光 0151 头饰映射，拒绝重复添加")
-
-    condition_text = (
-        f'<Condition SourcePartPrefab="{BATTLEFIELD_LIGHT_HAT_IDENTITY}">\r\n'
-        f'    <If Type="Match" TargetPartPrefab="{WHITE_CROW_HAT_IDENTITY}" '
-        f'MatchPartPrefabGroup="{FEMALE_BODY_MATCH_GROUP}"/>\r\n'
-        "</Condition>"
-    )
-    condition_bytes = condition_text.encode("utf-8")
-    compacted = re.sub(rb"(?:\r\n){2,}", b"\r\n", xml_bytes)
-    body = compacted.rstrip(b"\r\n\t ")
-    patched = body + b"\r\n" + condition_bytes + b"\r\n"
-    if len(patched) > len(xml_bytes):
+    target_sha256 = hashlib.sha256(target).hexdigest()
+    source_sha256 = hashlib.sha256(source).hexdigest()
+    if target_sha256 != EXPECTED_TARGET_SHA256:
+        raise ValueError(f"原版 0151 Prefab SHA256 已变化：{target_sha256}")
+    if source_sha256 != variant.expected_source_sha256:
         raise ValueError(
-            f"条件表空白预算不足：需要 {len(patched) - len(xml_bytes)} 个额外字节"
+            f"原版 {variant.display_name} 帽子 Prefab SHA256 已变化：{source_sha256}"
         )
-    padding_size = len(xml_bytes) - len(patched)
-    patched += b"\r\n" * (padding_size // 2)
-    if padding_size % 2:
-        patched += b" "
-    if len(patched) != len(xml_bytes):
-        raise ValueError("条件表等长重建失败")
-
-    patched_text = patched.decode("utf-8-sig")
-    if patched_text.count(condition_text) != 1:
-        raise ValueError("新增条件映射数量异常")
-    if len(source_pattern.findall(patched_text)) != 1:
-        raise ValueError("新增后战场之光 0151 来源条件数量异常")
-    return patched
+    source_model_references = re.findall(rb"character/model/[^\x00]+?\.pac", source)
+    if source.count(variant.source_main_pac) != 1:
+        raise ValueError(f"{variant.display_name} 来源 Prefab 主 PAC 引用数量异常")
+    if len(source_model_references) != variant.expected_source_model_reference_count:
+        raise ValueError(
+            f"{variant.display_name} 来源模型引用数量已变化："
+            f"{len(source_model_references)}"
+        )
+    return target, source
 
 
 def build_hat_swap_mod(
     game_dir: Path,
-    source_package_path: Path,
     output_path: Path,
+    variant_key: str = "white-crow",
 ) -> HatSwapBuildResult:
-    """基于 Female Armor Module 条件表生成独立 standalone cdmod。"""
+    """生成零依赖、无条件表、只覆盖 0151 Prefab 的结构补丁包。"""
+    game_dir = game_dir.resolve()
     output_path = output_path.resolve()
-    source_package_path = source_package_path.resolve()
-    prefab_audit = audit_original_prefabs(game_dir)
-    source_package_sha256 = hashlib.sha256(source_package_path.read_bytes()).hexdigest()
-    source_package = load_cdmod_package(source_package_path)
-    if len(source_package.standalone_archives) != 1:
+    variant = get_hat_variant(variant_key)
+    target, source = _load_original_prefabs(game_dir, variant)
+    patched = build_structural_hat_prefab(target, variant.source_main_pac)
+    changed_byte_count = sum(old != new for old, new in zip(target, patched, strict=True))
+    target_model_references = re.findall(rb"character/model/[^\x00]+?\.pac", target)
+    source_model_references = re.findall(rb"character/model/[^\x00]+?\.pac", source)
+    if len(target_model_references) != 1:
         raise ValueError(
-            f"Female Armor Module 预期 1 个 standalone，实际 "
-            f"{len(source_package.standalone_archives)} 个"
+            f"目标头饰模型引用数量与已验证结构不符：{len(target_model_references)}"
         )
-    source_archive = source_package.standalone_archives[0]
-
-    with TemporaryDirectory(prefix="white-crow-hat-conditional-") as temp_dir:
-        temp_root = Path(temp_dir)
-        source_pamt_path = temp_root / "0.pamt"
-        source_paz_path = temp_root / "0.paz"
-        source_pamt_path.write_bytes(source_archive.pamt_bytes)
-        source_paz_path.write_bytes(source_archive.paz_bytes)
-        entries = parse_pamt(source_pamt_path, paz_dir=temp_root)
-        matches = [
-            entry
-            for entry in entries
-            if Path(entry.path).name.casefold() == CONDITIONAL_ENTRY_NAME
-        ]
-        if len(matches) != 1:
-            raise ValueError(f"条件装配表候选数异常：{len(matches)}")
-        entry = matches[0]
-        if entry.compression_type != 0 or entry.comp_size != entry.orig_size:
-            raise ValueError("条件装配表不是当前已验证的未压缩形态")
-        source_content = source_archive.paz_bytes[
-            entry.offset:entry.offset + entry.comp_size
-        ]
-        if not source_content.startswith(b"\xef\xbb\xbf<PartPrefabGroup"):
-            raise ValueError("条件装配表不是当前已验证的 UTF-8 BOM 明文 XML")
-        patched_content = patch_conditional_part_prefab_xml(source_content)
-        original_condition_count = source_content.count(b"<Condition ")
-        patched_condition_count = patched_content.count(b"<Condition ")
-        if patched_condition_count != original_condition_count + 1:
-            raise ValueError("条件装配表补丁后 Condition 数量异常")
-
-        patched_paz = bytearray(source_archive.paz_bytes)
-        payload_end = entry.offset + entry.comp_size
-        patched_paz[entry.offset:payload_end] = patched_content
-
-    archive_pamt_bytes = source_archive.pamt_bytes
-    archive_paz_bytes = bytes(patched_paz)
-    if len(archive_paz_bytes) != len(source_archive.paz_bytes):
-        raise ValueError("完整 Female Armor PAZ 长度发生变化")
-    if archive_paz_bytes[:entry.offset] != source_archive.paz_bytes[:entry.offset]:
-        raise ValueError("条件表前方 PAZ 字节意外变化")
-    if archive_paz_bytes[payload_end:] != source_archive.paz_bytes[payload_end:]:
-        raise ValueError("条件表后方 PAZ 字节意外变化")
-    archive_pamt_sha256 = hashlib.sha256(archive_pamt_bytes).hexdigest()
-    archive_paz_sha256 = hashlib.sha256(archive_paz_bytes).hexdigest()
-    mapping_audit = ConditionalMappingAudit(
-        source_package_sha256=source_package_sha256,
-        source_entry_path=entry.path,
-        source_entry_sha256=hashlib.sha256(source_content).hexdigest(),
-        source_entry_size=len(source_content),
-        original_condition_count=original_condition_count,
-        patched_entry_sha256=hashlib.sha256(patched_content).hexdigest(),
-        patched_entry_size=len(patched_content),
-        patched_condition_count=patched_condition_count,
+    audit = PrefabAudit(
+        variant_key=variant.key,
+        target_path=BATTLEFIELD_LIGHT_HAT_PATH,
+        target_size=len(target),
+        target_sha256=hashlib.sha256(target).hexdigest(),
+        source_path=variant.source_prefab_path,
+        source_size=len(source),
+        source_sha256=hashlib.sha256(source).hexdigest(),
+        patched_size=len(patched),
+        patched_sha256=hashlib.sha256(patched).hexdigest(),
+        changed_byte_count=changed_byte_count,
+        target_model_reference_count=len(target_model_references),
+        source_model_reference_count=len(source_model_references),
     )
-    archive_document = {
+    replacement_document = {
         "schema": 1,
-        "name": source_archive.name,
-        "pamt": STANDALONE_PAMT_PATH,
-        "paz": STANDALONE_PAZ_PATH,
-        "pamt_sha256": archive_pamt_sha256,
-        "paz_sha256": archive_paz_sha256,
+        "files": [
+            {
+                "target": BATTLEFIELD_LIGHT_HAT_PATH,
+                "pamt_dir": HAT_PAMT_DIR,
+                "payload": PREFAB_PAYLOAD_PATH,
+                "sha256": audit.patched_sha256,
+                "size": len(patched),
+                "allow_new": False,
+                "allow_table_replace": False,
+            }
+        ],
     }
     manifest_document = {
         "format": CDMOD_FORMAT_NAME,
         "format_version": CDMOD_FORMAT_VERSION,
-        "id": "battlefield-light-white-crow-hat-conditional",
-        "name": PACKAGE_NAME,
-        "version": PACKAGE_VERSION,
+        "id": variant.package_id,
+        "name": variant.package_name,
+        "version": variant.package_version,
         "author": "cdmm research",
         "description": (
-            "Uses Female Armor Module conditional part-prefab mapping to select "
-            "White Crow's native 0164 witch hat for the 0151 Light of the "
-            "Battlefield female headgear without overriding either prefab. This "
-            "package replaces the Female Armor standalone and must not coexist "
-            "with the original standalone package."
+            "Keeps the native 0151 prefab structure and replaces only its "
+            f"same-length main PAC path with {variant.display_name}. No conditional "
+            "table, no second component, and no runtime mod dependency."
         ),
         "dependencies": [],
         "source": {
-            "format": "conditional-part-prefab-standalone-overlay",
-            "source_package_sha256": source_package_sha256,
+            "format": "target-prefab-same-length-pac-path-replacement",
+            "game_version": "1.13.01",
         },
         "components": [
             {
-                "type": CDMOD_STANDALONE_COMPONENT_TYPE,
-                "path": STANDALONE_ARCHIVE_INDEX_PATH,
+                "type": CDMOD_FILE_REPLACEMENT_COMPONENT_TYPE,
+                "path": FILE_REPLACEMENT_PATH,
             }
         ],
     }
+    omitted_component_count = max(0, len(source_model_references) - 1)
     report_document = {
         "schema": 1,
+        "variant": {
+            "key": variant.key,
+            "display_name": variant.display_name,
+            "source_prefab_path": variant.source_prefab_path,
+            "source_main_pac": variant.source_main_pac.decode("ascii"),
+            "expected_source_sha256": variant.expected_source_sha256,
+            "expected_source_model_reference_count": (
+                variant.expected_source_model_reference_count
+            ),
+            "appearance_entry_path": variant.appearance_entry_path,
+        },
+        "prefab_audit": asdict(audit),
         "mapping": {
-            "source_part_prefab": BATTLEFIELD_LIGHT_HAT_IDENTITY,
-            "target_part_prefab": WHITE_CROW_HAT_IDENTITY,
-            "match_part_prefab_group": FEMALE_BODY_MATCH_GROUP,
+            "target_prefab": BATTLEFIELD_LIGHT_HAT_PATH,
+            "old_main_pac": BATTLEFIELD_LIGHT_MAIN_PAC.decode("ascii"),
+            "new_main_pac": variant.source_main_pac.decode("ascii"),
         },
-        "prefab_audit": asdict(prefab_audit),
-        "conditional_mapping_audit": asdict(mapping_audit),
-        "safety": {
-            "prefab_override": False,
-            "pac_override": False,
-            "dds_override": False,
-            "source_female_armor_module_unchanged": True,
-            "source_pamt_unchanged": True,
-            "source_paz_length_unchanged": True,
-            "only_conditional_entry_bytes_changed": True,
-            "must_disable_source_standalone": source_package.path.name,
+        "appearance_evidence": {
+            "entry_path": variant.appearance_entry_path,
+            "source_prefab": variant.source_prefab_path,
         },
+        "compatibility": {
+            "runtime_dependency": None,
+            "uses_conditional_table": False,
+            "mutually_exclusive_with_other_hat_variants": True,
+            "can_coexist_with_female_armor_module": True,
+            "equip_everything_role": "allows male Kliff to equip the female item",
+        },
+        "preserved": [
+            "target-prefab-length",
+            "target-component-count",
+            "target-scene-object-uid",
+            "target-bone-socket",
+            "target-component-layout",
+        ],
+        "known_limit": (
+            f"Only the source main PAC is mounted; {omitted_component_count} extra source "
+            "component(s) are intentionally omitted by this single-component safety build."
+        ),
     }
-
     output_path.parent.mkdir(parents=True, exist_ok=True)
     _write_cdmod_zip(
         output_path,
         {
             CDMOD_MANIFEST_PATH: manifest_document,
-            STANDALONE_ARCHIVE_INDEX_PATH: archive_document,
-            STANDALONE_PAMT_PATH: archive_pamt_bytes,
-            STANDALONE_PAZ_PATH: archive_paz_bytes,
+            FILE_REPLACEMENT_PATH: replacement_document,
+            PREFAB_PAYLOAD_PATH: patched,
             CDMOD_REPORT_PATH: report_document,
         },
     )
-    _verify_generated_package(
-        output_path,
-        expected_pamt=archive_pamt_bytes,
-        expected_paz=archive_paz_bytes,
-        expected_content=patched_content,
-    )
+    _verify_generated_package(output_path, patched, variant)
     return HatSwapBuildResult(
+        variant_key=variant.key,
         output_path=output_path,
         package_sha256=hashlib.sha256(output_path.read_bytes()).hexdigest(),
-        archive_pamt_sha256=archive_pamt_sha256,
-        archive_paz_sha256=archive_paz_sha256,
-        prefab_audit=prefab_audit,
-        mapping_audit=mapping_audit,
+        prefab_audit=audit,
     )
 
 
 def _verify_generated_package(
     output_path: Path,
-    *,
-    expected_pamt: bytes,
-    expected_paz: bytes,
-    expected_content: bytes,
+    expected_payload: bytes,
+    variant: WitchHatVariant,
 ) -> None:
-    """重读生成包，确认完整 archive 仅修改目标条件表槽位。"""
+    """重读包并确认只有唯一的 0151 完整资源替换。"""
     package = load_cdmod_package(output_path)
-    if package.resource_patches or package.file_patches:
-        raise ValueError("条件式帽子包不应包含 Prefab resource/file replacement")
-    if len(package.standalone_archives) != 1:
-        raise ValueError("条件式帽子包 standalone 数量异常")
-    archive = package.standalone_archives[0]
-    if archive.pamt_bytes != expected_pamt or archive.paz_bytes != expected_paz:
-        raise ValueError("条件式帽子包完整 archive 重读字节不一致")
-    with TemporaryDirectory(prefix="verify-white-crow-hat-") as temp_dir:
-        temp_root = Path(temp_dir)
-        pamt_path = temp_root / "0.pamt"
-        paz_path = temp_root / "0.paz"
-        pamt_path.write_bytes(archive.pamt_bytes)
-        paz_path.write_bytes(archive.paz_bytes)
-        entries = parse_pamt(pamt_path, paz_dir=temp_root)
-        matches = [
-            entry
-            for entry in entries
-            if Path(entry.path).name.casefold() == CONDITIONAL_ENTRY_NAME
-        ]
-        if len(matches) != 1:
-            raise ValueError(f"条件式帽子包条件表数量异常：{len(matches)}")
-        entry = matches[0]
-        content = archive.paz_bytes[entry.offset:entry.offset + entry.comp_size]
-        if content != expected_content:
-            raise ValueError("条件式帽子包重读内容与构建内容不一致")
-        if entry.resolved_dir_path != "character/descriptors/conditionalpartprefab":
-            raise ValueError(f"条件式帽子包最终目录异常：{entry.resolved_dir_path}")
+    if package.dependencies:
+        raise ValueError("结构帽子包不允许声明运行时依赖")
+    if package.standalone_archives or package.resource_patches:
+        raise ValueError("结构帽子包不能包含 standalone 或 resource-transform")
+    files = [file for patch in package.file_patches for file in patch.files]
+    if len(files) != 1:
+        raise ValueError(f"结构帽子包替换文件数量异常：{len(files)}")
+    file = files[0]
+    if file.target != BATTLEFIELD_LIGHT_HAT_PATH or file.pamt_dir != HAT_PAMT_DIR:
+        raise ValueError("结构帽子包最终目标异常")
+    if file.content != expected_payload:
+        raise ValueError("结构帽子包重读载荷不一致")
+    original_target = expected_payload.replace(
+        variant.source_main_pac,
+        BATTLEFIELD_LIGHT_MAIN_PAC,
+        1,
+    )
+    if build_structural_hat_prefab(original_target, variant.source_main_pac) != expected_payload:
+        raise ValueError("结构帽子包不能通过等长映射往返验证")
 
 
 def result_to_json(result: HatSwapBuildResult) -> dict[str, object]:
-    """把构建结果转换为便于审计的 JSON。"""
+    """把生成结果转换为便于审计的 JSON。"""
     payload = asdict(result)
     payload["output_path"] = str(result.output_path)
     return payload
 
 
+def build_all_hat_swap_mods(game_dir: Path, output_dir: Path) -> list[HatSwapBuildResult]:
+    """在指定目录生成全部互斥帽子变体。"""
+    return [
+        build_hat_swap_mod(game_dir, output_dir / variant.output_filename, variant.key)
+        for variant in HAT_VARIANTS
+    ]
+
+
 def main() -> int:
-    """解析游戏目录、Female Armor standalone 包和输出路径。"""
-    parser = argparse.ArgumentParser(description="生成单包条件式战场之光白鸦帽测试 cdmod")
+    """解析游戏目录、输出路径与女巫变体。"""
+    parser = argparse.ArgumentParser(description="生成战场之光女巫帽结构变体 cdmod")
     parser.add_argument("game_dir", type=Path, help="Crimson Desert 游戏根目录")
-    parser.add_argument("source", type=Path, help="Female Armor Module standalone .cdmod")
-    parser.add_argument("output", type=Path, help="输出 .cdmod 路径")
+    parser.add_argument("output", type=Path, help="单包输出路径或 --all 输出目录")
+    parser.add_argument(
+        "--variant",
+        choices=tuple(HAT_VARIANTS_BY_KEY),
+        default="white-crow",
+        help="单包女巫变体，默认 white-crow",
+    )
+    parser.add_argument("--all", action="store_true", help="生成全部互斥变体")
     args = parser.parse_args()
-    result = build_hat_swap_mod(args.game_dir, args.source, args.output)
+    if args.all:
+        results = build_all_hat_swap_mods(args.game_dir, args.output)
+        print(
+            json.dumps(
+                [result_to_json(result) for result in results],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    result = build_hat_swap_mod(args.game_dir, args.output, args.variant)
     print(json.dumps(result_to_json(result), ensure_ascii=False, indent=2))
     return 0
 

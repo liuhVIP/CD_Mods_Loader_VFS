@@ -82,6 +82,12 @@ VFS_STATE_FILE_NAME = "vfs_state.json"
 # 打包大 PAZ 并计算纯 Python hashlittle。
 VFS_PACKAGE_CACHE_DIR_NAME = "vfs_package_cache"
 
+# 游戏主程序相对路径；只比较最后修改时间判断游戏是否更新。
+GAME_EXECUTABLE_RELATIVE_PATH = Path("bin64") / "CrimsonDesert.exe"
+
+# VFS 状态中保存游戏主程序最后修改时间的字段名。
+GAME_EXECUTABLE_MTIME_STATE_KEY = "game_executable_mtime_ns"
+
 # VFS 状态结构版本。v8 保留唯一不可变快照，并恢复分包缓存到快照的硬链接物化。
 VFS_STATE_SCHEMA = 8
 
@@ -235,6 +241,13 @@ def build_vfs_package(
         return _empty_result(game_dir, mods, warnings, errors)
     current_fingerprint = fingerprint_mods(mods)
     active_language = detect_active_paloc_language(game_dir)
+    saved_game_mtime = _load_saved_game_executable_mtime(game_dir)
+    current_game_mtime = _game_executable_mtime(game_dir)
+    game_build_changed = saved_game_mtime != current_game_mtime
+    if saved_game_mtime is None:
+        _notify_progress(progress_callback, "旧缓存缺少游戏版本标识，将自动冷构建 VFS")
+    elif game_build_changed:
+        _notify_progress(progress_callback, "检测到游戏版本变化，将自动冷构建 VFS")
     _log_vfs_stage("扫描 mods / 指纹", stage_started)
 
     stage_started = perf_counter()
@@ -270,7 +283,15 @@ def build_vfs_package(
     stage_started = perf_counter()
     _notify_progress(progress_callback, "准备原版 meta 与 PAMT 索引")
     vanilla_store = VanillaStore(game_dir)
-    vanilla_store.ensure_meta_backup()
+    if game_build_changed:
+        vanilla_store.refresh_meta_backup()
+        logger.info(
+            "检测到游戏主程序构建变化，已刷新原版 meta 并执行 VFS 冷构建：%s -> %s",
+            saved_game_mtime if saved_game_mtime is not None else "missing",
+            current_game_mtime,
+        )
+    else:
+        vanilla_store.ensure_meta_backup()
     _log_vfs_stage("准备原版 meta / PAMT", stage_started)
 
     stage_started = perf_counter()
@@ -573,6 +594,15 @@ def _try_reuse_vfs_package(
         return None
     if state.get("materialization_mode") != VFS_MATERIALIZATION_MODE:
         return None
+    saved_game_mtime = _normalize_mtime(state.get(GAME_EXECUTABLE_MTIME_STATE_KEY))
+    current_game_mtime = _game_executable_mtime(game_dir)
+    if saved_game_mtime is None or current_game_mtime != saved_game_mtime:
+        logger.info(
+            "游戏主程序修改时间变化，VFS 整包缓存失效：previous=%s current=%s",
+            saved_game_mtime if saved_game_mtime is not None else "missing",
+            current_game_mtime,
+        )
+        return None
     # 旧状态没有持久化 standalone 冲突；只强制重建一次，确保后续每次热启动均可提示。
     if state.get("standalone_conflicts_checked") is not True:
         return None
@@ -627,6 +657,31 @@ def _try_reuse_vfs_package(
         mapped_files=normalized_files,
         cache_hit=True,
     )
+
+
+def _load_saved_game_executable_mtime(game_dir: Path) -> int | None:
+    """读取上次冷构建保存的游戏主程序修改时间。"""
+    state_path = game_dir / WORK_DIR_NAME / VFS_STATE_FILE_NAME
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(state, dict):
+        return None
+    return _normalize_mtime(state.get(GAME_EXECUTABLE_MTIME_STATE_KEY))
+
+
+def _game_executable_mtime(game_dir: Path) -> int | None:
+    """读取游戏主程序最后修改时间，读取失败时返回 None。"""
+    try:
+        return (game_dir / GAME_EXECUTABLE_RELATIVE_PATH).stat().st_mtime_ns
+    except OSError:
+        return None
+
+
+def _normalize_mtime(value: object) -> int | None:
+    """把状态文件中的修改时间规整为整数。"""
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
 def _wait_for_vfs_outputs_stable(result: VfsBuildResult) -> None:
@@ -729,7 +784,7 @@ def _format3_package_name(entry: OverlayInputEntry) -> str | None:
 
 def _build_or_reuse_overlay_package(game_dir: Path, package: VfsOverlayPackage) -> _OverlayPackageMaterial:
     """构建或复用单个 VFS overlay 分包。"""
-    cache_key = _overlay_package_cache_key(package)
+    cache_key = _overlay_package_cache_key(package, _game_executable_mtime(game_dir))
     cache_dir = _overlay_package_cache_dir(game_dir, package.name, cache_key)
     cached = _read_overlay_package_cache(package.name, cache_dir)
     if cached is not None:
@@ -740,10 +795,15 @@ def _build_or_reuse_overlay_package(game_dir: Path, package: VfsOverlayPackage) 
     return _OverlayPackageMaterial(overlay, cache_dir, False)
 
 
-def _overlay_package_cache_key(package: VfsOverlayPackage) -> str:
-    """按分包输入内容生成稳定缓存 key。"""
+def _overlay_package_cache_key(
+    package: VfsOverlayPackage,
+    game_executable_mtime: int | None = None,
+) -> str:
+    """按游戏主程序修改时间和分包输入生成稳定缓存 key。"""
     digest = sha256()
     digest.update(f"schema:{VFS_PACKAGE_BUILD_SCHEMA}".encode("ascii"))
+    digest.update(b"\0")
+    digest.update(f"game_mtime:{game_executable_mtime}".encode("ascii"))
     digest.update(b"\0")
     digest.update(package.name.encode("utf-8"))
     digest.update(b"\0")
@@ -1007,9 +1067,11 @@ def _write_vfs_state(
     active_language: str | None,
 ) -> None:
     """写入 VFS 构建摘要，便于后续排障。"""
+    state_path = game_dir / WORK_DIR_NAME / VFS_STATE_FILE_NAME
     payload = {
         "schema": VFS_STATE_SCHEMA,
         "materialization_mode": VFS_MATERIALIZATION_MODE,
+        GAME_EXECUTABLE_MTIME_STATE_KEY: _game_executable_mtime(game_dir),
         "game_dir": str(game_dir),
         "vfs_root": str(vfs_root),
         "mapping_path": str(mapping_path),
@@ -1024,7 +1086,6 @@ def _write_vfs_state(
         "mapped_files": mapped_files,
         "empty_mapping": not mapped_files,
     }
-    state_path = game_dir / WORK_DIR_NAME / VFS_STATE_FILE_NAME
     state_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",

@@ -500,3 +500,6 @@ VFS core 回退为 Nuitka `--onefile` 单文件模式。
 
 其开发配置仅在源码阶段未提供 `--game-dir` 时读取 `config\game_config.json`；打包后的成品
 不会读取该配置。
+
+.\run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning
+

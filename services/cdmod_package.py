@@ -33,6 +33,16 @@ SUPPORTED_CDMOD_OPERATIONS = frozenset({"set", "list_union"})
 _CDMOD_PACKAGE_CACHE: dict[tuple[str, int, int], "CdmodPackage"] = {}
 
 
+@dataclass(frozen=True)
+class CdmodPrefabRiskOperation:
+    """扫描阶段可从组件 JSON 读取的轻量 Prefab 操作证据。"""
+
+    method: str
+    target: str
+    source: str | None = None
+    payload_sha256: str | None = None
+
+
 def validate_cdmod_header(path: Path) -> None:
     """轻量校验容器清单和组件索引，不在扫描阶段解压大型资源载荷。"""
     try:
@@ -67,7 +77,17 @@ def collect_cdmod_declared_targets(path: Path) -> list[str]:
 
 def collect_cdmod_prefab_risk_targets(path: Path) -> list[tuple[str, str]]:
     """轻量读取组件 JSON，返回直接修改 prefab 的操作，不解压资源载荷。"""
-    targets: list[tuple[str, str]] = []
+    return list(
+        dict.fromkeys(
+            (operation.method, operation.target)
+            for operation in collect_cdmod_prefab_risk_operations(path)
+        )
+    )
+
+
+def collect_cdmod_prefab_risk_operations(path: Path) -> list[CdmodPrefabRiskOperation]:
+    """读取 Prefab 目标、复制来源和声明 SHA，不读取二进制载荷。"""
+    operations: list[CdmodPrefabRiskOperation] = []
     try:
         with zipfile.ZipFile(path) as archive:
             manifest = _read_zip_json(archive, CDMOD_MANIFEST_PATH)
@@ -89,7 +109,14 @@ def collect_cdmod_prefab_risk_targets(path: Path) -> list[tuple[str, str]]:
                         op = operation.get("op")
                         if isinstance(target, str) and _is_prefab_target(target):
                             method = f"resource-transform {op}" if isinstance(op, str) else "resource-transform"
-                            targets.append((method, target))
+                            source = operation.get("source")
+                            operations.append(
+                                CdmodPrefabRiskOperation(
+                                    method=method,
+                                    target=target,
+                                    source=source if isinstance(source, str) else None,
+                                )
+                            )
                     continue
                 if component_type == CDMOD_FILE_REPLACEMENT_COMPONENT_TYPE:
                     for file_item in document.get("files") or []:
@@ -97,17 +124,30 @@ def collect_cdmod_prefab_risk_targets(path: Path) -> list[tuple[str, str]]:
                             continue
                         target = file_item.get("target")
                         if isinstance(target, str) and _is_prefab_target(target):
-                            targets.append(("file-replacement", target))
+                            payload_sha256 = file_item.get("sha256")
+                            operations.append(
+                                CdmodPrefabRiskOperation(
+                                    method="file-replacement",
+                                    target=target,
+                                    payload_sha256=(
+                                        payload_sha256.casefold()
+                                        if isinstance(payload_sha256, str)
+                                        else None
+                                    ),
+                                )
+                            )
                     continue
                 for patch in document.get("patches") or []:
                     if not isinstance(patch, dict):
                         continue
                     target = patch.get("game_file")
                     if isinstance(target, str) and _is_prefab_target(target):
-                        targets.append(("cdmod legacy-json", target))
+                        operations.append(
+                            CdmodPrefabRiskOperation("cdmod legacy-json", target)
+                        )
     except (OSError, zipfile.BadZipFile) as exc:
         raise ValueError(f"无法读取 cdmod：{exc}") from exc
-    return list(dict.fromkeys(targets))
+    return list(dict.fromkeys(operations))
 
 
 def _is_prefab_target(target: str) -> bool:

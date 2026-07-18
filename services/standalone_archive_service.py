@@ -5,8 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from cdmm.archive.pamt import parse_pamt
+from cdmm.archive.pamt import parse_pamt, parse_pamt_filtered
 from cdmm.common.constants import (
     GAME_DIR_NAME_LENGTH,
     KNOWN_GAME_TOP_DIRS,
@@ -19,11 +20,18 @@ from cdmm.common.constants import (
 from cdmm.common.models import DiscoveredMod, PazEntry
 from cdmm.services.json_loader import decompress_entry
 from cdmm.services.cdmod_package import load_cdmod_package
+from cdmm.services.mod_risk_service import (
+    VERIFIED_STANDALONE_CONFLICT_WARNING_PREFIX,
+    build_verified_standalone_path_conflict_warning,
+)
 from cdmm.services.scanner import MOD_TYPE_CDMOD
 
 
 # standalone 冲突提示前缀，用于构建日志、状态缓存与控制台醒目输出。
-STANDALONE_CONFLICT_WARNING_PREFIX = "[STANDALONE-CONFLICT]"
+STANDALONE_CONFLICT_WARNING_PREFIX = VERIFIED_STANDALONE_CONFLICT_WARNING_PREFIX
+
+# 已实机确认不能由两个 standalone 同时注册的条件装配表文件名。
+CONDITIONAL_PART_PREFAB_TABLE_NAME = "conditionalpartprefab_transmog.xml"
 
 
 @dataclass(frozen=True)
@@ -161,12 +169,18 @@ def _append_standalone_conflict_warnings(
     warnings: list[str],
 ) -> None:
     """提示同一 PAMT 对应不同 PAZ；该风险只告警，不阻止用户尝试启动。"""
+    verified_conflict_pamt_digests = _append_verified_final_path_conflicts(
+        archives,
+        warnings,
+    )
     by_pamt: dict[str, list[StandaloneArchive]] = {}
     for archive in archives:
         by_pamt.setdefault(sha256(archive.pamt_bytes).hexdigest(), []).append(archive)
 
     for pamt_digest, group in by_pamt.items():
         if len(group) < 2:
+            continue
+        if pamt_digest in verified_conflict_pamt_digests:
             continue
         # 只对 PAMT 已重复的小组比较 PAZ，避免冷构建额外哈希所有大型归档。
         paz_signatures = {
@@ -185,6 +199,55 @@ def _append_standalone_conflict_warnings(
             f"冲突 archive（加载顺序）: {sources}\n"
             f"同一 PAMT 索引对应 {len(paz_signatures)} 份不同 PAZ；加载器将继续启动，实际结果由游戏决定。"
         )
+
+
+def _append_verified_final_path_conflicts(
+    archives: list[StandaloneArchive],
+    warnings: list[str],
+) -> set[str]:
+    """解析小型 PAMT，识别会让游戏重复解析的精确最终路径。"""
+    archives_by_final_path: dict[str, list[StandaloneArchive]] = {}
+    with TemporaryDirectory(prefix="cdmm-standalone-risk-") as temp_dir:
+        temp_root = Path(temp_dir)
+        for index, archive in enumerate(archives):
+            archive_dir = temp_root / f"{index:04d}"
+            archive_dir.mkdir()
+            pamt_path = archive_dir / OVERLAY_PAMT_NAME
+            pamt_path.write_bytes(archive.pamt_bytes)
+            try:
+                entries = parse_pamt_filtered(
+                    pamt_path,
+                    paz_dir=archive_dir,
+                    desired_basenames={CONDITIONAL_PART_PREFAB_TABLE_NAME},
+                )
+            except (OSError, ValueError):
+                continue
+            for entry in entries:
+                filename = entry.path.replace("\\", "/").rsplit("/", 1)[-1]
+                final_path = (
+                    f"{entry.resolved_dir_path}/{filename}"
+                    if entry.resolved_dir_path
+                    else entry.path
+                ).replace("\\", "/").strip("/").casefold()
+                archives_by_final_path.setdefault(final_path, []).append(archive)
+
+    matched_pamt_digests: set[str] = set()
+    for final_path, group in archives_by_final_path.items():
+        if len(group) < 2:
+            continue
+        sources = [
+            f"{archive.mod_name}/{archive.source_dir.name} -> {archive.assigned_dir}"
+            for archive in group
+        ]
+        warning = build_verified_standalone_path_conflict_warning(final_path, sources)
+        if warning is None:
+            continue
+        warnings.append(warning)
+        matched_pamt_digests.update(
+            sha256(archive.pamt_bytes).hexdigest()
+            for archive in group
+        )
+    return matched_pamt_digests
 
 
 def cleanup_stale_standalone_dirs(

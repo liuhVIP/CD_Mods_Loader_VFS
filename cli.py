@@ -39,7 +39,12 @@ from cdmm.services.scanner import (
     MOD_TYPE_STANDALONE_ARCHIVE,
 )
 from cdmm.storage.state_store import load_state
-from cdmm.utils.console_alert import is_high_risk_mod_warning, print_high_risk_mod_warning
+from cdmm.utils.console_alert import (
+    is_high_risk_mod_warning,
+    is_standalone_conflict,
+    print_high_risk_mod_warning,
+    print_standalone_conflict,
+)
 
 # 中文语言标识，写入用户界面配置文件。
 LANGUAGE_ZH = "zh-CN"
@@ -108,8 +113,6 @@ UI_TEXTS = {
             "体积小、轻量化：专注独立加载，不依赖完整 GUI 管理器。",
             "多线程 + 目标索引缓存：减少重复解析，提高模组扫描与构建速度。",
             "分钟级加载体验：大型模组组合也尽量压缩到可等待的加载时间。",
-            "配合 UP 自制 N++ 模组管理器：红色沙漠模组一键安装、一键卸载，超省心！",
-            "N++ 下载地址：https://www.kdocs.cn/l/ck4sKeHQ48Wm",
             "支持中文 / English：首次打开选择语言，之后会自动记住。",
         ),
         "language_prompt_title": "请选择界面语言 / Please select language:",
@@ -492,6 +495,9 @@ def print_result(command: str, result: LoaderResult, elapsed_seconds: float, lan
     for warning in result.warnings:
         if is_high_risk_mod_warning(warning):
             print_high_risk_mod_warning(warning)
+            continue
+        if is_standalone_conflict(warning):
+            print_standalone_conflict(warning)
     for error in result.errors:
         print(text("error", language, error=error), file=sys.stderr)
     if result.errors:
