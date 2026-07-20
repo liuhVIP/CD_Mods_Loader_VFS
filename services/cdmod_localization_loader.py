@@ -54,6 +54,10 @@ _LOCALE_TO_PALOC = {
     "pt_br": "por-br",
 }
 
+# 无法从环境变量、Steam manifest 或系统区域识别语言时统一使用简体中文。
+# 该默认值避免语言通配本地化模组阻断整个 VFS 构建和游戏启动。
+DEFAULT_PALOC_LANGUAGE = "zho-cn"
+
 
 def collect_localization_pamt_targets(packages: list[CdmodPackage]) -> list[str]:
     """收集本地化组件需要查询的 PALOC 目标。"""
@@ -204,12 +208,6 @@ def _expand_patch_sources(
     if not matches:
         return matches
     active_language = detect_active_paloc_language(game_dir)
-    if active_language is None:
-        if len(matches) == 1:
-            return matches
-        raise ValueError(
-            "无法确定当前游戏语言；请设置 CDLOADER_LANGUAGE（例如 zho-cn 或 english）"
-        )
     suffix = f"_{active_language}.paloc"
     selected = {
         target_path: source
@@ -221,8 +219,8 @@ def _expand_patch_sources(
     return selected
 
 
-def detect_active_paloc_language(game_dir: Path) -> str | None:
-    """按显式覆盖、Steam manifest、系统区域的顺序识别活动语言。"""
+def detect_active_paloc_language(game_dir: Path) -> str:
+    """按显式覆盖、Steam manifest、系统区域识别，失败时回退简体中文。"""
     explicit = os.environ.get("CDLOADER_LANGUAGE", "").strip().lower()
     if explicit:
         return _STEAM_LANGUAGE_TO_PALOC.get(explicit, explicit)
@@ -233,7 +231,7 @@ def detect_active_paloc_language(game_dir: Path) -> str | None:
     if locale_name in _LOCALE_TO_PALOC:
         return _LOCALE_TO_PALOC[locale_name]
     language_prefix = locale_name.split("_", 1)[0]
-    return _LOCALE_TO_PALOC.get(language_prefix)
+    return _LOCALE_TO_PALOC.get(language_prefix, DEFAULT_PALOC_LANGUAGE)
 
 
 def _read_steam_manifest_language(game_dir: Path) -> str | None:

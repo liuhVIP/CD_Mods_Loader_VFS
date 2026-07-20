@@ -124,6 +124,16 @@ def parse_entry(data, offset, end):
         # walking, not a fixed offset. Field positions verified against
         # vanilla 1.07.00: the Damian record holds the exact hashes the
         # Female Animations mod (GitHub #150) copies onto Kliff.
+        # 旧 Format 3 Female Animations 把这七个连续 u32 使用了早期
+        # 逆向字段名；新版 field JSON 则使用展开后的真实 schema 名称。
+        # 同时保留两套偏移，writer 按模组方言选择，避免破坏旧模组。
+        result['_appearanceName_direct_offset'] = p
+        result['_characterPrefabPath_direct_offset'] = p + 4
+        result['_skeletonName_direct_offset'] = p + 8
+        result['_lookup22_direct_offset'] = p + 12
+        result['_lookup23_direct_offset'] = p + 16
+        result['_lookup24_direct_offset'] = p + 20
+        result['_lookup25_direct_offset'] = p + 24
         result['_upperActionChartPackageGroupName_offset'] = p
         result['_upperActionChartPackageGroupName_key'] = struct.unpack_from('<I', data, p)[0]
         result['_lowerActionChartPackageGroupName_offset'] = p + 4
@@ -136,15 +146,17 @@ def parse_entry(data, offset, end):
         result['_skeletonName_key'] = struct.unpack_from('<I', data, p + 20)[0]
         result['_skeletonVariationName_offset'] = p + 24
         result['_skeletonVariationName_key'] = struct.unpack_from('<I', data, p + 24)[0]
-        # _flagC: a u8 enum (only ever 0/1/2 across all 7027 vanilla
-        # records) 62 bytes past the block start, inside the post-block
-        # fixed-field run. Damian holds 2, the value #150 sets on Kliff.
-        if p + 63 <= len(data):
-            result['_flagC_offset'] = p + 62
-            result['_flagC'] = data[p + 62]
+        # CD 1.14 在旧结构的标志位前增加了一个 u32。当前原表中 Damian
+        # 的 f36/flag_c 位于 p+66 且值为 2；p+62 落在前一个哈希中间，
+        # 写入那里会破坏相邻字段。
+        if p + 67 <= len(data):
+            result['_flagC_offset'] = p + 66
+            result['_flagC'] = data[p + 66]
+            result['_field36_offset'] = p + 66
         p += 28
         p += 4
         p += 8
+        p += 4
         p += 4
         p += 4
         p += 4

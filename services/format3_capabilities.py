@@ -166,11 +166,15 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
                 pattern=re.compile(
                     r"^(upper_chart\.group_lookup|lower_chart\.group_lookup|"
                     r"lookup_22|lookup_24|skeleton_name|lookup_25|flag_c|"
+                    r"appearance_name|character_prefab_path|"
+                    r"default_action_action_index|character_weight|f36|"
                     r"character_reward_data_list)$"
                 ),
                 reason_when_miss=(
                     "characterinfo 当前仅支持 upper_chart.group_lookup、lower_chart.group_lookup、"
                     "lookup_22、lookup_24、skeleton_name、lookup_25、flag_c、"
+                    "appearance_name、character_prefab_path、"
+                    "default_action_action_index、character_weight、f36、"
                     "character_reward_data_list"
                 ),
             ),
