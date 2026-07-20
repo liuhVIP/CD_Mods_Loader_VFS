@@ -28,10 +28,18 @@ _FIELD_MAP: dict[str, tuple[str, str, int]] = {
     "flag_c": ("_flagC_offset", "<B", 1),
 }
 
-CHARACTERINFO_SUPPORTED_FIELDS = frozenset(_FIELD_MAP)
+# 真实 CD 1.13 CharacterInfo 中，奖励列表前依次是三个空 farm 数组和
+# `_farmBreedingCoolTime=0xffffffff`。该窄锚点已在本次模组 129 条目标记录中逐条验证。
+_CHARACTER_REWARD_PREFIX = b"\x00" * 12 + b"\xff" * 4
+_CHARACTER_REWARD_FIELD = "character_reward_data_list"
+_CHARACTER_REWARD_ITEM_SIZE = 12
+_CHARACTER_REWARD_MAX_COUNT = 1024
+_UINT32_MAX = 0xFFFFFFFF
+
+CHARACTERINFO_SUPPORTED_FIELDS = frozenset((*_FIELD_MAP, _CHARACTER_REWARD_FIELD))
 CHARACTERINFO_SUPPORTED_FIELD_REASON = (
     "characterinfo 当前仅支持 upper_chart.group_lookup、lower_chart.group_lookup、"
-    "lookup_22、lookup_24、skeleton_name、lookup_25、flag_c"
+    "lookup_22、lookup_24、skeleton_name、lookup_25、flag_c、character_reward_data_list"
 )
 
 
@@ -45,7 +53,10 @@ def build_characterinfo_byte_patch_result(
     skipped: list[Format3SkippedIntent] = []
 
     for intent in intents:
-        change, reason = _build_single_change(context.body, parsed, name_to_key, intent)
+        if intent.field == _CHARACTER_REWARD_FIELD:
+            change, reason = _build_character_reward_change(context, intent)
+        else:
+            change, reason = _build_single_change(context.body, parsed, name_to_key, intent)
         if change is None:
             skipped.append(_skip_intent(intent, reason or "characterinfo writer 未生成补丁"))
             continue
@@ -117,6 +128,84 @@ def _build_single_change(
         "patched": patched.hex(),
         "label": f"{intent.entry}.{intent.field}",
     }, None
+
+
+def _build_character_reward_change(
+    context: Format3RuntimeContext,
+    intent: Format3Intent,
+) -> tuple[dict | None, str | None]:
+    """整段替换一条 CharacterInfo 记录内的 CharacterRewardData 数组。"""
+    if intent.op != "set":
+        return None, "characterinfo character_reward_data_list 当前仅支持 op=set"
+    patched, reason = _serialize_character_rewards(intent.new)
+    if patched is None:
+        return None, reason
+
+    resolved = _resolve_bounds(context.entry_bounds, intent)
+    if resolved is None:
+        return None, "目标 entry key/名称 都未命中"
+    entry_start, entry_end, entry_name, name_end = resolved
+    record = context.body[entry_start:entry_end]
+    list_offset = record.find(_CHARACTER_REWARD_PREFIX)
+    if list_offset < 0:
+        return None, "characterinfo character_reward_data_list 窄锚点未命中"
+    list_offset += len(_CHARACTER_REWARD_PREFIX)
+    if list_offset + 4 > len(record):
+        return None, "characterinfo character_reward_data_list count 越界"
+    old_count = struct.unpack_from("<I", record, list_offset)[0]
+    if old_count > _CHARACTER_REWARD_MAX_COUNT:
+        return None, "characterinfo character_reward_data_list 原记录数量不可信"
+    old_end = list_offset + 4 + old_count * _CHARACTER_REWARD_ITEM_SIZE
+    if old_end > len(record):
+        return None, "characterinfo character_reward_data_list 原记录范围越界"
+
+    original = bytes(record[list_offset:old_end])
+    if original == patched:
+        return None, "目标字节已是期望值"
+    return {
+        "entry": entry_name,
+        "rel_offset": entry_start + list_offset - name_end,
+        "original": original.hex(),
+        "patched": patched.hex(),
+        "label": f"{entry_name or intent.key}.{_CHARACTER_REWARD_FIELD}",
+        "_dynamic_entry_offset": True,
+    }, None
+
+
+def _serialize_character_rewards(value: object) -> tuple[bytes | None, str | None]:
+    """序列化 `u32 count + CharacterRewardData[count]`。"""
+    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+        return None, "characterinfo character_reward_data_list 新值必须是对象数组"
+    if len(value) > _CHARACTER_REWARD_MAX_COUNT:
+        return None, "characterinfo character_reward_data_list 新记录数量过大"
+
+    output = bytearray(struct.pack("<I", len(value)))
+    fields = ("drop_set_info", "reward_tag_type_flag", "repeat_count")
+    for item in value:
+        numbers: list[int] = []
+        for field in fields:
+            raw = item.get(field)
+            if isinstance(raw, bool) or not isinstance(raw, int) or not 0 <= raw <= _UINT32_MAX:
+                return None, f"characterinfo character_reward_data_list.{field} 必须是 u32"
+            numbers.append(raw)
+        output += struct.pack("<III", *numbers)
+    return bytes(output), None
+
+
+def _resolve_bounds(
+    entry_bounds: dict[int, tuple[int, int, str, int]],
+    intent: Format3Intent,
+) -> tuple[int, int, str, int] | None:
+    """优先按 key 定位，缺省 key 时再按唯一名称定位。"""
+    bounds = entry_bounds.get(intent.key)
+    if bounds is not None:
+        return bounds
+    if not intent.entry:
+        return None
+    matches = [bounds for bounds in entry_bounds.values() if bounds[2] == intent.entry]
+    if len(matches) == 1:
+        return matches[0]
+    return None
 
 
 def _skip_intent(intent: Format3Intent, reason: str) -> Format3SkippedIntent:

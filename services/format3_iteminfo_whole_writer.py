@@ -1,8 +1,9 @@
 """ItemInfo whole-table Format 3 writer。
 
 当前独立版的 iteminfo 已经有一条稳定的 entry+rel_offset 窄路径，但像
-`cooltime`、`equipable_hash`、`equip_passive_skill_list` 这类字段更适合通过
-完整 parse -> mutate -> serialize 的 whole-table 路径处理。
+`cooltime`、`equip_passive_skill_list` 这类字段可通过完整
+parse -> mutate -> serialize 的 whole-table 路径处理；已具备稳定定位器的
+`equipable_hash` 则由单记录 writer 处理，避免为固定 4 字节修改解析整张表。
 
 本模块复用迁入的 `iteminfo_native_parser.py`，先在内存里解析为 dict，再按
 Format 3 intent 改写目标记录，最后整体序列化回 bytes。若记录长度变化，还会
@@ -38,7 +39,6 @@ ITEMINFO_WHOLE_TABLE_DIRECT_FIELDS = frozenset(
         "unk_post_max_charged_a",
         "unk_post_max_charged_b",
         "docking_child_data",
-        "equipable_hash",
         "gimmick_info",
         "item_charge_type",
         "respawn_time_seconds",

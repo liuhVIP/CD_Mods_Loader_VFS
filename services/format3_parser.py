@@ -17,6 +17,9 @@ from typing import Any
 FORMAT3_DEFAULT_OP = "set"
 FORMAT3_DEFAULT_KEY = 0
 
+# `new_record` 没有普通字段路径，解析层使用内部常量统一交给表级 writer。
+FORMAT3_NEW_RECORD_FIELD = "__new_record__"
+
 # 先迁入参考仓库里已经被真实模组验证过的 iteminfo 字段别名，统一在解析层
 # 归一化，避免 capability / writer 重复维护多套命名。
 _ITEMINFO_FIELD_ALIASES: dict[str, str] = {
@@ -135,6 +138,11 @@ def _parse_intents(raw_intents: object, label: str) -> tuple[Format3Intent, ...]
     for index, raw_intent in enumerate(raw_intents):
         if not isinstance(raw_intent, dict):
             raise ValueError(f"{label}[{index}] 不是对象")
+        intent_label = f"{label}[{index}]"
+        raw_op = raw_intent.get("op", FORMAT3_DEFAULT_OP)
+        if raw_op == "new_record":
+            intents.append(_parse_new_record_intent(raw_intent, intent_label))
+            continue
         match_spec = _parse_match(raw_intent.get("match"), f"{label}[{index}].match")
         if "entry" in raw_intent:
             entry = _require_entry(raw_intent.get("entry"), f"{label}[{index}].entry")
@@ -163,6 +171,26 @@ def _parse_intents(raw_intents: object, label: str) -> tuple[Format3Intent, ...]
             )
         )
     return tuple(intents)
+
+
+def _parse_new_record_intent(raw_intent: dict[str, Any], label: str) -> Format3Intent:
+    """解析带完整记录模板的 Format 3 `new_record` intent。"""
+    raw_key = raw_intent.get("new_key")
+    if isinstance(raw_key, bool) or not isinstance(raw_key, int):
+        raise ValueError(f"{label}.new_key 必须是整数")
+    template = raw_intent.get("template")
+    if not isinstance(template, dict):
+        raise ValueError(f"{label}.template 必须是对象")
+    template_key = template.get("key")
+    if template_key is not None and template_key != raw_key:
+        raise ValueError(f"{label}.template.key 与 new_key 不一致")
+    return Format3Intent(
+        entry="",
+        key=raw_key,
+        field=FORMAT3_NEW_RECORD_FIELD,
+        op="new_record",
+        new=template,
+    )
 
 
 def _parse_match(value: object, label: str) -> dict[str, Any] | None:

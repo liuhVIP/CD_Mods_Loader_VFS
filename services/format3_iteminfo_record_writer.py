@@ -29,6 +29,7 @@ from cdmm.services.iteminfo_native_parser import (
 ITEMINFO_RECORD_DIRECT_FIELDS = frozenset(
     {
         "cooltime",
+        "equipable_hash",
         "unk_post_cooltime_a",
         "unk_post_cooltime_b",
         "docking_child_data",
@@ -118,6 +119,15 @@ def _build_record_change(
 def _apply_record_intent(record: bytearray, intent: Format3Intent) -> tuple[bool, str | None]:
     """写入单个已支持字段，返回 `(是否改变, 跳过原因)`。"""
     field = intent.field
+    if field == "equipable_hash":
+        offset = _locate_schema_field(record, "equipable_hash")
+        packed = _pack_u32(intent.new)
+        if offset is None:
+            return False, "equipable_hash 定位失败"
+        if packed is None:
+            return False, "equipable_hash 的 new 值类型不合法"
+        return _replace_fixed(record, offset, 4, packed), None
+
     if field == "equip_passive_skill_list":
         offset = _locate_schema_field(record, "equip_passive_skill_list")
         if offset is None:

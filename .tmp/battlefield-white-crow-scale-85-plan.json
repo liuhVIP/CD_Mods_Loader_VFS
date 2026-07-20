@@ -1,0 +1,17 @@
+{
+  "load_order": [
+    "battlefield-light-white-crow-hat-scale-85"
+  ],
+  "plan_hash": "c20a6b7d58242e9a0beada5d8897ac62a79e4ee6fc527cd3b6b00da041e61111",
+  "rejection_reasons": [],
+  "resolutions": [],
+  "schema": 1,
+  "status": "VALID",
+  "summary": {
+    "operation_count": 0,
+    "rejection_count": 0,
+    "resolution_count": 0,
+    "target_count": 0
+  },
+  "targets": []
+}

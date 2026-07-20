@@ -64,7 +64,7 @@ ITEMINFO_SUPPORTED_FIELD_REASON = (
     "drop_default_data.default_sub_item、"
     "drop_default_data.socket_valid_count、"
     "drop_default_data.use_socket，"
-    "以及已迁入的 whole-table 字段（如 cooltime、equipable_hash 等）"
+    "以及已迁入的单记录/whole-table 字段（如 equipable_hash、cooltime 等）"
 )
 
 # 单个 entry 内数组数量的安全上限，用于快速拒绝错位读取。

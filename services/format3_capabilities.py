@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from cdmm.services.format3_parser import Format3Intent
 from cdmm.services.format3_runtime import Format3SkippedIntent
+from cdmm.services.format3_iteminfo_record_writer import ITEMINFO_RECORD_DIRECT_FIELDS
 from cdmm.services.format3_iteminfo_whole_writer import ITEMINFO_WHOLE_TABLE_DIRECT_FIELDS
 
 
@@ -49,7 +50,7 @@ _ITEMINFO_CAPABILITY = Format3TableCapability(
                 "drop_default_data.default_sub_item、"
                 "drop_default_data.socket_valid_count、"
                 "drop_default_data.use_socket，"
-                "以及已迁入的 whole-table 字段（如 cooltime、equipable_hash 等）"
+                "以及已迁入的单记录/whole-table 字段（如 equipable_hash、cooltime 等）"
             ),
         ),
         Format3FieldRule(
@@ -66,7 +67,7 @@ _ITEMINFO_CAPABILITY = Format3TableCapability(
                 "drop_default_data.default_sub_item、"
                 "drop_default_data.socket_valid_count、"
                 "drop_default_data.use_socket，"
-                "以及已迁入的 whole-table 字段（如 cooltime、equipable_hash 等）"
+                "以及已迁入的单记录/whole-table 字段（如 equipable_hash、cooltime 等）"
             ),
         ),
         Format3FieldRule(
@@ -76,7 +77,12 @@ _ITEMINFO_CAPABILITY = Format3TableCapability(
         Format3FieldRule(
             pattern=re.compile(
                 "^("
-                + "|".join(re.escape(field) for field in sorted(ITEMINFO_WHOLE_TABLE_DIRECT_FIELDS))
+                + "|".join(
+                    re.escape(field)
+                    for field in sorted(
+                        ITEMINFO_RECORD_DIRECT_FIELDS | ITEMINFO_WHOLE_TABLE_DIRECT_FIELDS
+                    )
+                )
                 + r"|docking_child_data\.gimmick_info_key)$"
             ),
             reason_when_miss=(
@@ -87,7 +93,7 @@ _ITEMINFO_CAPABILITY = Format3TableCapability(
                 "drop_default_data.default_sub_item、"
                 "drop_default_data.socket_valid_count、"
                 "drop_default_data.use_socket，"
-                "以及已迁入的 whole-table 字段（如 cooltime、equipable_hash 等）"
+                "以及已迁入的单记录/whole-table 字段（如 equipable_hash、cooltime 等）"
             ),
         ),
     ),
@@ -159,11 +165,13 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
             Format3FieldRule(
                 pattern=re.compile(
                     r"^(upper_chart\.group_lookup|lower_chart\.group_lookup|"
-                    r"lookup_22|lookup_24|skeleton_name|lookup_25|flag_c)$"
+                    r"lookup_22|lookup_24|skeleton_name|lookup_25|flag_c|"
+                    r"character_reward_data_list)$"
                 ),
                 reason_when_miss=(
                     "characterinfo 当前仅支持 upper_chart.group_lookup、lower_chart.group_lookup、"
-                    "lookup_22、lookup_24、skeleton_name、lookup_25、flag_c"
+                    "lookup_22、lookup_24、skeleton_name、lookup_25、flag_c、"
+                    "character_reward_data_list"
                 ),
             ),
         ),
@@ -173,8 +181,8 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
         table_name="dropsetinfo",
         field_rules=(
             Format3FieldRule(
-                pattern=re.compile(r"^drops$"),
-                reason_when_miss="dropsetinfo 当前仅支持 drops 字段",
+                pattern=re.compile(r"^(drops|__new_record__)$"),
+                reason_when_miss="dropsetinfo 当前仅支持 drops 字段和 new_record 完整记录模板",
             ),
         ),
         supports_whole_table=False,
