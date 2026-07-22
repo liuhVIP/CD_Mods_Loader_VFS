@@ -22,12 +22,15 @@
 否则用户会缺少 `MSVCP140D.dll`、`VCRUNTIME140D.dll`、`VCRUNTIME140_1D.dll`、
 `ucrtbased.dll` 这类 Debug CRT；这些 DLL 不包含在普通 VC Redistributable 中。
 
-2026-07-16 当前实机稳定基线：
+2026-07-21 当前发布基线：
 
 ```text
-nppvfs_launcher.exe SHA-256: 5FB8C58286C1A70E98A5496C9F93B6AD626AEA0981178BF98D3C7C22019CB33B
+nppvfs_launcher.exe SHA-256: 44C1B617C12D1C5C694408EB22EA132E9F5D25843678EF88C762C8CC7A5AFFD2
 vfs_runtime.dll SHA-256: 9337BA64F1465AB06D2C86949AD4AE598E41DE9A6FA563B6B16A73DE65F2F3EF
 ```
+
+当前 launcher 支持由上层通过 `--log-dir` 显式指定 native 日志目录；正式加载器统一
+写入游戏目录下的 `.cdloader/vfs_runtime/logs/`，不再依赖开发目录层级推导。
 
 该 runtime 使用 `SafetyHook=7 + stable system NT IAT=14` 窄混合后端，SafetyHook、
 Zydis 与 Zycore 已静态链接，不需要额外发布对应 DLL。打包脚本会把本目录文件打进

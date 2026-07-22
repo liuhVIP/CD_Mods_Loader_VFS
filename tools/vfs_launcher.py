@@ -800,6 +800,8 @@ def build_vfs_command(game_dir: Path, runtime_dir: Path, args: argparse.Namespac
     steam_app_id = args.steam_app_id.strip() or resolve_steam_app_id(target_exe)
     command = [
         str(runtime_dir / VFS_LAUNCHER_EXE_NAME),
+        "--log-dir",
+        str(runtime_dir / VFS_RUNTIME_LOG_DIR_NAME),
         "--target",
         str(target_exe),
         "--virtual-root",
