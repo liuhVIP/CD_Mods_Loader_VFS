@@ -44,6 +44,10 @@ $EntryFile = Join-Path $BuildDir "cdloader_vfs_nuitka_entry.py"
 $BootstrapSource = Join-Path $BuildDir "cdloader_vfs_bootstrap.cpp"
 $BootstrapResource = Join-Path $BuildDir "cdloader_vfs_bootstrap.rc"
 $BootstrapResourceObject = Join-Path $BuildDir "cdloader_vfs_bootstrap.res"
+$PhysicalBootstrapSource = Join-Path $BuildDir "cdloader_physical_bootstrap.cpp"
+$PhysicalBootstrapResource = Join-Path $BuildDir "cdloader_physical_bootstrap.rc"
+$PhysicalBootstrapResourceObject = Join-Path $BuildDir "cdloader_physical_bootstrap.res"
+$PhysicalOutputName = "cdloader-Physical-$DisplayVersion"
 $PackageDir = Join-Path $BuildDir "package"
 $NuitkaVenvDir = Join-Path $ScriptDir ".venv-nuitka"
 $VfsRuntimeDir = Join-Path $ScriptDir "private\vfs_runtime"
@@ -394,6 +398,58 @@ int wmain() {
 }
 '@ | Set-Content -LiteralPath $BootstrapSource -Encoding UTF8
 
+@'
+#include <windows.h>
+#include <string>
+#include <vector>
+
+int wmain() {
+    wchar_t self_path[MAX_PATH] = {};
+    if (!GetModuleFileNameW(nullptr, self_path, MAX_PATH)) return 2;
+    std::wstring root(self_path);
+    const size_t slash = root.find_last_of(L"\\/");
+    if (slash == std::wstring::npos) return 2;
+    root.resize(slash);
+    const std::wstring core = root + L"\\cdloader\\cdloader-vfs-core.exe";
+    if (GetFileAttributesW(core.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        MessageBoxW(nullptr, L"Missing cdloader\\cdloader-vfs-core.exe. Please extract the complete ZIP first.",
+                    L"Crimson Desert Physical Mod Loader", MB_OK | MB_ICONERROR);
+        return 3;
+    }
+
+    const wchar_t* original = GetCommandLineW();
+    const wchar_t* tail = original;
+    if (*tail == L'\"') {
+        ++tail;
+        while (*tail && *tail != L'\"') ++tail;
+        if (*tail == L'\"') ++tail;
+    } else {
+        while (*tail && *tail != L' ') ++tail;
+    }
+    while (*tail == L' ') ++tail;
+    std::wstring command = L"\"" + core + L"\" --physical-loader";
+    if (*tail) command += L" " + std::wstring(tail);
+    std::vector<wchar_t> buffer(command.begin(), command.end());
+    buffer.push_back(L'\0');
+
+    STARTUPINFOW startup = {};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION process = {};
+    if (!CreateProcessW(core.c_str(), buffer.data(), nullptr, nullptr, TRUE, 0, nullptr,
+                        root.c_str(), &startup, &process)) {
+        MessageBoxW(nullptr, L"Failed to start physical mod loader core.",
+                    L"Crimson Desert Physical Mod Loader", MB_OK | MB_ICONERROR);
+        return static_cast<int>(GetLastError());
+    }
+    CloseHandle(process.hThread);
+    WaitForSingleObject(process.hProcess, INFINITE);
+    DWORD exit_code = 1;
+    GetExitCodeProcess(process.hProcess, &exit_code);
+    CloseHandle(process.hProcess);
+    return static_cast<int>(exit_code);
+}
+'@ | Set-Content -LiteralPath $PhysicalBootstrapSource -Encoding UTF8
+
 @"
 1 VERSIONINFO
 FILEVERSION $($VersionNumbers -join ',')
@@ -420,6 +476,32 @@ BEGIN
 END
 "@ | Set-Content -LiteralPath $BootstrapResource -Encoding ASCII
 
+@"
+1 VERSIONINFO
+FILEVERSION $($VersionNumbers -join ',')
+PRODUCTVERSION $($VersionNumbers -join ',')
+FILEOS 0x40004L
+FILETYPE 0x1L
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", "cdmm\0"
+      VALUE "FileDescription", "Crimson Desert Physical Mod Loader Bootstrap\0"
+      VALUE "FileVersion", "$PeVersion\0"
+      VALUE "OriginalFilename", "$PhysicalOutputName.exe\0"
+      VALUE "ProductName", "Crimson Desert Physical Mod Loader\0"
+      VALUE "ProductVersion", "$PeVersion\0"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0409, 1200
+  END
+END
+"@ | Set-Content -LiteralPath $PhysicalBootstrapResource -Encoding ASCII
+
 $VsWhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
 if (-not (Test-Path -LiteralPath $VsWhere)) {
     throw "未找到 Visual Studio vswhere，无法构建原生 bootstrap。"
@@ -435,6 +517,28 @@ $CompileCommand = ('call "{0}" -arch=x64 -host_arch=x64 >nul && rc /nologo /fo "
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $BootstrapExe)) {
     throw "原生 bootstrap 构建失败。"
 }
+
+$PhysicalBootstrapExe = Join-Path $PackageDir "$PhysicalOutputName.exe"
+$PhysicalCompileCommand = ('call "{0}" -arch=x64 -host_arch=x64 >nul && rc /nologo /fo "{1}" "{2}" && cl /nologo /O2 /EHsc /utf-8 "{3}" "{1}" /link /SUBSYSTEM:CONSOLE /OUT:"{4}" user32.lib' -f $VsDevCmd, $PhysicalBootstrapResourceObject, $PhysicalBootstrapResource, $PhysicalBootstrapSource, $PhysicalBootstrapExe)
+& $env:ComSpec /d /s /c $PhysicalCompileCommand
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $PhysicalBootstrapExe)) {
+    throw "实体加载 bootstrap 构建失败。"
+}
+
+@"
+本压缩包包含两种互斥启动方式：
+
+1. $OutputName.exe
+   VFS 虚拟文件加载。实体模式锁存在时会拒绝启动。
+
+2. $PhysicalOutputName.exe
+   实际写入游戏 overlay/meta 后启动，不加载 VFS runtime。
+
+一旦使用实体加载器，请勿再使用 VFS。需要恢复时，在命令行执行：
+"$PhysicalOutputName.exe" --revert
+
+禁止只删除 .cdloader/physical_mode_state.json 冒充恢复；必须让 revert 成功完成。
+"@ | Set-Content -LiteralPath (Join-Path $PackageDir "两种加载方式说明.txt") -Encoding UTF8
 
 # 为目录版全部运行文件生成相对路径 SHA256，便于发布后核验。
 $HashLines = Get-ChildItem -LiteralPath $CorePackageDir -Recurse -File |

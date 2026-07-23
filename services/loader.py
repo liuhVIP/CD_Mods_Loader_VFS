@@ -31,6 +31,7 @@ from cdmm.services.cdmod_semantic_loader import (
 )
 from cdmm.services.json_loader import build_json_overlay_entries, collect_json_pamt_targets
 from cdmm.services.loose_file_service import build_loose_overlay_entries, collect_loose_pamt_targets
+from cdmm.services.loader_mode_service import clear_physical_mode_after_revert
 from cdmm.services.overlay_service import (
     allocate_overlay_dir,
     build_overlay,
@@ -184,6 +185,22 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
     if removed_standalone_dirs:
         warnings.append(f"已清理不再使用的 standalone 输出目录：{', '.join(removed_standalone_dirs)}")
     if not overlay_inputs and not standalone_archives:
+        # 所有实体模组都被移除时必须真正恢复 vanilla meta，并清理上次 overlay。
+        # 仅把 state 写成空会让旧 PAPGT 继续注册旧包，表现为“卸载后仍然生效”。
+        staging = game_dir / WORK_DIR_NAME / STAGING_DIR_NAME
+        if staging.exists():
+            shutil.rmtree(staging)
+        transaction = Transaction(game_dir, staging)
+        papgt_rel = f"{META_DIR_NAME}/{PAPGT_FILE_NAME}"
+        transaction.stage_file(papgt_rel, vanilla_store.read_file(papgt_rel))
+        pathc_rel = f"{META_DIR_NAME}/{PATHC_FILE_NAME}"
+        if vanilla_store.has_file(pathc_rel):
+            transaction.stage_file(pathc_rel, vanilla_store.read_file(pathc_rel))
+        transaction.commit()
+        transaction.cleanup_staging()
+        from cdmm.services.overlay_service import remove_previous_overlay
+
+        remove_previous_overlay(game_dir)
         save_state(
             game_dir,
             overlay_dir=None,
@@ -191,7 +208,7 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
             loaded_mods=mods,
             standalone_dirs=[],
         )
-        warnings.append("没有生成 overlay entry，PAPGT 未改写")
+        warnings.append("没有可加载模组，已恢复 vanilla PAPGT/PATHC 并清理旧实体 overlay")
         return LoaderResult(overlay_dir=None, loaded_mods=mods, warnings=warnings, errors=[])
 
     standalone_pamts = {archive.assigned_dir: archive.pamt_bytes for archive in standalone_archives}
@@ -306,6 +323,7 @@ def revert_loader(game_dir: Path) -> LoaderResult:
         if _looks_like_staged_archive_dir(target):
             shutil.rmtree(target)
     clear_state(game_dir)
+    clear_physical_mode_after_revert(game_dir)
     return LoaderResult(overlay_dir=None, loaded_mods=[], warnings=warnings, errors=[])
 
 

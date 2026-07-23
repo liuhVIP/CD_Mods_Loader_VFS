@@ -23,6 +23,7 @@ from time import perf_counter
 from cdmm import cdloader_native
 from cdmm.common.constants import GAME_BIN_DIR_NAME, GAME_EXECUTABLE_NAME, LOGS_DIR_NAME, WORK_DIR_NAME
 from cdmm.services.vfs_loader import VfsBuildResult, build_vfs_package_for_launch
+from cdmm.services.loader_mode_service import assert_vfs_mode_allowed
 from cdmm.services.vfs_memory_service import (
     VfsMemoryStatus,
     format_gib,
@@ -195,8 +196,13 @@ KERNEL32.GetTickCount64.restype = ctypes.c_ulonglong
 def main(argv: list[str] | None = None) -> int:
     """执行 VFS 构建并启动游戏。"""
     configure_console_encoding()
+    raw_args = list(sys.argv[1:] if argv is None else argv)
+    if "--physical-loader" in raw_args:
+        from cdmm.tools.physical_launcher import main as physical_main
+
+        return physical_main([item for item in raw_args if item != "--physical-loader"])
     parser = build_parser()
-    args = parser.parse_args(sys.argv[1:] if argv is None else argv)
+    args = parser.parse_args(raw_args)
     if args.vfs_runtime_dir is None and args.vfs_demo_dir is not None:
         args.vfs_runtime_dir = args.vfs_demo_dir
 
@@ -216,6 +222,7 @@ def main(argv: list[str] | None = None) -> int:
     return_code = 0
     auto_close_message = ""
     try:
+        assert_vfs_mode_allowed(game_dir)
         ensure_game_ready(game_dir)
         runtime_dir = None
         if not args.build_only:
