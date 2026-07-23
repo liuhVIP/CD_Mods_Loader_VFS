@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+from collections.abc import Iterable
 from pathlib import Path
 
 from cdmm.common.constants import META_DIR_NAME, PAPGT_FILE_NAME, PATHC_FILE_NAME, VANILLA_DIR_NAME, WORK_DIR_NAME
@@ -28,9 +29,13 @@ class VanillaStore:
             if source.exists():
                 self.ensure_file_backup(rel)
 
-    def refresh_meta_backup(self) -> None:
-        """游戏更新后用当前原版 PAPGT/PATHC 刷新小型 meta 备份。"""
-        for rel in (f"{META_DIR_NAME}/{PAPGT_FILE_NAME}", f"{META_DIR_NAME}/{PATHC_FILE_NAME}"):
+    def refresh_meta_backup(self, rel_paths: Iterable[str] | None = None) -> None:
+        """游戏更新后用当前原版 meta 刷新指定备份文件。"""
+        targets = rel_paths or (
+            f"{META_DIR_NAME}/{PAPGT_FILE_NAME}",
+            f"{META_DIR_NAME}/{PATHC_FILE_NAME}",
+        )
+        for rel in targets:
             source = self.game_dir / fs_rel_path(rel)
             target = self.root / fs_rel_path(rel)
             if not source.exists():

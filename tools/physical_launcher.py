@@ -11,18 +11,26 @@ from pathlib import Path
 from time import perf_counter
 
 from cdmm.common.constants import (
-    APPLY_PROGRESS_PHASES,
     GAME_BIN_DIR_NAME,
     GAME_EXECUTABLE_NAME,
     LOGS_DIR_NAME,
     WORK_DIR_NAME,
 )
-from cdmm.services.loader import apply_loader, revert_loader
-from cdmm.services.loader_mode_service import activate_physical_mode, begin_physical_mode
+from cdmm.services.loader import revert_loader
+from cdmm.services.loader_mode_service import (
+    activate_physical_mode,
+    begin_physical_mode,
+    check_physical_mode_cache,
+    refresh_physical_meta_backup_after_game_update,
+)
+from cdmm.services.cdmod_localization_loader import detect_active_paloc_language
+from cdmm.services.scanner import INVALID_CDMOD_WARNING_PREFIX, scan_mods
+from cdmm.services.physical_materializer import apply_physical_packages
 from cdmm.tools.vfs_launcher import (
     APP_VERSION,
     CREATE_NEW_PROCESS_GROUP_FLAG,
     DETACHED_PROCESS_FLAG,
+    VfsBuildProgressPrinter,
     cleanup_owned_asi_runtime_files,
     ensure_no_running_target,
     executable_dir,
@@ -41,7 +49,7 @@ PHYSICAL_LAUNCH_LOG_FILE_NAME = "physical_exe_launch.log"
 
 # 用户可见实体加载器标题和文件名，版本统一来自 version.txt。
 PHYSICAL_APP_TITLE = f"红色沙漠实体加载模组启动器 {APP_VERSION}"
-PHYSICAL_APP_EXE_NAME = f"cdloader-实体加载-{APP_VERSION}.exe"
+PHYSICAL_APP_EXE_NAME = f"cdloader-Physical-{APP_VERSION}.exe"
 
 # 直接启动非 Steam 游戏时与控制台解耦。
 DETACHED_GAME_CREATION_FLAGS = DETACHED_PROCESS_FLAG | CREATE_NEW_PROCESS_GROUP_FLAG
@@ -63,6 +71,11 @@ def main(argv: list[str] | None = None) -> int:
         ensure_game_ready(game_dir)
         ensure_no_running_target(game_dir, False)
         if args.revert:
+            refreshed_meta = refresh_physical_meta_backup_after_game_update(game_dir)
+            if refreshed_meta:
+                refreshed_text = ", ".join(refreshed_meta)
+                logging.info("revert 前已刷新游戏更新后的 vanilla meta：%s", refreshed_text)
+                print(f"检测到游戏更新，恢复前已刷新原版 meta 备份：{refreshed_text}")
             result = revert_loader(game_dir)
             print_loader_messages(result.warnings, result.errors)
             if result.errors:
@@ -71,17 +84,49 @@ def main(argv: list[str] | None = None) -> int:
             print("实体加载修改已安全恢复，VFS 模式锁已解除。")
             return 0
 
+        cached_mods, cached_scan_warnings = scan_mods(game_dir)
+        active_language = detect_active_paloc_language(game_dir)
+        invalid_cdmods = [
+            warning
+            for warning in cached_scan_warnings
+            if warning.startswith(INVALID_CDMOD_WARNING_PREFIX)
+        ]
+        cache_check = check_physical_mode_cache(
+            game_dir,
+            APP_VERSION,
+            cached_mods,
+            active_language,
+        )
+        if cache_check.cache_hit and not invalid_cdmods:
+            print_loader_messages(cached_scan_warnings, [])
+            logging.info("实体加载缓存命中：%s", cache_check.reason)
+            cleanup_owned_asi_runtime_files(game_dir / GAME_BIN_DIR_NAME)
+            launch_game_without_vfs(game_dir, args.steam_app_id)
+            print("实体加载缓存命中：模组与实体文件未变化，已直接启动游戏。")
+            print("注意：恢复成功前请勿再运行 VFS 启动器。")
+            return 0
+        cache_miss_reason = (
+            "检测到无效 cdmod，禁止复用缓存"
+            if invalid_cdmods
+            else cache_check.reason
+        )
+        logging.info("实体加载缓存未命中：%s", cache_miss_reason)
+        print(f"实体加载缓存未命中：{cache_miss_reason}，将重新构建。")
+
+        refreshed_meta = refresh_physical_meta_backup_after_game_update(game_dir)
+        if refreshed_meta:
+            refreshed_text = ", ".join(refreshed_meta)
+            logging.info("游戏更新后已刷新 vanilla meta 备份：%s", refreshed_text)
+            print(f"检测到游戏更新，已刷新原版 meta 备份：{refreshed_text}")
+
         begin_physical_mode(game_dir, APP_VERSION)
-        print("已锁定为实体加载模式；现在开始实际写入游戏 overlay/meta。")
-        completed_phases: set[str] = set()
-
-        def update_progress(phase_name: str) -> None:
-            if phase_name in completed_phases:
-                return
-            completed_phases.add(phase_name)
-            print(f"[{len(completed_phases):02d}/{len(APPLY_PROGRESS_PHASES):02d}] {phase_name}", flush=True)
-
-        result = apply_loader(game_dir, progress_callback=update_progress)
+        print("已锁定为实体加载模式；正在复用 VFS 的 npp 分类分包并写入实体文件。")
+        progress = VfsBuildProgressPrinter(operation_name="Physical 实体加载")
+        progress.start()
+        try:
+            result = apply_physical_packages(game_dir, progress_callback=progress.update)
+        finally:
+            progress.finish()
         print_loader_messages(result.warnings, result.errors)
         if result.errors:
             print("实体加载失败：pending 模式锁已保留，VFS 不会冒险启动。", file=sys.stderr)
@@ -92,11 +137,12 @@ def main(argv: list[str] | None = None) -> int:
             APP_VERSION,
             overlay_dir=result.overlay_dir,
             mod_fingerprint=fingerprint_mods(result.loaded_mods),
+            active_language=active_language,
         )
         cleanup_owned_asi_runtime_files(game_dir / GAME_BIN_DIR_NAME)
         launch_game_without_vfs(game_dir, args.steam_app_id)
         if result.overlay_dir:
-            print(f"实体加载完成：overlay 已写入 {result.overlay_dir}，游戏已启动。")
+            print(f"实体加载完成：已写入分包 {result.overlay_dir}，游戏已启动。")
         else:
             print("实体加载完成：本次没有生成 overlay，游戏已启动。")
         print("注意：恢复成功前请勿再运行 VFS 启动器。")

@@ -548,9 +548,14 @@ def print_vfs_result(result: VfsBuildResult) -> None:
 class VfsBuildProgressPrinter:
     """VFS 构建控制台进度提示，避免大模组构建时看起来像卡住。"""
 
-    def __init__(self, interval_seconds: float = 3.0) -> None:
+    def __init__(
+        self,
+        interval_seconds: float = 3.0,
+        operation_name: str = "VFS 构建",
+    ) -> None:
         """初始化阶段状态和后台提示线程。"""
         self.interval_seconds = interval_seconds
+        self.operation_name = operation_name
         self.started_at = perf_counter()
         self.current_phase = "等待开始"
         self._stop_event = threading.Event()
@@ -559,7 +564,7 @@ class VfsBuildProgressPrinter:
 
     def start(self) -> None:
         """启动后台提示线程。"""
-        print("开始构建 VFS 包，过程可能需要几十秒，请勿关闭窗口。", flush=True)
+        print(f"开始{self.operation_name}，过程可能需要几十秒，请勿关闭窗口。", flush=True)
         self._thread = threading.Thread(target=self._run, name="vfs-build-progress", daemon=True)
         self._thread.start()
 
@@ -574,7 +579,7 @@ class VfsBuildProgressPrinter:
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join(timeout=1.0)
-        print(f"[{self.elapsed_text()}] VFS 构建阶段结束", flush=True)
+        print(f"[{self.elapsed_text()}] {self.operation_name}阶段结束", flush=True)
 
     def _run(self) -> None:
         """周期性输出当前阶段，给用户明确的未卡死反馈。"""

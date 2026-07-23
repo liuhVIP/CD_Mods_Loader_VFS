@@ -11,7 +11,7 @@ import logging
 import shutil
 from hashlib import sha256
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from time import perf_counter, sleep
 from uuid import uuid4
@@ -53,6 +53,7 @@ from cdmm.services.scanner import (
 from cdmm.services.standalone_archive_service import (
     STANDALONE_CONFLICT_WARNING_PREFIX,
     collect_standalone_archives,
+    standalone_state_items,
 )
 from cdmm.storage.state_store import load_state
 from cdmm.storage.vanilla_store import VanillaStore
@@ -165,6 +166,7 @@ class VfsBuildResult:
     errors: list[str]
     mapped_files: list[str]
     cache_hit: bool = False
+    standalone_dirs: list[dict[str, str]] = field(default_factory=list)
 
 
 def build_vfs_package_for_launch(
@@ -219,6 +221,7 @@ def build_vfs_package(
     game_dir: Path,
     allow_missing_targets: bool = False,
     progress_callback: Callable[[str], None] | None = None,
+    refresh_vanilla_on_game_change: bool = True,
 ) -> VfsBuildResult:
     """构建 VFS 运行目录和 mapping_tree.json，不修改游戏源文件。"""
     total_started = perf_counter()
@@ -283,7 +286,7 @@ def build_vfs_package(
     stage_started = perf_counter()
     _notify_progress(progress_callback, "准备原版 meta 与 PAMT 索引")
     vanilla_store = VanillaStore(game_dir)
-    if game_build_changed:
+    if game_build_changed and refresh_vanilla_on_game_change:
         vanilla_store.refresh_meta_backup()
         logger.info(
             "检测到游戏主程序构建变化，已刷新原版 meta 并执行 VFS 冷构建：%s -> %s",
@@ -479,6 +482,7 @@ def build_vfs_package(
         mapped_files,
         allow_missing_targets,
         active_language,
+        standalone_state_items(standalone_archives),
     )
     _prune_inactive_vfs_snapshots(game_dir, vfs_root)
     save_game_pamt_target_cache(game_dir)
@@ -495,6 +499,7 @@ def build_vfs_package(
         warnings=warnings,
         errors=errors,
         mapped_files=mapped_files,
+        standalone_dirs=standalone_state_items(standalone_archives),
     )
 
 
@@ -559,6 +564,7 @@ def _write_empty_vfs_package(
         mapped_files,
         allow_missing_targets,
         active_language,
+        [],
     )
     _prune_inactive_vfs_snapshots(game_dir, vfs_root)
     logger.info("VFS empty mapping built: %s", mapping_path)
@@ -571,6 +577,7 @@ def _write_empty_vfs_package(
         warnings=warnings,
         errors=[],
         mapped_files=mapped_files,
+        standalone_dirs=[],
     )
 
 
@@ -634,6 +641,12 @@ def _try_reuse_vfs_package(
     if not isinstance(overlay_packages, list):
         overlay_packages = []
     overlay_dir = state.get("overlay_dir")
+    raw_standalone_dirs = state.get("standalone_dirs")
+    standalone_dirs = (
+        [item for item in raw_standalone_dirs if isinstance(item, dict)]
+        if isinstance(raw_standalone_dirs, list)
+        else []
+    )
     saved_warnings = state.get("warnings")
     if isinstance(saved_warnings, list):
         existing = set(warnings)
@@ -656,6 +669,7 @@ def _try_reuse_vfs_package(
         errors=[],
         mapped_files=normalized_files,
         cache_hit=True,
+        standalone_dirs=standalone_dirs,
     )
 
 
@@ -1065,6 +1079,7 @@ def _write_vfs_state(
     mapped_files: list[str],
     allow_missing_targets: bool,
     active_language: str | None,
+    standalone_dirs: list[dict[str, str]],
 ) -> None:
     """写入 VFS 构建摘要，便于后续排障。"""
     state_path = game_dir / WORK_DIR_NAME / VFS_STATE_FILE_NAME
@@ -1084,6 +1099,7 @@ def _write_vfs_state(
         "loaded_mods": [mod.name for mod in mods],
         "warnings": warnings,
         "mapped_files": mapped_files,
+        "standalone_dirs": standalone_dirs,
         "empty_mapping": not mapped_files,
     }
     state_path.write_text(

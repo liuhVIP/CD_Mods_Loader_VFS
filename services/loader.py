@@ -322,6 +322,12 @@ def revert_loader(game_dir: Path) -> LoaderResult:
         target = game_dir / assigned_dir
         if _looks_like_staged_archive_dir(target):
             shutil.rmtree(target)
+    for directory in state.get("physical_output_dirs", []):
+        if not isinstance(directory, str):
+            continue
+        target = game_dir / directory
+        if _looks_like_staged_archive_dir(target):
+            shutil.rmtree(target)
     clear_state(game_dir)
     clear_physical_mode_after_revert(game_dir)
     return LoaderResult(overlay_dir=None, loaded_mods=[], warnings=warnings, errors=[])

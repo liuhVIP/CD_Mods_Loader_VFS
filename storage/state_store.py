@@ -33,6 +33,8 @@ def save_state(
     last_fingerprint: str,
     loaded_mods: list[DiscoveredMod],
     standalone_dirs: list[dict[str, str]] | None = None,
+    physical_output_files: list[str] | None = None,
+    physical_output_dirs: list[str] | None = None,
 ) -> None:
     """写入最小状态，便于下次清理和诊断。"""
     path = state_path(game_dir)
@@ -42,6 +44,8 @@ def save_state(
         "last_fingerprint": last_fingerprint,
         "overlay_dir": overlay_dir,
         "standalone_dirs": standalone_dirs or [],
+        "physical_output_files": physical_output_files or [],
+        "physical_output_dirs": physical_output_dirs or [],
         "loaded_mods": [
             {
                 "name": mod.name,

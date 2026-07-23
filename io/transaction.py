@@ -32,6 +32,19 @@ class Transaction:
         if rel_path not in self._staged_files:
             self._staged_files.append(rel_path)
 
+    def stage_file_from_path(self, rel_path: str, source: Path) -> None:
+        """把已构建文件复制到暂存区，避免大型 PAZ 全量读入内存。"""
+        rel = Path(rel_path)
+        if rel.is_absolute():
+            raise ValueError(f"stage_file_from_path 只接受相对路径：{rel_path}")
+        if not source.is_file():
+            raise FileNotFoundError(2, "待物化文件不存在", str(source))
+        target = self._staging_dir / fs_rel_path(rel_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        if rel_path not in self._staged_files:
+            self._staged_files.append(rel_path)
+
     def commit(self) -> None:
         """将所有暂存文件提交到游戏目录，失败时恢复原文件。"""
         renamed: list[str] = []
