@@ -3,7 +3,7 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [string]$TrinitySample = 'G:\NppMODdown\crimsondesert\Trinity 3109 0.10.0 2026-07-18T19-46Z mhw3QMqsN\Trinity.asi'
+    [string]$TrinitySample = 'G:\NppMODdown\crimsondesert\Trinity 3109 0.13.1 2026-07-23T18-18Z ifG1RWTgX\Trinity.asi'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,8 +17,8 @@ $releaseDirectory = Join-Path $projectRoot 'dist\trinity_localizer'
 $sourceAsi = Join-Path $buildDirectory "$Configuration\TrinityCN.asi"
 $releaseAsi = Join-Path $releaseDirectory 'TrinityCN.asi'
 
-# Trinity 0.10.0 的开发样本仅用于构建时核对英文条目，不会进入发布目录。
-$expectedTrinitySha256 = '383FB7A7013DAE5EE96326A285DBA0DB7B2E9D3B732200FF0F6367946F40B310'
+# Trinity 0.13.1 的开发样本仅用于构建时核对英文条目，不会进入发布目录。
+$expectedTrinitySha256 = '1AAA392E5408F35ACB741A792B2F573BCA3144FBAB83D2D9A7BC3FDB4BA58D3B'
 
 function ConvertTo-CppByteLiteral {
     param([Parameter(Mandatory)][string]$Value)
@@ -30,6 +30,43 @@ function Get-FormatTokens {
     param([Parameter(Mandatory)][string]$Value)
     return [regex]::Matches($Value, '%(?:[-+ #0]*|\d+|\.|\*)*(?:hh|h|ll|l|j|z|t|L)?[A-Za-z%]') |
         ForEach-Object { $_.Value }
+}
+
+function Test-PatchableTranslationSlot {
+    param(
+        [Parameter(Mandatory)][byte[]]$SampleBytes,
+        [Parameter(Mandatory)][string]$SampleAscii,
+        [Parameter(Mandatory)][string]$Original,
+        [Parameter(Mandatory)][int]$Capacity
+    )
+    $originalLength = [System.Text.Encoding]::UTF8.GetByteCount($Original)
+    $searchValue = "$Original`0"
+    $searchOffset = 0
+    while ($searchOffset -lt $SampleAscii.Length) {
+        $matchOffset = $SampleAscii.IndexOf(
+            $searchValue,
+            $searchOffset,
+            [System.StringComparison]::Ordinal
+        )
+        if ($matchOffset -lt 0) {
+            return $false
+        }
+        $slotEnd = $matchOffset + $Capacity
+        if ($slotEnd -lt $SampleBytes.Length) {
+            $slotIsEmpty = $true
+            for ($index = $matchOffset + $originalLength; $index -le $slotEnd; $index++) {
+                if ($SampleBytes[$index] -ne 0) {
+                    $slotIsEmpty = $false
+                    break
+                }
+            }
+            if ($slotIsEmpty) {
+                return $true
+            }
+        }
+        $searchOffset = $matchOffset + 1
+    }
+    return $false
 }
 
 if (-not (Test-Path -LiteralPath $translationPath -PathType Leaf)) {
@@ -85,7 +122,14 @@ foreach ($entry in $translations) {
         throw "格式占位符不一致：$original"
     }
     if ($null -ne $sampleAscii -and -not $sampleAscii.Contains("$original`0", [System.StringComparison]::Ordinal)) {
-        throw "Trinity 0.10.0 样本中不存在英文条目：$original"
+        throw "Trinity 0.13.1 样本中不存在英文条目：$original"
+    }
+    if ($null -ne $sampleBytes -and -not (Test-PatchableTranslationSlot `
+            -SampleBytes $sampleBytes `
+            -SampleAscii $sampleAscii `
+            -Original $original `
+            -Capacity $capacity)) {
+        throw "Trinity 0.13.1 样本中的字符串槽容量不足：$original ($capacity)"
     }
     foreach ($rune in $translation.EnumerateRunes()) {
         if ($rune.Value -gt 0xFFFF) {

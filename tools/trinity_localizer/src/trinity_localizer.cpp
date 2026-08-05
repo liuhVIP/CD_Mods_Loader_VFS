@@ -1,4 +1,4 @@
-// Trinity 0.10.0 中文伴生 ASI：运行时内嵌翻译映射与 ImGui 中文字体注入。
+// Trinity 0.13.1 中文伴生 ASI：运行时内嵌翻译映射与 ImGui 中文字体注入。
 #include <Windows.h>
 
 #include <algorithm>
@@ -16,26 +16,26 @@
 
 namespace trinity_cn {
 
-// 当前适配对象为 Trinity 0.10.0；版本变化时必须重新确认函数入口和序言。
+// 当前适配对象为 Trinity 0.13.1；版本变化时必须重新确认函数入口和序言。
 constexpr wchar_t kTargetModuleName[] = L"Trinity.asi";
 constexpr wchar_t kTargetProcessName[] = L"CrimsonDesert.exe";
-constexpr char kTargetVersion[] = "v0.10.0";
-constexpr char kVersionLabel[] = "b站up 改名_汉化 v0.10.0";
-constexpr std::uintptr_t kAddFontFromFileTtfRva = 0x5D6F0;
-constexpr std::uintptr_t kVersionTextLeaRva = 0x1F47E;
+constexpr char kTargetVersion[] = "v0.13.1";
+constexpr char kVersionLabel[] = "b站up 改名_汉化 v0.13.1";
+constexpr std::uintptr_t kAddFontFromFileTtfRva = 0x65060;
+constexpr std::uintptr_t kVersionTextLeaRva = 0x24F8E;
 constexpr std::size_t kHookOverwriteSize = 17;
 constexpr DWORD kModuleWaitMilliseconds = 30'000;
 constexpr DWORD kModulePollMilliseconds = 10;
 
-// Trinity 0.10.0 的 AddFontFromFileTTF 前 17 字节；不一致时拒绝安装 Hook。
+// Trinity 0.13.1 的 AddFontFromFileTTF 前 17 字节；不一致时拒绝安装 Hook。
 constexpr std::array<std::uint8_t, kHookOverwriteSize> kExpectedFontFunctionPrologue{
     0x40, 0x55, 0x53, 0x56, 0x57, 0x41, 0x56, 0x41, 0x57,
     0x48, 0x8D, 0xAC, 0x24, 0x38, 0xFF, 0xFF, 0xFF,
 };
 
-// 唯一版本文本引用：lea rsi, [rip + v0.10.0]。
+// 唯一版本文本引用：lea rsi, [rip + v0.13.1]。
 constexpr std::array<std::uint8_t, 7> kExpectedVersionTextLea{
-    0x48, 0x8D, 0x35, 0x93, 0x13, 0x09, 0x00,
+    0x48, 0x8D, 0x35, 0xF3, 0x7F, 0x09, 0x00,
 };
 
 using AddFontFromFileTtfFn = void* (*)(
