@@ -35,6 +35,9 @@ logger = logging.getLogger(__name__)
 _DDS_TEXTURE_DIR_NAME = "texture"
 _PATHC_HASH_CACHE: dict[tuple[str, int, int], tuple[int, ...]] = {}
 
+# Windows/macOS 自动生成的目录元数据不是游戏资源，禁止写入 overlay。
+_IGNORED_LOOSE_FILE_NAMES = frozenset({"desktop.ini", "thumbs.db", ".ds_store"})
+
 
 def build_loose_overlay_entries(
     game_dir: Path,
@@ -151,25 +154,43 @@ def _prepare_root_loose_matches(
 ) -> tuple[dict[Path, tuple[PazEntry | None, bool]], dict[tuple[Path, str], tuple[str, str]]]:
     """预匹配 root loose，并为同目录新增文件准备安全 sibling 推断。"""
     match_cache: dict[Path, tuple[PazEntry | None, bool]] = {}
-    hint_candidates: dict[tuple[Path, str], set[tuple[str, str]]] = {}
+    exact_hint_candidates: dict[tuple[Path, str], set[tuple[str, str]]] = {}
+    basename_hint_candidates: dict[tuple[Path, str], set[tuple[str, str]]] = {}
     for mod_dir, pamt_dir, rel_path, loose_path in loose_files:
         if pamt_dir is not None:
             continue
         target_path = rel_path.as_posix()
         source_entry, matched_by_basename = _find_entry_globally(game_dir, target_path)
         match_cache[loose_path] = (source_entry, matched_by_basename)
-        if source_entry is None or not matched_by_basename:
+        if source_entry is None:
             continue
-        entry_parent = _posix_parent(source_entry.path)
+        entry_parent = _entry_parent_path(source_entry)
         hint_key = (mod_dir, rel_path.parent.as_posix().lower())
-        hint_candidates.setdefault(hint_key, set()).add(
+        candidates = (
+            basename_hint_candidates
+            if matched_by_basename
+            else exact_hint_candidates
+        )
+        candidates.setdefault(hint_key, set()).add(
             (derive_pamt_dir(source_entry.paz_file), entry_parent)
         )
 
     hints: dict[tuple[Path, str], tuple[str, str]] = {}
-    for hint_key, candidates in hint_candidates.items():
+    for hint_key in exact_hint_candidates.keys() | basename_hint_candidates.keys():
+        exact_candidates = exact_hint_candidates.get(hint_key, set())
+        candidates = exact_candidates or basename_hint_candidates.get(hint_key, set())
         if len(candidates) == 1:
             hints[hint_key] = next(iter(candidates))
+
+    # 同一源目录已有唯一 exact sibling 时，跨到其他性别/动作目录的 basename
+    # 只能证明文件名存在，不能作为最终替换路径；按 sibling 目录新增才符合声明路径。
+    for mod_dir, pamt_dir, rel_path, loose_path in loose_files:
+        if pamt_dir is not None:
+            continue
+        source_entry, matched_by_basename = match_cache.get(loose_path, (None, False))
+        hint_key = (mod_dir, rel_path.parent.as_posix().lower())
+        if source_entry is not None and matched_by_basename and hint_key in exact_hint_candidates:
+            match_cache[loose_path] = (None, False)
     return match_cache, hints
 
 
@@ -258,7 +279,11 @@ def _iter_numbered_loose_dirs(
         if _looks_like_standalone_archive(numbered_dir):
             continue
         for path in sorted(
-            (item for item in numbered_dir.rglob("*") if item.is_file()),
+            (
+                item
+                for item in numbered_dir.rglob("*")
+                if item.is_file() and not _is_ignored_loose_file(item)
+            ),
             key=_path_sort_key,
         ):
             result.append((root_mod_dir, numbered_dir.name, path.relative_to(numbered_dir), path))
@@ -274,7 +299,14 @@ def _iter_root_game_path_loose_files(
     for child in sorted((item for item in parent.iterdir() if item.is_dir()), key=_path_sort_key):
         if child.name.lower() not in KNOWN_GAME_TOP_DIRS:
             continue
-        for path in sorted((item for item in child.rglob("*") if item.is_file()), key=_path_sort_key):
+        for path in sorted(
+            (
+                item
+                for item in child.rglob("*")
+                if item.is_file() and not _is_ignored_loose_file(item)
+            ),
+            key=_path_sort_key,
+        ):
             result.append((root_mod_dir, None, path.relative_to(parent), path))
     return result
 
@@ -328,7 +360,7 @@ def _find_entry_globally(game_dir: Path, target_path: str) -> tuple[PazEntry | N
     index = get_game_pamt_index(game_dir)
     entry = index.find_best(target_path)
     if entry is not None:
-        if lower_game_rel_path(entry.path) != normalized:
+        if _entry_final_path(entry) != normalized:
             logger.debug("按唯一 basename 匹配 root loose %s -> %s", target_path, entry.path)
             return entry, True
         return entry, False
@@ -441,6 +473,25 @@ def _posix_parent(path: str) -> str:
     if "/" not in normalized:
         return ""
     return normalized.rsplit("/", 1)[0]
+
+
+def _entry_final_path(entry: PazEntry) -> str:
+    """使用 PAMT folder record 还原 entry 的真实完整游戏路径。"""
+    basename = Path(lower_game_rel_path(entry.path)).name
+    parent = _entry_parent_path(entry)
+    return f"{parent}/{basename}" if parent else basename
+
+
+def _entry_parent_path(entry: PazEntry) -> str:
+    """优先返回 PAMT folder record 中的真实父目录。"""
+    if entry.resolved_dir_path:
+        return lower_game_rel_path(entry.resolved_dir_path).rstrip("/")
+    return _posix_parent(entry.path)
+
+
+def _is_ignored_loose_file(path: Path) -> bool:
+    """判断文件是否为操作系统自动生成的目录元数据。"""
+    return path.name.lower() in _IGNORED_LOOSE_FILE_NAMES
 
 
 def _is_game_archive_dir(path: Path) -> bool:

@@ -15,7 +15,7 @@ record 的 hash 数组，并原样保留每条 record 后面的不透明固定�
 record 结构：
   u32  etl_count
   u32 * etl_count
-  fixed block（旧版本 66B，当前真实游戏版本可为 56B）
+  fixed block（随游戏版本变化，2026-08-05 当前版本为 67B）
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # 每条 equipslot record 中 ETL hashes 后面的不透明固定块候选长度。
 # 不同 Crimson Desert 版本会调整该块长度，但块本身仍必须能让 entry
 # 精确闭合到 footer + 0xb954d87c terminator，不能仅靠放宽边界猜测。
-_FIXED_BLOCK_CANDIDATES = (66, 63, 56)
+_FIXED_BLOCK_CANDIDATES = (67, 66, 63, 56)
 # footer 中单个不透明元素长度。
 _FOOTER_ITEM = 20
 # entry 结束魔数，用于确认 parser 没有错位。

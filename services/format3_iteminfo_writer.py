@@ -8,6 +8,7 @@ vanilla PABGB entry 内定位目标并生成传统 byte patch。
 
 from __future__ import annotations
 
+import math
 import re
 import struct
 from typing import Any
@@ -73,8 +74,8 @@ MAX_REASONABLE_ARRAY_COUNT = 1_000_000
 # 扫描 fallback 只接受较小的 PrefabData 数量，降低误命中普通 u32 的风险。
 MAX_PREFAB_SCAN_COUNT = 128
 
-# DMM V3 导出的 Equip Everything V6 使用的尾部 prefab 结构。
-# 真实字节形态为 count + 多个 legacy element，element 以三个 1.0f scale 开头。
+# DMM V3 导出的 Equip Everything 使用的尾部 prefab 结构。
+# 真实字节形态为 count + 多个 legacy element，element 以三个 f32 scale 开头。
 LEGACY_PREFAB_SCALE_NEEDLE = struct.pack("<fff", 1.0, 1.0, 1.0)
 
 # 只在单条 ItemInfo 记录尾部小窗口内扫描 legacy prefab，避免误命中普通数据。
@@ -753,33 +754,63 @@ def _pack_legacy_prefab_data_list(value: object) -> bytes | None:
         if not isinstance(item, dict):
             return None
         prefab_names = item.get("prefab_names") or []
+        animation_paths = item.get("animation_path_list") or []
         equip_slots = item.get("equip_slot_list") or []
         tribe_genders = item.get("tribe_gender_list") or []
         craft_material = item.get("is_craft_material", 0)
+        use_gimmick_prefab = item.get("use_gimmick_prefab", 0)
+        prefab_data_type = item.get("prefab_data_type", 0)
+        scale = _pack_legacy_scale(item.get("scale", (1.0, 1.0, 1.0)))
+        if scale is None:
+            return None
         if not _is_u32_list(prefab_names):
+            return None
+        if not _is_u32_list(animation_paths):
             return None
         if not _is_u16_list(equip_slots):
             return None
         if not _is_u32_list(tribe_genders):
             return None
-        if (
-            isinstance(craft_material, bool)
-            or not isinstance(craft_material, int)
-            or craft_material < 0
-            or craft_material > 0xFF
+        if not all(
+            _is_u8(value)
+            for value in (craft_material, use_gimmick_prefab, prefab_data_type)
         ):
             return None
 
-        out += LEGACY_PREFAB_SCALE_NEEDLE
+        out += scale
         out += _pack_u32_array(prefab_names)
-        # 当前 DMM V3 产物在 prefab_names 后固定写一个空 CArray<u32>。
-        out += _pack_u32_array([])
+        out += _pack_u32_array(animation_paths)
         out += _pack_u16_array(equip_slots)
         out += _pack_u32_array(tribe_genders)
-        out += struct.pack("<B", craft_material)
-        # DMM V3 的 element 尾部有 2 字节 padding；漏写会导致游戏启动失败。
-        out += b"\x00\x00"
+        # 三个尾字节均是实际字段，V8 中 prefab_data_type 大量使用值 3。
+        out += struct.pack("<BBB", craft_material, use_gimmick_prefab, prefab_data_type)
     return bytes(out)
+
+
+def _pack_legacy_scale(value: object) -> bytes | None:
+    """校验并序列化 legacy PrefabData 的三个 f32 缩放值。"""
+    if not isinstance(value, (list, tuple)) or len(value) != 3:
+        return None
+    if not all(
+        isinstance(item, (int, float))
+        and not isinstance(item, bool)
+        and math.isfinite(float(item))
+        for item in value
+    ):
+        return None
+    try:
+        return struct.pack("<fff", *(float(item) for item in value))
+    except (OverflowError, struct.error):
+        return None
+
+
+def _is_u8(value: object) -> bool:
+    """判断值能否安全写入无符号单字节字段。"""
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 0 <= value <= 0xFF
+    )
 
 
 def _locate_legacy_prefab_data_list(
@@ -868,6 +899,7 @@ def _consume_legacy_prefab_data_list(entry_bytes: bytes, offset: int) -> int | N
         pos = _consume_legacy_u32_array(entry_bytes, pos)
         if pos is None:
             return None
+        # is_craft_material、use_gimmick_prefab、prefab_data_type。
         if pos + 3 > len(entry_bytes):
             return None
         pos += 3
