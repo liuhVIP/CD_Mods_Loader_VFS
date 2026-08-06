@@ -1,10 +1,8 @@
-"""在完整 Human Female standalone 内安全重打包女巫脸位映射。
+"""在完整 Human Female 资源内安全重打包女巫脸位映射。
 
-小型 standalone 覆盖可能无法参与角色创建器的包内相对资源解析。本工具复制
-作者原始 Human Female ``0.paz/0.pamt``，同时修改 Damian 与 Kliff 两份
-meshparam。压缩 XML 只扰动原有注释中的 ASCII 文本，把 LZ4 载荷精确恢复到
-原 ``comp_size``；不新增 XML 节点，PAMT、PAZ 总长度、其他 entry 偏移和完整
-UI 资源保持不变。
+工具既支持旧版完整 ``.cdmod`` 的精确尺寸重打包，也支持游戏更新后作者发布的
+``0009/0012`` loose 目录。目录模式以全部新版资源为基底重建 ``0.paz/0.pamt``，
+同步修改 Damian 与 Kliff 两份 meshparam，并保留新增资源。
 """
 
 from __future__ import annotations
@@ -13,6 +11,7 @@ import argparse
 import hashlib
 import json
 import re
+import struct
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -21,7 +20,10 @@ from tempfile import TemporaryDirectory
 import lz4.block
 
 from cdmm.archive.pamt import parse_pamt
-from cdmm.archive.paz_crypto import encrypt
+from cdmm.archive.paz_crypto import encrypt, lz4_compress
+from cdmm.common.constants import HASH_SEED, PAZ_ALIGNMENT
+from cdmm.common.hashlittle import hashlittle
+from cdmm.common.models import BuiltOverlayEntry
 from cdmm.services.cdmod_converter import (
     CDMOD_FILE_REPLACEMENT_COMPONENT_TYPE,
     CDMOD_FORMAT_NAME,
@@ -33,6 +35,7 @@ from cdmm.services.cdmod_converter import (
 )
 from cdmm.services.cdmod_package import load_cdmod_package
 from cdmm.services.json_loader import extract_plaintext
+from cdmm.services.overlay_service import _build_multi_pamt
 from cdmm.tools.build_character_creator_native_head_slot_probe import (
     MESH_PARAM_ENTRY_NAMES,
     HeadSlotPatch,
@@ -69,8 +72,14 @@ MAKEUP_TEXTURE_TARGETS = (
     "character/texture/cd_phw_00_head_00_0046_n.dds",
 )
 
-# 首轮只验证理发师真正第 2 脸映射到 Areciel。
-DEFAULT_SLOT_MAPPINGS = ((2, "0139"),)
+# 五位女巫头部在 Human Female 脸型参数表中的目标位置。
+DEFAULT_SLOT_MAPPINGS = (
+    (2, "0139"),
+    (3, "0143"),
+    (4, "0141"),
+    (5, "0019"),
+    (7, "0046"),
+)
 
 # 五位女巫原生发型在 Human Female Hair 参数表中的已确认位置。
 DEFAULT_WITCH_HAIR_SLOT_MAPPINGS = (
@@ -93,6 +102,12 @@ SAFE_XML_COMMENT_ALPHABET = bytes(
 
 # 不同确定性填充种子上限，避免无法精确匹配时无限搜索。
 MAX_SAFE_XML_FILL_SEEDS = 256
+
+# loose Human Female 完整包重建时使用的 standalone 目录名。
+LOOSE_STANDALONE_ARCHIVE_NAME = "0036"
+
+# 游戏按文件名派生密钥加密这些文本资源；APP_XML 保持原始未加密载荷。
+ENCRYPTED_TEXT_SUFFIXES = (".xml", ".html", ".css", ".js")
 
 
 @dataclass(frozen=True)
@@ -145,86 +160,97 @@ def build_full_character_creator_witch_slots_repack(
     ),
     makeup_package_path: Path | None = None,
 ) -> FullCharacterCreatorRepackResult:
-    """复制完整 Human Female PAZ，并安全替换两份玩家脸位 XML。"""
+    """从完整 Human Female .cdmod 或 loose 目录生成女巫组合包。"""
     source_package_path = source_package_path.resolve()
     output_path = output_path.resolve()
     normalized_mappings = _validate_mappings(mappings)
     normalized_hair_mappings = _validate_hair_mappings(hair_mappings)
-    source_package_bytes = source_package_path.read_bytes()
-    source_package_sha256 = hashlib.sha256(source_package_bytes).hexdigest()
-    package = load_cdmod_package(source_package_path)
-    if len(package.standalone_archives) != 1:
-        raise ValueError(f"预期 1 个 standalone archive，实际 {len(package.standalone_archives)} 个")
-    standalone = package.standalone_archives[0]
-
-    entry_summaries: list[FullMeshparamPatchSummary] = []
-    with TemporaryDirectory(prefix="full-human-female-repack-") as temp_dir:
-        temp_root = Path(temp_dir)
-        pamt_path = temp_root / "0.pamt"
-        paz_path = temp_root / "0.paz"
-        pamt_path.write_bytes(standalone.pamt_bytes)
-        paz_path.write_bytes(standalone.paz_bytes)
-        entries = parse_pamt(pamt_path, paz_dir=temp_root)
-        entries_by_name = {
-            Path(entry.path).name.casefold(): entry
-            for entry in entries
-            if Path(entry.path).name.casefold() in MESH_PARAM_ENTRY_NAMES
-        }
-        missing = sorted(set(MESH_PARAM_ENTRY_NAMES) - entries_by_name.keys())
-        if missing:
-            raise ValueError(f"Human Female 缺少玩家脸位表：{missing}")
-
-        patched_paz = bytearray(standalone.paz_bytes)
-        for entry_name in MESH_PARAM_ENTRY_NAMES:
-            entry = entries_by_name[entry_name]
-            plaintext, _detected = extract_plaintext(entry)
-            patched_plaintext = plaintext
-            patches: list[HeadSlotPatch] = []
-            for slot_index, head_id in normalized_mappings:
-                patched_plaintext, patch = patch_head_meshset_xml(
-                    patched_plaintext,
-                    xml_index=slot_index,
-                    new_head_id=head_id,
-                )
-                patches.append(patch)
-            patched_plaintext, hair_patches = patch_hair_meshset_slots_xml(
-                patched_plaintext,
-                mappings=normalized_hair_mappings,
-            )
-            rebuilt_raw, adjusted_comment_byte_count = _build_exact_entry_payload(
-                patched_plaintext,
-                entry_name=entry_name,
-                compression_type=entry.compression_type,
-                encrypted=entry.encrypted,
-                target_comp_size=entry.comp_size,
-                target_orig_size=entry.orig_size,
-            )
-            payload_end = entry.offset + entry.comp_size
-            patched_paz[entry.offset:payload_end] = rebuilt_raw
-            entry_summaries.append(
-                FullMeshparamPatchSummary(
-                    entry_name=entry_name,
-                    patches=tuple(patches),
-                    hair_patches=hair_patches,
-                    original_comp_size=entry.comp_size,
-                    rebuilt_comp_size=len(rebuilt_raw),
-                    original_plaintext_size=entry.orig_size,
-                    adjusted_comment_byte_count=adjusted_comment_byte_count,
-                )
-            )
-
-        patched_pamt_bytes = standalone.pamt_bytes
-        patched_paz_bytes = bytes(patched_paz)
-        paz_path.write_bytes(patched_paz_bytes)
-        _verify_repacked_entries(
-            pamt_path,
-            temp_root,
+    source_is_directory = source_package_path.is_dir()
+    if source_is_directory:
+        source_package_sha256 = _hash_loose_source_directory(source_package_path)
+        (
+            archive_name,
+            patched_pamt_bytes,
+            patched_paz_bytes,
+            entry_summaries,
+            source_entry_count,
+        ) = _build_loose_source_archive(
+            source_package_path,
             normalized_mappings,
             normalized_hair_mappings,
         )
+    else:
+        source_package_sha256 = hashlib.sha256(source_package_path.read_bytes()).hexdigest()
+        package = load_cdmod_package(source_package_path)
+        if len(package.standalone_archives) != 1:
+            raise ValueError(
+                "预期 1 个 standalone archive，"
+                f"实际 {len(package.standalone_archives)} 个"
+            )
+        standalone = package.standalone_archives[0]
+        archive_name = standalone.name
+        source_entry_count = 0
+        entry_summaries = []
+        with TemporaryDirectory(prefix="full-human-female-repack-") as temp_dir:
+            temp_root = Path(temp_dir)
+            pamt_path = temp_root / "0.pamt"
+            paz_path = temp_root / "0.paz"
+            pamt_path.write_bytes(standalone.pamt_bytes)
+            paz_path.write_bytes(standalone.paz_bytes)
+            entries = parse_pamt(pamt_path, paz_dir=temp_root)
+            source_entry_count = len(entries)
+            entries_by_name = {
+                Path(entry.path).name.casefold(): entry
+                for entry in entries
+                if Path(entry.path).name.casefold() in MESH_PARAM_ENTRY_NAMES
+            }
+            missing = sorted(set(MESH_PARAM_ENTRY_NAMES) - entries_by_name.keys())
+            if missing:
+                raise ValueError(f"Human Female 缺少玩家脸位表：{missing}")
 
-    if len(patched_paz_bytes) != len(standalone.paz_bytes):
-        raise ValueError("完整 Human Female PAZ 重打包后长度发生变化")
+            patched_paz = bytearray(standalone.paz_bytes)
+            for entry_name in MESH_PARAM_ENTRY_NAMES:
+                entry = entries_by_name[entry_name]
+                plaintext, _detected = extract_plaintext(entry)
+                patched_plaintext, patches, hair_patches = _patch_meshparam_plaintext(
+                    plaintext,
+                    normalized_mappings,
+                    normalized_hair_mappings,
+                )
+                rebuilt_raw, adjusted_comment_byte_count = _build_exact_entry_payload(
+                    patched_plaintext,
+                    entry_name=entry_name,
+                    compression_type=entry.compression_type,
+                    encrypted=entry.encrypted,
+                    target_comp_size=entry.comp_size,
+                    target_orig_size=entry.orig_size,
+                )
+                payload_end = entry.offset + entry.comp_size
+                patched_paz[entry.offset:payload_end] = rebuilt_raw
+                entry_summaries.append(
+                    FullMeshparamPatchSummary(
+                        entry_name=entry_name,
+                        patches=patches,
+                        hair_patches=hair_patches,
+                        original_comp_size=entry.comp_size,
+                        rebuilt_comp_size=len(rebuilt_raw),
+                        original_plaintext_size=entry.orig_size,
+                        adjusted_comment_byte_count=adjusted_comment_byte_count,
+                    )
+                )
+
+            patched_pamt_bytes = standalone.pamt_bytes
+            patched_paz_bytes = bytes(patched_paz)
+            paz_path.write_bytes(patched_paz_bytes)
+            _verify_repacked_entries(
+                pamt_path,
+                temp_root,
+                normalized_mappings,
+                normalized_hair_mappings,
+            )
+
+        if len(patched_paz_bytes) != len(standalone.paz_bytes):
+            raise ValueError("完整 Human Female PAZ 重打包后长度发生变化")
     archive_pamt_sha256 = hashlib.sha256(patched_pamt_bytes).hexdigest()
     archive_paz_sha256 = hashlib.sha256(patched_paz_bytes).hexdigest()
     makeup_source_package_sha256: str | None = None
@@ -240,7 +266,7 @@ def build_full_character_creator_witch_slots_repack(
         ) = _build_makeup_replacement_documents(makeup_package_path)
     archive_document = {
         "schema": 1,
-        "name": standalone.name,
+        "name": archive_name,
         "pamt": STANDALONE_PAMT_PATH,
         "paz": STANDALONE_PAZ_PATH,
         "pamt_sha256": archive_pamt_sha256,
@@ -268,7 +294,9 @@ def build_full_character_creator_witch_slots_repack(
             if makeup_targets
             else f"Full Human Female Witch Faces and Hairstyles {mapping_label}"
         ),
-        "version": "1.6-test" if makeup_targets else "1.5-test",
+        "version": "1.16.04" if source_is_directory else (
+            "1.6-test" if makeup_targets else "1.5-test"
+        ),
         "author": (
             "cdmm diagnostic; K-Makeup textures by maru12259"
             if makeup_targets
@@ -281,7 +309,11 @@ def build_full_character_creator_witch_slots_repack(
         ),
         "dependencies": [],
         "source": {
-            "format": "full-standalone-exact-size-existing-comment-repack",
+            "format": (
+                "loose-directory-full-standalone-rebuild"
+                if source_is_directory
+                else "full-standalone-exact-size-existing-comment-repack"
+            ),
             "source_package_sha256": source_package_sha256,
             "makeup_package_sha256": makeup_source_package_sha256,
         },
@@ -309,9 +341,11 @@ def build_full_character_creator_witch_slots_repack(
             "target_count": len(makeup_targets),
         },
         "safety": {
-            "complete_source_archive_preserved": True,
-            "pamt_unchanged": True,
-            "paz_length_unchanged": True,
+            "complete_source_archive_preserved": not source_is_directory,
+            "complete_loose_source_rebuilt": source_is_directory,
+            "source_entry_count": source_entry_count,
+            "pamt_unchanged": not source_is_directory,
+            "paz_length_unchanged": not source_is_directory,
             "utf8_xml_validated": True,
             "patched_entry_count": len(entry_summaries),
             "hair_list_count_preserved": True,
@@ -340,6 +374,198 @@ def build_full_character_creator_witch_slots_repack(
         makeup_source_package_sha256=makeup_source_package_sha256,
         makeup_targets=makeup_targets,
     )
+
+
+def _hash_loose_source_directory(source_root: Path) -> str:
+    """按相对路径和文件内容计算稳定的 loose 目录指纹。"""
+    digest = hashlib.sha256()
+    files = sorted(path for path in source_root.rglob("*") if path.is_file())
+    if not files:
+        raise ValueError(f"Human Female loose 目录为空：{source_root}")
+    for path in files:
+        relative_path = path.relative_to(source_root).as_posix()
+        content = path.read_bytes()
+        digest.update(relative_path.encode("utf-8"))
+        digest.update(b"\x00")
+        digest.update(struct.pack("<Q", len(content)))
+        digest.update(content)
+    return digest.hexdigest()
+
+
+def _collect_loose_source_entries(source_root: Path) -> dict[str, bytes]:
+    """收集数字目录下资源，并转换为最终游戏路径。"""
+    entries: dict[str, bytes] = {}
+    ignored_files: list[str] = []
+    for path in sorted(item for item in source_root.rglob("*") if item.is_file()):
+        parts = path.relative_to(source_root).parts
+        if len(parts) < 2 or not re.fullmatch(r"\d{4}", parts[0]):
+            ignored_files.append(path.relative_to(source_root).as_posix())
+            continue
+        entry_path = "/".join(parts[1:])
+        key = entry_path.casefold()
+        if key in entries:
+            raise ValueError(f"loose 目录存在重复最终路径：{entry_path}")
+        entries[key] = path.read_bytes()
+    if ignored_files:
+        raise ValueError(f"loose 目录包含无法归档的文件：{ignored_files[:5]}")
+    if not entries:
+        raise ValueError("loose 目录未找到 NNNN/游戏路径 资源")
+    return entries
+
+
+def _patch_meshparam_plaintext(
+    plaintext: bytes,
+    mappings: tuple[tuple[int, str], ...],
+    hair_mappings: tuple[tuple[int, int, str, str], ...],
+) -> tuple[bytes, tuple[HeadSlotPatch, ...], tuple[HairSlotSwapPatch, ...]]:
+    """在一份 meshparam 内同步应用脸位和发型映射。"""
+    patched_plaintext = plaintext
+    patches: list[HeadSlotPatch] = []
+    for slot_index, head_id in mappings:
+        patched_plaintext, patch = patch_head_meshset_xml(
+            patched_plaintext,
+            xml_index=slot_index,
+            new_head_id=head_id,
+        )
+        patches.append(patch)
+    patched_plaintext, hair_patches = patch_hair_meshset_slots_xml(
+        patched_plaintext,
+        mappings=hair_mappings,
+    )
+    _validate_utf8_xml(patched_plaintext)
+    return patched_plaintext, tuple(patches), hair_patches
+
+
+def _build_loose_source_archive(
+    source_root: Path,
+    mappings: tuple[tuple[int, str], ...],
+    hair_mappings: tuple[tuple[int, int, str, str], ...],
+) -> tuple[str, bytes, bytes, list[FullMeshparamPatchSummary], int]:
+    """把新版完整 loose 目录确定性重建为单 PAZ standalone。"""
+    source_entries = _collect_loose_source_entries(source_root)
+    meshparam_paths = {
+        Path(entry_path).name.casefold(): entry_path
+        for entry_path in source_entries
+        if Path(entry_path).name.casefold() in MESH_PARAM_ENTRY_NAMES
+    }
+    missing = sorted(set(MESH_PARAM_ENTRY_NAMES) - meshparam_paths.keys())
+    if missing:
+        raise ValueError(f"Human Female loose 目录缺少玩家脸位表：{missing}")
+
+    summaries: list[FullMeshparamPatchSummary] = []
+    for entry_name in MESH_PARAM_ENTRY_NAMES:
+        entry_path = meshparam_paths[entry_name]
+        original = source_entries[entry_path]
+        patched, patches, hair_patches = _patch_meshparam_plaintext(
+            original,
+            mappings,
+            hair_mappings,
+        )
+        source_entries[entry_path] = patched
+        summaries.append(
+            FullMeshparamPatchSummary(
+                entry_name=entry_name,
+                patches=patches,
+                hair_patches=hair_patches,
+                original_comp_size=len(original),
+                rebuilt_comp_size=0,
+                original_plaintext_size=len(original),
+                adjusted_comment_byte_count=0,
+            )
+        )
+
+    paz_buffer = bytearray()
+    built_entries: list[BuiltOverlayEntry] = []
+    rebuilt_sizes: dict[str, int] = {}
+    for entry_path in sorted(source_entries):
+        content = source_entries[entry_path]
+        filename = entry_path.rsplit("/", 1)[-1]
+        dir_path = entry_path.rsplit("/", 1)[0] if "/" in entry_path else ""
+        payload, flags = _pack_loose_standalone_payload(content, filename)
+        paz_offset = len(paz_buffer)
+        paz_buffer.extend(payload)
+        padding = (PAZ_ALIGNMENT - len(paz_buffer) % PAZ_ALIGNMENT) % PAZ_ALIGNMENT
+        if padding:
+            paz_buffer.extend(b"\x00" * padding)
+        built_entries.append(
+            BuiltOverlayEntry(
+                entry_path=entry_path,
+                dir_path=dir_path,
+                filename=filename,
+                paz_offset=paz_offset,
+                comp_size=len(payload),
+                decomp_size=len(content),
+                flags=flags,
+                content=content,
+            )
+        )
+        rebuilt_sizes[filename.casefold()] = len(payload)
+
+    paz_bytes = bytes(paz_buffer)
+    pamt_buffer = bytearray(_build_multi_pamt(built_entries, len(paz_bytes)))
+    struct.pack_into("<I", pamt_buffer, 16, hashlittle(paz_bytes, HASH_SEED))
+    struct.pack_into(
+        "<I",
+        pamt_buffer,
+        0,
+        hashlittle(bytes(pamt_buffer[12:]), HASH_SEED),
+    )
+    pamt_bytes = bytes(pamt_buffer)
+    summaries = [
+        FullMeshparamPatchSummary(
+            entry_name=summary.entry_name,
+            patches=summary.patches,
+            hair_patches=summary.hair_patches,
+            original_comp_size=summary.original_comp_size,
+            rebuilt_comp_size=rebuilt_sizes[summary.entry_name],
+            original_plaintext_size=summary.original_plaintext_size,
+            adjusted_comment_byte_count=summary.adjusted_comment_byte_count,
+        )
+        for summary in summaries
+    ]
+
+    with TemporaryDirectory(prefix="full-human-female-loose-verify-") as temp_dir:
+        temp_root = Path(temp_dir)
+        pamt_path = temp_root / "0.pamt"
+        (temp_root / "0.paz").write_bytes(paz_bytes)
+        pamt_path.write_bytes(pamt_bytes)
+        _verify_repacked_entries(pamt_path, temp_root, mappings, hair_mappings)
+        reparsed = parse_pamt(pamt_path, paz_dir=temp_root)
+        reparsed_paths = {
+            f"{entry.resolved_dir_path}/{Path(entry.path).name}".strip("/").casefold()
+            for entry in reparsed
+        }
+        if reparsed_paths != set(source_entries):
+            missing_paths = sorted(set(source_entries) - reparsed_paths)
+            extra_paths = sorted(reparsed_paths - set(source_entries))
+            raise ValueError(
+                "loose standalone 回读路径不一致："
+                f"missing={missing_paths[:5]}, extra={extra_paths[:5]}"
+            )
+
+    return (
+        LOOSE_STANDALONE_ARCHIVE_NAME,
+        pamt_bytes,
+        paz_bytes,
+        summaries,
+        len(source_entries),
+    )
+
+
+def _pack_loose_standalone_payload(content: bytes, filename: str) -> tuple[bytes, int]:
+    """按 Human Female 原包规则打包一个 loose 资源。"""
+    lower_name = filename.casefold()
+    encrypted = lower_name.endswith(ENCRYPTED_TEXT_SUFFIXES)
+    flags = 0
+    payload = content
+    if encrypted:
+        compressed = lz4_compress(content)
+        if len(compressed) < len(content):
+            payload = compressed
+            flags = 2
+        payload = encrypt(payload, filename)
+        flags = (flags & 0x0F) | 0x30
+    return payload, flags
 
 
 def _build_makeup_replacement_documents(
@@ -774,13 +1000,17 @@ def result_to_json(result: FullCharacterCreatorRepackResult) -> dict[str, object
 def main() -> int:
     """解析原包、输出包和脸位映射。"""
     parser = argparse.ArgumentParser(description="重打包完整 Human Female 女巫脸位")
-    parser.add_argument("source", type=Path, help="作者原 Human Female .cdmod")
+    parser.add_argument(
+        "source",
+        type=Path,
+        help="作者原 Human Female .cdmod 或新版 NNNN loose 目录",
+    )
     parser.add_argument("output", type=Path, help="输出完整替代 .cdmod")
     parser.add_argument(
         "--mappings",
         type=_parse_mappings,
         default=DEFAULT_SLOT_MAPPINGS,
-        help="逗号分隔的 Index:头部ID，默认 2:0139",
+        help="逗号分隔的 Index:头部ID，默认五女巫完整映射",
     )
     parser.add_argument(
         "--makeup-package",

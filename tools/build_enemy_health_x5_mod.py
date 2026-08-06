@@ -31,8 +31,9 @@ NORMAL_ENEMY_DIFFICULTY_BUFF_KEY = 1_000_276
 # 原版 Boss 难度 Buff。
 BOSS_DIFFICULTY_BUFF_KEY = 1_000_277
 
-# BuffData tag 98：VaryStatMaxValueRateBuffData。
-MAX_STAT_RATE_VARIANT_TAG = 98
+# 最大生命值倍率变体标签。旧版 1.13 使用 98，当前 1.16.04 使用 97；
+# 两者的尾部布局都保持为 f00:u8 + f01:i64，不能按旧标签硬编码。
+MAX_STAT_RATE_VARIANT_TAGS = frozenset({97, 98})
 
 # tag 98 的 f00=0 表示最大生命值；同 tag 的 f00=2 是 KnockOut。
 MAX_HP_VARIANT_TYPE = 0
@@ -138,7 +139,7 @@ def _collect_buff_items(entry_bytes: bytes, entry: BuffinfoEntry) -> list[BuffIt
 
 def _is_max_hp_item(entry_bytes: bytes, item: BuffItemSlice) -> bool:
     """确认 item 是 tag 98 的最大生命值倍率项。"""
-    if item.common.tag != MAX_STAT_RATE_VARIANT_TAG:
+    if item.common.tag not in MAX_STAT_RATE_VARIANT_TAGS:
         return False
     variant_start = item.common.end_offset
     return variant_start < item.end and entry_bytes[variant_start] == MAX_HP_VARIANT_TYPE

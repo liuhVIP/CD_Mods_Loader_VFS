@@ -221,6 +221,39 @@ def _locate_schema_field(record: bytes | bytearray, field_name: str) -> int | No
                 return reader.pos
             _consume_iteminfo_spec(reader, spec, parsed)
     except Exception:
+        # 1.16.04 的 ItemInfo 将 item_tag_list 计数收窄为 u16。旧 schema
+        # 仍需保留给已经验证的其它字段；这里只对本次实际需要的
+        # equipable_hash 做严格新版前缀回退，避免扩大未知布局的支持范围。
+        if field_name == "equipable_hash":
+            return _locate_equipable_hash_current_layout(bytes(record))
+        return None
+    return None
+
+
+def _locate_equipable_hash_current_layout(record: bytes) -> int | None:
+    """按当前 ItemInfo 前缀定位 equipable_hash。
+
+    当前版本只改变了 ``item_tag_list`` 的计数宽度，后续字段仍沿用
+    native parser 的定义。候选必须完整消费到 equipable_hash 且计数在
+    当前记录边界内，失败或越界时宁可跳过，不做模糊扫描。
+    """
+    reader = _Reader(record, 0, rec_end=len(record))
+    parsed: dict[str, Any] = {}
+    try:
+        for spec in _ITEM_FIELDS:
+            name = spec[0]
+            if name == "equipable_hash":
+                if reader.pos + 4 > len(record):
+                    return None
+                return reader.pos
+            if name == "item_tag_list":
+                count = reader.u16()
+                if count > 4096 or reader.pos + count * 4 > len(record):
+                    return None
+                parsed[name] = [reader.u32() for _ in range(count)]
+                continue
+            _consume_iteminfo_spec(reader, spec, parsed)
+    except (IndexError, struct.error, ValueError):
         return None
     return None
 
