@@ -84,7 +84,7 @@
   { "original": "My companions - %d hired  [%d/%d]   5 enter  0 back", "translation": "我的同伴-%d名 [%d/%d] 5进入 0返回", "capacity": 55 },
   { "original": "%.26s  #%u  %.14s   5 apply  0 back", "translation": "%.26s #%u %.14s 5应用 0返回", "capacity": 39 },
   { "original": "Bring companion - %d hireable in %d types  [%d/%d]  5 enter  0 back", "translation": "召唤同伴-%d名/%d类 [%d/%d] 5进入 0返回", "capacity": 71 },
-  { "original": "NEO EYES / NPC  [%d/%d]   8/2 move  5 enter  0 back  7 close", "translation": "NEO EYES/NPC b站up改名_汉化 v0.5 [%d/%d]", "capacity": 63 },
+  { "original": "NEO EYES / NPC  [%d/%d]   8/2 move  5 enter  0 back  7 close", "translation": "NEO EYES/NPC b站up改名_汉化 v1.2 [%d/%d]", "capacity": 63 },
   { "original": "NEO EYES  [%d/%d]   8/2 move  5 enter  0 back  7 close", "translation": "NEO EYES [%d/%d] 8/2移 5进 0返 7关", "capacity": 55 },
   { "original": "%s  [%d/%d]   8/2 move  5 enter  0 back  7 close", "translation": "%s [%d/%d] 8/2移 5进 0返 7关", "capacity": 55 },
   { "original": "(gone)", "translation": "消失", "capacity": 7 },

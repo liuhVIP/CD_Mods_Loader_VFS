@@ -1,4 +1,4 @@
-// NeoEyes Simple Menu 1.2.4 中文伴生 ASI：运行时替换 UTF-8 文本与 GDI+ 中文字体。
+// NeoEyes Simple Menu 1.2.4 中文伴生 ASI v1.2：运行时替换文本、目录并记录 Hook 状态。
 #include <Windows.h>
 
 #include <algorithm>
@@ -30,11 +30,24 @@ constexpr std::uintptr_t kGdipDrawStringThunkRva = 0x10C18;
 constexpr DWORD kModuleWaitMilliseconds = 30'000;
 constexpr DWORD kModulePollMilliseconds = 1;
 constexpr DWORD kHookWarmupMilliseconds = 1'000;
+constexpr DWORD kHookWatchdogPollMilliseconds = 250;
 constexpr std::size_t kMaximumRenderedTextBytes = 4'096;
+constexpr LONG kMaximumDrawDiagnostics = 300;
+constexpr std::size_t kMaximumDiscoveredDrawTexts = 2'048;
 
 using GdipDrawStringFunction = int(WINAPI*)(
     void*, const wchar_t*, int, const void*, const void*, const void*, const void*);
 GdipDrawStringFunction gOriginalGdipDrawString = nullptr;
+ULONGLONG* gGdipDrawStringImportSlot = nullptr;
+std::uint8_t* gGdipDrawStringThunkAddress = nullptr;
+std::uint8_t* gGdipDrawStringRelay = nullptr;
+volatile LONG gHookWatchdogStarted = 0;
+volatile LONG gDrawDiagnosticCount = 0;
+wchar_t gRuntimeLogPath[MAX_PATH]{};
+SRWLOCK gRuntimeLogLock = SRWLOCK_INIT;
+SRWLOCK gDiscoveredDrawTextLock = SRWLOCK_INIT;
+std::array<std::string, kMaximumDiscoveredDrawTexts> gDiscoveredDrawTexts{};
+std::size_t gDiscoveredDrawTextCount = 0;
 
 // 两条调用链都把 MultiByteToWideChar 的代码页设置为 65001，中文补丁因此使用 UTF-8。
 constexpr std::array<std::uint8_t, 29> kFirstUtf8ConversionSignature{
@@ -107,6 +120,64 @@ void DebugLog(std::string_view message) {
     line.append(message);
     line.push_back('\n');
     OutputDebugStringA(line.c_str());
+
+    if (gRuntimeLogPath[0] == L'\0') {
+        return;
+    }
+    AcquireSRWLockExclusive(&gRuntimeLogLock);
+    HANDLE file = CreateFileW(
+        gRuntimeLogPath,
+        FILE_APPEND_DATA,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr,
+        OPEN_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr);
+    if (file != INVALID_HANDLE_VALUE) {
+        DWORD written = 0;
+        WriteFile(file, line.data(), static_cast<DWORD>(line.size()), &written, nullptr);
+        CloseHandle(file);
+    }
+    ReleaseSRWLockExclusive(&gRuntimeLogLock);
+}
+
+void InitializeRuntimeLogPath() {
+    std::array<wchar_t, MAX_PATH> processPath{};
+    const DWORD length = GetModuleFileNameW(nullptr, processPath.data(), static_cast<DWORD>(processPath.size()));
+    if (length == 0 || length >= processPath.size()) {
+        return;
+    }
+    std::wstring path(processPath.data(), length);
+    const auto separator = path.find_last_of(L"\\/");
+    if (separator == std::wstring::npos) {
+        return;
+    }
+    path.resize(separator + 1);
+    path.append(L"NeoEyesCNv1.2.runtime.log");
+    wcsncpy_s(gRuntimeLogPath, path.c_str(), _TRUNCATE);
+    // 每次游戏启动生成独立采集结果，避免旧会话的名称干扰当前排查。
+    DeleteFileW(gRuntimeLogPath);
+}
+
+void LogDiscoveredDrawText(std::string_view text) {
+    if (text.empty()) {
+        return;
+    }
+    bool isNew = false;
+    AcquireSRWLockExclusive(&gDiscoveredDrawTextLock);
+    const auto existing = std::find(
+        gDiscoveredDrawTexts.begin(),
+        gDiscoveredDrawTexts.begin() + static_cast<std::ptrdiff_t>(gDiscoveredDrawTextCount),
+        text);
+    if (existing == gDiscoveredDrawTexts.begin() + static_cast<std::ptrdiff_t>(gDiscoveredDrawTextCount) &&
+        gDiscoveredDrawTextCount < kMaximumDiscoveredDrawTexts) {
+        gDiscoveredDrawTexts[gDiscoveredDrawTextCount++] = std::string(text);
+        isNew = true;
+    }
+    ReleaseSRWLockExclusive(&gDiscoveredDrawTextLock);
+    if (isNew) {
+        DebugLog("DISCOVER text=" + std::string(text));
+    }
 }
 
 HMODULE WaitForTargetModule() {
@@ -210,6 +281,7 @@ bool WriteMemory(void* destination, const void* source, std::size_t size) {
         return false;
     }
     std::memcpy(destination, source, size);
+    FlushInstructionCache(GetCurrentProcess(), destination, size);
     DWORD ignoredProtection = 0;
     VirtualProtect(destination, size, oldProtection, &ignoredProtection);
     return true;
@@ -301,6 +373,28 @@ struct CatalogNameParts {
     bool translated{};
 };
 
+std::string FormatCatalogNameParts(const CatalogNameParts& parts) {
+    std::string result = parts.category;
+    if (!result.empty() && !parts.core.empty()) {
+        result.append("·");
+    }
+    result.append(parts.core);
+    if (!parts.modifiers.empty()) {
+        if (parts.core.empty() && parts.category.empty()) {
+            result.append(parts.modifiers);
+        } else {
+            result.append("（");
+            result.append(parts.modifiers);
+            result.append("）");
+        }
+    }
+    if (!parts.numericSuffix.empty()) {
+        result.append(" #");
+        result.append(parts.numericSuffix);
+    }
+    return result;
+}
+
 void ApplyCatalogTerm(CatalogNameParts& parts, std::string_view source, const generated::CatalogTerm* term) {
     if (term == nullptr) {
         AppendCatalogCore(parts.core, source);
@@ -367,21 +461,35 @@ std::optional<std::string> TranslateCatalogIdentifier(std::string_view identifie
     if (!parts.translated || parts.core.empty()) {
         return std::nullopt;
     }
-    std::string result = std::move(parts.category);
-    if (!result.empty() && !parts.core.empty()) {
-        result.append("·");
+    return FormatCatalogNameParts(parts);
+}
+
+std::optional<std::string> TranslateCatalogDisplayToken(std::string_view token) {
+    if (const auto* wholeTerm = FindCatalogTerm(token)) {
+        CatalogNameParts parts;
+        ApplyCatalogTerm(parts, token, wholeTerm);
+        if (parts.translated) {
+            return FormatCatalogNameParts(parts);
+        }
+        return std::nullopt;
     }
-    result.append(parts.core);
-    if (!parts.modifiers.empty()) {
-        result.append("（");
-        result.append(parts.modifiers);
-        result.append("）");
+
+    const auto words = SplitCamelCase(token);
+    if (words.size() < 2) {
+        return std::nullopt;
     }
-    if (!parts.numericSuffix.empty()) {
-        result.append(" #");
-        result.append(parts.numericSuffix);
+    CatalogNameParts parts;
+    for (const auto word : words) {
+        const auto* term = FindCatalogTerm(word);
+        if (term == nullptr) {
+            return std::nullopt;
+        }
+        ApplyCatalogTerm(parts, word, term);
     }
-    return result;
+    if (!parts.translated) {
+        return std::nullopt;
+    }
+    return FormatCatalogNameParts(parts);
 }
 
 std::optional<std::string> TranslateCatalogDisplayText(std::string_view source) {
@@ -390,7 +498,8 @@ std::optional<std::string> TranslateCatalogDisplayText(std::string_view source) 
     bool changed = false;
     std::size_t cursor = 0;
     while (cursor < source.size()) {
-        if (!IsCatalogIdentifierCharacter(source[cursor]) || source[cursor] == '_') {
+        // 目录 ID 本身由下划线连接多个片段；必须把完整 ID 一次交给词典，不能先拆掉下划线。
+        if (!IsCatalogIdentifierCharacter(source[cursor])) {
             translated.push_back(source[cursor++]);
             continue;
         }
@@ -399,7 +508,13 @@ std::optional<std::string> TranslateCatalogDisplayText(std::string_view source) 
             ++cursor;
         }
         const std::string_view candidate = source.substr(start, cursor - start);
-        if (auto catalogName = TranslateCatalogIdentifier(candidate)) {
+        std::optional<std::string> catalogName;
+        if (candidate.find('_') != std::string_view::npos) {
+            catalogName = TranslateCatalogIdentifier(candidate);
+        } else {
+            catalogName = TranslateCatalogDisplayToken(candidate);
+        }
+        if (catalogName) {
             translated.append(*catalogName);
             changed = true;
         } else {
@@ -413,17 +528,16 @@ std::optional<std::string> ConvertWideTextToUtf8(const wchar_t* source, int sour
     if (source == nullptr || sourceLength == 0) {
         return std::nullopt;
     }
-    std::size_t characterCount = 0;
-    if (sourceLength < 0) {
-        characterCount = wcsnlen_s(source, kMaximumRenderedTextBytes);
-        if (characterCount == kMaximumRenderedTextBytes) {
-            return std::nullopt;
-        }
-    } else {
-        characterCount = static_cast<std::size_t>(sourceLength);
-        if (characterCount > kMaximumRenderedTextBytes) {
-            return std::nullopt;
-        }
+    const std::size_t terminatedLength = wcsnlen_s(source, kMaximumRenderedTextBytes);
+    if (terminatedLength == kMaximumRenderedTextBytes) {
+        return std::nullopt;
+    }
+    // GDI+ 的部分调用会把容量/格式长度传进来，而不是实际可见字符数；优先采用 NUL 结尾。
+    const std::size_t characterCount = sourceLength < 0
+        ? terminatedLength
+        : std::min<std::size_t>(static_cast<std::size_t>(sourceLength), terminatedLength);
+    if (characterCount == 0 || characterCount > kMaximumRenderedTextBytes) {
+        return std::nullopt;
     }
     if (std::find(source, source + characterCount, L'_') == source + characterCount) {
         return std::nullopt;
@@ -482,10 +596,30 @@ int WINAPI LocalizedGdipDrawString(
         return 1;
     }
     const auto utf8 = ConvertWideTextToUtf8(source, sourceLength);
+    const LONG diagnosticIndex = InterlockedIncrement(&gDrawDiagnosticCount);
+    if (diagnosticIndex <= kMaximumDrawDiagnostics) {
+        DebugLog("DRAW #" + std::to_string(diagnosticIndex) +
+            " len=" + std::to_string(sourceLength) +
+            " text=" + (utf8 ? *utf8 : std::string("<wide-to-utf8 failed>")));
+        if (!utf8 && source != nullptr) {
+            std::string units = "wide units=";
+            const std::size_t unitCount = sourceLength > 0
+                ? std::min<std::size_t>(static_cast<std::size_t>(sourceLength), 8)
+                : 8;
+            for (std::size_t index = 0; index < unitCount; ++index) {
+                if (index != 0) {
+                    units.push_back(',');
+                }
+                units.append(std::to_string(static_cast<unsigned int>(source[index])));
+            }
+            DebugLog(units);
+        }
+    }
     if (!utf8) {
         return gOriginalGdipDrawString(
             graphics, source, sourceLength, font, layoutRectangle, stringFormat, brush);
     }
+    LogDiscoveredDrawText(*utf8);
     const auto translated = TranslateCatalogDisplayText(*utf8);
     if (!translated) {
         return gOriginalGdipDrawString(
@@ -495,6 +629,9 @@ int WINAPI LocalizedGdipDrawString(
     if (!translatedWide) {
         return gOriginalGdipDrawString(
             graphics, source, sourceLength, font, layoutRectangle, stringFormat, brush);
+    }
+    if (diagnosticIndex <= kMaximumDrawDiagnostics) {
+        DebugLog("DRAW translated=" + *translated);
     }
     return gOriginalGdipDrawString(
         graphics,
@@ -512,39 +649,12 @@ bool InstallGdipDrawStringHook(HMODULE module) {
         return false;
     }
     auto* imageBase = reinterpret_cast<std::uint8_t*>(module);
-    const auto& importDirectory = ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
-    if (importDirectory.VirtualAddress == 0 || importDirectory.Size < sizeof(IMAGE_IMPORT_DESCRIPTOR)) {
-        return false;
-    }
-    // 先用导入名称确认样本布局，再直接操作已重新定位后的唯一 IAT 槽，避免
-    // 某些 ASI 加载器只保留 FirstThunk、清空 OriginalFirstThunk 导致扫描漏钩。
-    auto* descriptor = reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(imageBase + importDirectory.VirtualAddress);
-    std::size_t namedMatches = 0;
-    std::uintptr_t namedSlotRva = 0;
-    for (; descriptor->Name != 0; ++descriptor) {
-        if (descriptor->OriginalFirstThunk == 0 || descriptor->FirstThunk == 0) {
-            continue;
-        }
-        const auto* originalThunk = reinterpret_cast<const IMAGE_THUNK_DATA64*>(
-            imageBase + descriptor->OriginalFirstThunk);
-        for (; originalThunk->u1.AddressOfData != 0; ++originalThunk) {
-            if (IMAGE_SNAP_BY_ORDINAL64(originalThunk->u1.Ordinal)) {
-                continue;
-            }
-            const auto* importByName = reinterpret_cast<const IMAGE_IMPORT_BY_NAME*>(
-                imageBase + originalThunk->u1.AddressOfData);
-            if (std::strcmp(reinterpret_cast<const char*>(importByName->Name), "GdipDrawString") == 0) {
-                namedSlotRva = descriptor->FirstThunk +
-                    (static_cast<std::uintptr_t>(originalThunk - reinterpret_cast<const IMAGE_THUNK_DATA64*>(
-                        imageBase + descriptor->OriginalFirstThunk)) * sizeof(IMAGE_THUNK_DATA64));
-                ++namedMatches;
-            }
-        }
-    }
-    if (namedMatches != 1 || namedSlotRva != 0x13400) {
-        return false;
-    }
-    auto* importSlot = reinterpret_cast<ULONGLONG*>(imageBase + namedSlotRva);
+    // 目标样本已在 ValidateTarget 中锁定时间戳、镜像大小、跳板字节和 GdipDrawString
+    // 导入布局。直接写唯一 IAT 槽，兼容会清理 OriginalFirstThunk 的 ASI 加载器。
+    auto* importSlot = reinterpret_cast<ULONGLONG*>(imageBase + 0x13400);
+    gGdipDrawStringImportSlot = importSlot;
+    DebugLog("IAT slot=" + std::to_string(reinterpret_cast<std::uintptr_t>(importSlot)) +
+        " before=" + std::to_string(static_cast<std::uintptr_t>(*importSlot)));
     const auto hook = reinterpret_cast<ULONGLONG>(&LocalizedGdipDrawString);
     if (*importSlot == hook) {
         return gOriginalGdipDrawString != nullptr;
@@ -554,7 +664,91 @@ bool InstallGdipDrawStringHook(HMODULE module) {
         gOriginalGdipDrawString = nullptr;
         return false;
     }
-    return *importSlot == hook;
+    gGdipDrawStringThunkAddress = imageBase + kGdipDrawStringThunkRva;
+    if (std::memcmp(gGdipDrawStringThunkAddress, kGdipDrawStringThunkSignature.data(),
+                    kGdipDrawStringThunkSignature.size()) == 0) {
+        constexpr std::size_t kRelaySize = 0x1000;
+        if (gGdipDrawStringRelay == nullptr) {
+            const auto targetAddress = reinterpret_cast<std::uintptr_t>(gGdipDrawStringThunkAddress);
+            constexpr std::uintptr_t kAllocationStep = 0x100000;
+            constexpr std::uintptr_t kMaximumDistance = 0x7FFF0000;
+            for (std::uintptr_t distance = 0; distance <= kMaximumDistance && gGdipDrawStringRelay == nullptr;
+                 distance += kAllocationStep) {
+                const std::array<std::uintptr_t, 2> candidates{
+                    targetAddress + distance,
+                    targetAddress > distance ? targetAddress - distance : 0,
+                };
+                for (const auto candidate : candidates) {
+                    if (candidate == 0) {
+                        continue;
+                    }
+                    gGdipDrawStringRelay = static_cast<std::uint8_t*>(VirtualAlloc(
+                        reinterpret_cast<void*>(candidate),
+                        kRelaySize,
+                        MEM_RESERVE | MEM_COMMIT,
+                        PAGE_EXECUTE_READWRITE));
+    if (gGdipDrawStringRelay != nullptr) {
+                        break;
+                    }
+                }
+            }
+        }
+        if (gGdipDrawStringRelay != nullptr) {
+            std::array<std::uint8_t, 12> relayCode{
+                0x48, 0xB8,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0xFF, 0xE0,
+            };
+            const auto hookAddress = reinterpret_cast<ULONGLONG>(&LocalizedGdipDrawString);
+            std::memcpy(relayCode.data() + 2, &hookAddress, sizeof(hookAddress));
+            WriteMemory(gGdipDrawStringRelay, relayCode.data(), relayCode.size());
+            const auto nextInstruction = reinterpret_cast<std::uintptr_t>(gGdipDrawStringThunkAddress + 5);
+            const auto relayAddress = reinterpret_cast<std::uintptr_t>(gGdipDrawStringRelay);
+            const auto relativeDistance = static_cast<std::int64_t>(relayAddress) -
+                static_cast<std::int64_t>(nextInstruction);
+            if (relativeDistance >= INT32_MIN && relativeDistance <= INT32_MAX) {
+                std::array<std::uint8_t, 6> jumpPatch{0xE9, 0, 0, 0, 0, 0x90};
+                const auto relative = static_cast<std::int32_t>(relativeDistance);
+                std::memcpy(jumpPatch.data() + 1, &relative, sizeof(relative));
+                WriteMemory(gGdipDrawStringThunkAddress, jumpPatch.data(), jumpPatch.size());
+                DebugLog("relay=" + std::to_string(reinterpret_cast<std::uintptr_t>(gGdipDrawStringRelay)) +
+                    " hook=" + std::to_string(reinterpret_cast<std::uintptr_t>(&LocalizedGdipDrawString)));
+            }
+        }
+    }
+    return *importSlot == hook ||
+        (gGdipDrawStringThunkAddress != nullptr && gGdipDrawStringRelay != nullptr);
+}
+
+// 部分 ASI 加载器或保护层会在模块初始化后重写 IAT；持续校验只针对已确认的
+// GdipDrawString 槽，不修改游戏其他导入，也不改变原始召唤逻辑。
+DWORD WINAPI GdipDrawStringHookWatchdog(void* context) {
+    const auto targetModule = static_cast<HMODULE>(context);
+    const auto hook = reinterpret_cast<ULONGLONG>(&LocalizedGdipDrawString);
+    while (GetModuleHandleW(kTargetModuleName) == targetModule) {
+        Sleep(kHookWatchdogPollMilliseconds);
+        if (gGdipDrawStringImportSlot == nullptr || gOriginalGdipDrawString == nullptr) {
+            continue;
+        }
+        if (*gGdipDrawStringImportSlot != hook) {
+            WriteMemory(gGdipDrawStringImportSlot, &hook, sizeof(hook));
+        }
+        if (gGdipDrawStringThunkAddress != nullptr && gGdipDrawStringRelay != nullptr) {
+            const auto nextInstruction = reinterpret_cast<std::uintptr_t>(gGdipDrawStringThunkAddress + 5);
+            const auto relayAddress = reinterpret_cast<std::uintptr_t>(gGdipDrawStringRelay);
+            const auto relativeDistance = static_cast<std::int64_t>(relayAddress) -
+                static_cast<std::int64_t>(nextInstruction);
+            if (relativeDistance >= INT32_MIN && relativeDistance <= INT32_MAX) {
+                std::array<std::uint8_t, 6> jumpPatch{0xE9, 0, 0, 0, 0, 0x90};
+                const auto relative = static_cast<std::int32_t>(relativeDistance);
+                std::memcpy(jumpPatch.data() + 1, &relative, sizeof(relative));
+                if (std::memcmp(gGdipDrawStringThunkAddress, jumpPatch.data(), jumpPatch.size()) != 0) {
+                    WriteMemory(gGdipDrawStringThunkAddress, jumpPatch.data(), jumpPatch.size());
+                }
+            }
+        }
+    }
+    return 0;
 }
 
 std::size_t PatchTranslationEntry(PeSectionView section, const generated::TranslationEntry& entry) {
@@ -624,6 +818,8 @@ std::size_t PatchWideFontEntry(PeSectionView section, const WideFontReplacement&
 }
 
 DWORD WINAPI InitializeLocalization(void*) {
+    InitializeRuntimeLogPath();
+    DebugLog("初始化 v1.2");
     HMODULE targetModule = WaitForTargetModule();
     if (targetModule == nullptr) {
         DebugLog("等待 NeoEyesSimpleMenu.asi 超时，未执行任何修改。");
@@ -645,18 +841,35 @@ DWORD WINAPI InitializeLocalization(void*) {
         return 0;
     }
     std::size_t patchedTexts = 0;
+    std::size_t missingTexts = 0;
     for (const auto& entry : generated::kTranslations) {
-        patchedTexts += PatchTranslationEntry(readOnlyData, entry);
+        const std::size_t patchedCount = PatchTranslationEntry(readOnlyData, entry);
+        patchedTexts += patchedCount;
+        if (patchedCount != entry.occurrences) {
+            ++missingTexts;
+            DebugLog(
+                "文本槽未匹配：" + std::string(entry.original) +
+                " expected=" + std::to_string(entry.occurrences) +
+                " actual=" + std::to_string(patchedCount));
+        }
     }
     if (patchedTexts != generated::kExpectedPatchCount) {
-        DebugLog("部分 NeoEyes 文本槽未匹配，目标可能已被其他插件修改。");
-        return 0;
+        DebugLog(
+            "部分 NeoEyes 文本槽未匹配，继续安装目录 Hook。missing=" +
+            std::to_string(missingTexts) +
+            " matched=" + std::to_string(patchedTexts) +
+            " expected=" + std::to_string(generated::kExpectedPatchCount));
     }
     // 目录宽字符串可能在目标 ASI 的初始化阶段就被缓存，等初始化完成后再接管最终绘制。
     Sleep(kHookWarmupMilliseconds);
     if (!InstallGdipDrawStringHook(targetModule)) {
         DebugLog("NeoEyes GdipDrawString 目录显示翻译 Hook 安装失败。");
         return 0;
+    }
+    if (InterlockedCompareExchange(&gHookWatchdogStarted, 1, 0) == 0) {
+        if (HANDLE watchdog = CreateThread(nullptr, 0, GdipDrawStringHookWatchdog, targetModule, 0, nullptr)) {
+            CloseHandle(watchdog);
+        }
     }
     DebugLog("NeoEyes 运行时中文映射与最终绘制目录翻译已启用。");
     return 0;

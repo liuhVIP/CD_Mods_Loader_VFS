@@ -47,6 +47,40 @@ int main() {
         std::cerr << "列表行翻译不匹配。\n";
         return EXIT_FAILURE;
     }
+    const auto multiRendered = neoeyes_cn::TranslateCatalogDisplayText(
+        "02  Animal_Desert_Fox_Wild_31410  Animal_Arctic_Fox_Wild_30038");
+    if (!multiRendered ||
+        *multiRendered != "02  动物·沙漠狐狸（野生） #31410  动物·北极狐狸（野生） #30038") {
+        std::cerr << "同一绘制文本中的多目录翻译不匹配。\n";
+        return EXIT_FAILURE;
+    }
+    const auto categoryRendered = neoeyes_cn::TranslateCatalogDisplayText(
+        "01  Citizen        (766)  02  MiddleCitizen        (135)  03  Stallholder        (12)");
+    if (!categoryRendered ||
+        *categoryRendered != "01  市民        (766)  02  中型市民        (135)  03  摊主        (12)") {
+        std::cerr << "多层分类菜单翻译不匹配。\n";
+        return EXIT_FAILURE;
+    }
+    const auto screenshotRendered = neoeyes_cn::TranslateCatalogDisplayText(
+        "01 Citizen 02 Unique 03 MiddleCitizen 04 Demeniss 05 Caliburn 06 Slave "
+        "07 Bandit 08 Wells 09 Noble 10 Wandering 11 Drunk 12 Stallholder");
+    if (!screenshotRendered ||
+        *screenshotRendered !=
+            "01 市民 02 独特 03 中型市民 04 德梅尼斯 05 卡利本 06 奴隶 "
+            "07 强盗 08 威尔斯 09 贵族 10 流浪者 11 醉汉 12 摊主") {
+        std::cerr << "截图分类名称翻译不匹配。\n";
+        return EXIT_FAILURE;
+    }
+    const auto animalRendered = neoeyes_cn::TranslateCatalogDisplayText(
+        "02 BananaButterfly 03 Banded_Peacock 04 Bee 05 Beetle 06 BlackMantis "
+        "07 BlueCopper 08 BluePansyButterfly 09 Bumblebee 10 CamelCricket");
+    if (!animalRendered ||
+        *animalRendered !=
+            "02 香蕉蝴蝶 03 条纹孔雀 04 蜜蜂 05 甲虫 06 黑色螳螂 "
+            "07 蓝色铜色 08 蓝色三色堇蝴蝶 09 熊蜂 10 骆驼蟋蟀") {
+        std::cerr << "动物分类名称翻译不匹配。\n";
+        return EXIT_FAILURE;
+    }
     if (neoeyes_cn::TranslateCatalogIdentifier("Internal_Debug_Value")) {
         std::cerr << "未知内部标识不应被翻译。\n";
         return EXIT_FAILURE;
@@ -63,6 +97,18 @@ int main() {
         nullptr);
     if (gCapturedDrawText != L"01  动物·沙漠狐狸（野生） #31410") {
         std::cerr << "GdipDrawString 最终绘制翻译不匹配。\n";
+        return EXIT_FAILURE;
+    }
+    neoeyes_cn::LocalizedGdipDrawString(
+        nullptr,
+        L"03  Banded_Peacock",
+        18,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr);
+    if (gCapturedDrawText != L"03  条纹孔雀") {
+        std::cerr << "正数 sourceLength 绘制回归失败。\n";
         return EXIT_FAILURE;
     }
 

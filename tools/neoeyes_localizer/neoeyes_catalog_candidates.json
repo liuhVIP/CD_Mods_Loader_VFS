@@ -1,0 +1,2474 @@
+[
+  {
+    "source": "Abystand",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Actor",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Addicted",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Air",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "American",
+    "occurrences": 8,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Ancient",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Antumbra",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Area",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Armadillo",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Armor",
+    "occurrences": 8,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Army",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Arrow",
+    "occurrences": 6,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "art",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Artist",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Arwel",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Ascetic",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Assassin",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Assistant",
+    "occurrences": 8,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Awaken",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Axee",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Backpack",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bactrian",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bad",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Badger",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Balloon",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Barnia",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Barred",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Base",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bass",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bastier",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bastion",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Beagle",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bears",
+    "occurrences": 17,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Beaver",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Benjari",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bicolor",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bilwise",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bird",
+    "occurrences": 6,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Birdbaby",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Birdwing",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bismuth",
+    "occurrences": 6,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Blacktail",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Blade",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Blaine",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bleed",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Body",
+    "occurrences": 13,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bola",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bomb",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bottle",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bounty",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bream",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Brigade",
+    "occurrences": 12,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Brimstone",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "British",
+    "occurrences": 6,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Brotherhood",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bucket",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Buckeye",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Buddhist",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Bunting",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Burbot",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Burrowing",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Byron",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Camelrider",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Cannon",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Caretta",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Carp",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Cassowary",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Catch",
+    "occurrences": 12,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Catfish",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Catnip",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Character",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Checkered",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Checkerspot",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Cherrug",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Chick",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Choppy",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Circus",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Citron",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "clothe",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "cluster",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Cobra",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Cockatoo",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Coelacanth",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Colias",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Colin",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Collared",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Collecter",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Comma",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Common",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Condor",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Confusion",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Connecter",
+    "occurrences": 18,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Cormorant",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Corpse",
+    "occurrences": 7,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Corvo",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Coyote",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Crane",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Criminal",
+    "occurrences": 6,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Crimson",
+    "occurrences": 6,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Crowned",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Crucian",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Crysalus",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Cuckoo",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Cucubird",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Cuvier",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Cyrus",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Daggerwing",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Damian",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Dane",
+    "occurrences": 17,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Darkness",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Deacon",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Dead",
+    "occurrences": 14,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Decoy",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Delesian",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Delesyia",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Delesyian",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Dewhaven",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Diadem",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Diana",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Dimension",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Divided",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Docking",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Doctor",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Dodo",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Dome",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Dove",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Dover",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Dragon",
+    "occurrences": 9,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Droid",
+    "occurrences": 7,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Drone",
+    "occurrences": 6,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Drugged",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Drum",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Duckling",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Dune",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Dverick",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Eastern",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Eclectus",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Edmond",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Egg",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Eirik",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Electric",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Ellimoor",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Emperor",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Emu",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Engineer",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Ethusa",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "European",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Explosive",
+    "occurrences": 6,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Eye",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Factory",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Falco",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Fanatic",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "firefly",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Fix",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Flag",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Flamingos",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Flower",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Flycatcher",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Flying",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Follower",
+    "occurrences": 7,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Foot",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Football",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "For",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Frilled",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Fritillary",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Fulica",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Fullmoon",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Furniture",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Galapagos",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Gavia",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Gears",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Genyornis",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Gladiator",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Gnat",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Goanna",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Gold",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Golem",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Great",
+    "occurrences": 18,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Grebe",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Green",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Greyfur",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Greyhound",
+    "occurrences": 11,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Grizzled",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Grizzly",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Guava",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Gust",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Hair",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Hairless",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Hairstreak",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Halfmoon",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Hamish",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Hand",
+    "occurrences": 139,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Harpy",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Hawksbill",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Head",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Heavy",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Heliconian",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Hen",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Henchman",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Hernand",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Heron",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Hexe",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "High",
+    "occurrences": 10,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Hila",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Hoe",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Hopper",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Horn",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "House",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Husky",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Hypaurotis",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Ice",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Iguana",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "impcart",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Inachus",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Invisible",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Jay",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Jewel",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Jijeong",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Jindodog",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "kakapo",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Kallima",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Karanda",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Keeper",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Kid",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "King",
+    "occurrences": 8,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Kiwi",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Kliff",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Komodo",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Kuku",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Lady",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Lancehead",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Leader",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Leaf",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Legend",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Lenok",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Lightning",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Little",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Lonely",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Long",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Longleaf",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Longtailedtit",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Luna",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Lustrous",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Lycaena",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "machinery",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Mackerel",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Major",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Malachite",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Mallard",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Manage",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Manager",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "mandarin",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Marni",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Mergellus",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Mesite",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Metalmark",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Milbert",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Milk",
+    "occurrences": 7,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Mimic",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Mine",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Mole",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Monarch",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Monk",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Mosquito",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Moth",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Mud",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Mushroom",
+    "occurrences": 10,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Muskrat",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Myscelia",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Myurdin",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Narration",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Nastes",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Naturalphenomenon",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Nawab",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Neophasia",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Netral",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Newmoon",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Normal",
+    "occurrences": 9,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "North",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Norwegianforest",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Old",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Olive",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Orange",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Orc",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Oriole",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Ornythion",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Owen",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Owl",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Oxpecker",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Pack",
+    "occurrences": 6,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Paddle",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Page",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Pagrus",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Pailune",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Painted",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Part",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Partridge",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Patch",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Patient",
+    "occurrences": 13,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Pebble",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Peccary",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Perch",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Person",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Phlaeas",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Phuket",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Pick",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Pikefish",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Pipevine",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Player",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Police",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Polydamas",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Ponto",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Pororin",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Possesion",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Possum",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Pot",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Prison",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Pronghorn",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Provost",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Purple",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Pursuer",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Queen",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Rake",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Regal",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Rein",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Revolutionary",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Rhinoceros",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Rider",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Ridley",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Roedeer",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Rooster",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Ruddy",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Rufus",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Russian",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Rusty",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Sale",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Salmon",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Samuel",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Satyr",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Scorpions",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Seabream",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Seahorse",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Seotda",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Sequencer",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Seraphim",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Shay",
+    "occurrences": 6,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Shovel",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Silkworm",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Sircus",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Skevald",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Skipper",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Skull",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Slater",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Sleepy",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Snail",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Snapper",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Sockeye",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Soldiers",
+    "occurrences": 15,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Sole",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Soulknight",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Sphere",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Spicebush",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Spotted",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Sprayer",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Squid",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Stag",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Star",
+    "occurrences": 6,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Stellata",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Stick",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Stone",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Store",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Sturgeon",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Sulphur",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Swallowtail",
+    "occurrences": 6,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Swarm",
+    "occurrences": 13,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Sythe",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Tail",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Tailed",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Tashkalp",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Temple",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Tench",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Terlooii",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Theona",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Thrower",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "tip",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Tipped",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Titan",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Tool",
+    "occurrences": 5,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Tortoiseshell",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Tower",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Trade",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Training",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Tree",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Tricolor",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Trout",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Trukan",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Twohand",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Umbra",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Viceroy",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Wagon",
+    "occurrences": 18,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Wall",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Wand",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Wapiti",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "War",
+    "occurrences": 3,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Warrior",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Web",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Wide",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Wing",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Witch",
+    "occurrences": 4,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Wood",
+    "occurrences": 1,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Wyvern",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  },
+  {
+    "source": "Zebra",
+    "occurrences": 2,
+    "translation": "",
+    "kind": "core"
+  }
+]

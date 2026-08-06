@@ -164,6 +164,30 @@
     { "source": "One", "translation": "单", "kind": "core" },
     { "source": "Two", "translation": "双", "kind": "core" },
     { "source": "Dual", "translation": "双持", "kind": "core" }
+    ,{ "source": "Demeniss", "translation": "德梅尼斯", "kind": "core" }
+    ,{ "source": "Caliburn", "translation": "卡利本", "kind": "core" }
+    ,{ "source": "Slave", "translation": "奴隶", "kind": "core" }
+    ,{ "source": "Wells", "translation": "威尔斯", "kind": "core" }
+    ,{ "source": "Wandering", "translation": "流浪者", "kind": "core" }
+    ,{ "source": "Drunk", "translation": "醉汉", "kind": "core" }
+    ,{ "source": "Stallholder", "translation": "摊主", "kind": "core" }
+    ,{ "source": "Banana", "translation": "香蕉", "kind": "core" }
+    ,{ "source": "Banded", "translation": "条纹", "kind": "core" }
+    ,{ "source": "Peacock", "translation": "孔雀", "kind": "core" }
+    ,{ "source": "Beetle", "translation": "甲虫", "kind": "core" }
+    ,{ "source": "Mantis", "translation": "螳螂", "kind": "core" }
+    ,{ "source": "Copper", "translation": "铜色", "kind": "core" }
+    ,{ "source": "Pansy", "translation": "三色堇", "kind": "core" }
+    ,{ "source": "Bumblebee", "translation": "熊蜂", "kind": "core" }
+    ,{ "source": "Cricket", "translation": "蟋蟀", "kind": "core" }
+    ,{ "source": "Beggar", "translation": "乞丐", "kind": "core" }
+    ,{ "source": "CatManager", "translation": "猫管家", "kind": "core" }
+    ,{ "source": "Clown", "translation": "小丑", "kind": "core" }
+    ,{ "source": "Lumif", "translation": "鲁米夫", "kind": "core" }
+    ,{ "source": "Stefero", "translation": "斯特费罗", "kind": "core" }
+    ,{ "source": "Davrella", "translation": "达芙蕾拉", "kind": "core" }
+    ,{ "source": "Ayut", "translation": "阿尤特", "kind": "core" }
+    ,{ "source": "Pukret", "translation": "普克雷特", "kind": "core" }
   ],
   "smoke_tests": [
     { "source": "Animal_AlpineIbex_10", "contains": "高山野山羊" },
