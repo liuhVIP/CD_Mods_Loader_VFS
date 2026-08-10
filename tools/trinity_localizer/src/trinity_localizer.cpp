@@ -1,4 +1,4 @@
-// Trinity 0.13.1 中文伴生 ASI：运行时内嵌翻译映射与 ImGui 中文字体注入。
+// Trinity 0.13.2 中文伴生 ASI：运行时内嵌翻译映射与 ImGui 中文字体注入。
 #include <Windows.h>
 
 #include <algorithm>
@@ -11,31 +11,70 @@
 #include <limits>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <vector>
 
+#include "generated/catalog.generated.h"
 #include "generated/translations.generated.h"
 
 namespace trinity_cn {
 
-// 当前适配对象为 Trinity 0.13.1；版本变化时必须重新确认函数入口和序言。
+// 当前适配对象为 Trinity 0.13.2；版本变化时必须重新确认函数入口和序言。
 constexpr wchar_t kTargetModuleName[] = L"Trinity.asi";
 constexpr wchar_t kTargetProcessName[] = L"CrimsonDesert.exe";
-constexpr char kTargetVersion[] = "v0.13.1";
-constexpr char kVersionLabel[] = "b站up 改名_汉化 v0.13.1";
-constexpr std::uintptr_t kAddFontFromFileTtfRva = 0x65060;
-constexpr std::uintptr_t kVersionTextLeaRva = 0x24F8E;
+constexpr char kTargetVersion[] = "v0.13.2";
+constexpr char kVersionLabel[] = "b站up 改名_汉化 v0.13.2";
+constexpr char kCompanionVersion[] = "0.4.3.0";
+constexpr std::uintptr_t kAddFontFromFileTtfRva = 0x64C30;
+constexpr std::uintptr_t kVersionTextLeaRva = 0x25945;
+constexpr std::uintptr_t kCatalogLocStringRva = 0x15630;
+constexpr std::uintptr_t kItemTableGlobalRva = 0xE6A70;
+constexpr std::uintptr_t kGroupTableGlobalRva = 0xE6A78;
+constexpr std::uintptr_t kInventoryTableGlobalRva = 0xE6A88;
+constexpr std::uintptr_t kItemTableLoadRva = 0x15799;
+constexpr std::uintptr_t kGroupTableLoadRva = 0x136DC;
+constexpr std::uintptr_t kInventoryTableLoadRva = 0x15FA8;
+constexpr std::uintptr_t kDefinitionArrayLoadRva = 0x143E1;
+constexpr std::uintptr_t kTableCountOffset = 0x08;
+constexpr std::uintptr_t kTableDefinitionsOffset = 0x58;
+constexpr std::uintptr_t kItemNameFieldOffset = 0x20;
+constexpr std::uintptr_t kGroupNameFieldOffset = 0x18;
+constexpr std::uintptr_t kInventoryNameFieldOffset = 0x70;
 constexpr std::size_t kHookOverwriteSize = 17;
+constexpr std::size_t kCatalogHookOverwriteSize = 15;
 constexpr DWORD kModuleWaitMilliseconds = 30'000;
 constexpr DWORD kModulePollMilliseconds = 10;
 
-// Trinity 0.13.1 的 AddFontFromFileTTF 前 17 字节；不一致时拒绝安装 Hook。
+// Trinity 0.13.2 的 AddFontFromFileTTF 前 17 字节；不一致时拒绝安装 Hook。
 constexpr std::array<std::uint8_t, kHookOverwriteSize> kExpectedFontFunctionPrologue{
     0x40, 0x55, 0x53, 0x56, 0x57, 0x41, 0x56, 0x41, 0x57,
     0x48, 0x8D, 0xAC, 0x24, 0x38, 0xFF, 0xFF, 0xFF,
 };
 
-// 唯一版本文本引用：lea rsi, [rip + v0.13.1]。
+// 唯一版本文本引用：lea r12, [rip + v0.13.2]。
 constexpr std::array<std::uint8_t, 7> kExpectedVersionTextLea{
-    0x48, 0x8D, 0x35, 0xF3, 0x7F, 0x09, 0x00,
+    0x4C, 0x8D, 0x25, 0x0C, 0x58, 0x09, 0x00,
+};
+
+// Trinity 0.13.2 的动态本地化读取函数前 15 字节；仅含完整的栈保存指令。
+constexpr std::array<std::uint8_t, kCatalogHookOverwriteSize> kExpectedCatalogLocStringPrologue{
+    0x48, 0x89, 0x5C, 0x24, 0x08,
+    0x48, 0x89, 0x6C, 0x24, 0x10,
+    0x48, 0x89, 0x74, 0x24, 0x18,
+};
+
+// 当前 ItemInfo / ItemGroupInfo 全局与 definitions(+0x58) 的固定引用特征。
+constexpr std::array<std::uint8_t, 7> kExpectedItemTableLoad{
+    0x48, 0x8B, 0x0D, 0xD0, 0x12, 0x0D, 0x00,
+};
+constexpr std::array<std::uint8_t, 7> kExpectedGroupTableLoad{
+    0x48, 0x8B, 0x0D, 0x95, 0x33, 0x0D, 0x00,
+};
+constexpr std::array<std::uint8_t, 7> kExpectedInventoryTableLoad{
+    0x48, 0x8B, 0x0D, 0xD9, 0x0A, 0x0D, 0x00,
+};
+constexpr std::array<std::uint8_t, 4> kExpectedDefinitionArrayLoad{
+    0x48, 0x8D, 0x4F, 0x58,
 };
 
 using AddFontFromFileTtfFn = void* (*)(
@@ -44,6 +83,7 @@ using AddFontFromFileTtfFn = void* (*)(
     float sizePixels,
     const void* fontConfig,
     const std::uint16_t* glyphRanges);
+using CatalogLocStringFn = bool (*)(std::uintptr_t structAddress, char* output, std::size_t capacity);
 
 struct PeSectionView {
     std::uint8_t* address{};
@@ -52,8 +92,19 @@ struct PeSectionView {
 
 HMODULE g_selfModule{};
 AddFontFromFileTtfFn g_originalAddFontFromFileTtf{};
+CatalogLocStringFn g_originalCatalogLocString{};
 std::array<char, MAX_PATH> g_regularFontPath{};
 std::array<char, MAX_PATH> g_boldFontPath{};
+SRWLOCK g_catalogTranslationLock = SRWLOCK_INIT;
+SRWLOCK g_runtimeLogLock = SRWLOCK_INIT;
+bool g_itemCatalogAddressesReady{};
+bool g_groupCatalogAddressesReady{};
+bool g_inventoryCatalogAddressesReady{};
+bool g_itemCatalogFailureLogged{};
+bool g_groupCatalogFailureLogged{};
+bool g_inventoryCatalogFailureLogged{};
+bool g_catalogFallbackLogged{};
+std::unordered_map<std::uintptr_t, const char*> g_catalogTranslations;
 
 bool EqualsInsensitive(std::wstring_view left, std::wstring_view right) {
     if (left.size() != right.size()) {
@@ -78,11 +129,64 @@ bool IsTargetProcess() {
     return EqualsInsensitive(BaseName(std::wstring_view(path.data(), length)), kTargetProcessName);
 }
 
+bool BuildRuntimeLogPath(std::wstring& output) {
+    std::array<wchar_t, MAX_PATH> modulePath{};
+    const DWORD length = GetModuleFileNameW(
+        nullptr,
+        modulePath.data(),
+        static_cast<DWORD>(modulePath.size()));
+    if (length == 0 || length >= modulePath.size()) {
+        return false;
+    }
+    output.assign(modulePath.data(), length);
+    const auto separator = output.find_last_of(L"\\/");
+    output.replace(separator == std::wstring::npos ? 0 : separator + 1, std::wstring::npos, L"TrinityCN.log");
+    return true;
+}
+
+void ResetRuntimeLog() {
+    std::wstring path;
+    if (!BuildRuntimeLogPath(path)) {
+        return;
+    }
+    HANDLE file = CreateFileW(
+        path.c_str(),
+        GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr);
+    if (file != INVALID_HANDLE_VALUE) {
+        CloseHandle(file);
+    }
+}
+
 void DebugLog(std::string_view message) {
     std::string line = "[TrinityCN] ";
     line.append(message);
-    line.push_back('\n');
+    line.append("\r\n");
     OutputDebugStringA(line.c_str());
+
+    std::wstring path;
+    if (!BuildRuntimeLogPath(path)) {
+        return;
+    }
+    AcquireSRWLockExclusive(&g_runtimeLogLock);
+    HANDLE file = CreateFileW(
+        path.c_str(),
+        FILE_APPEND_DATA,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr,
+        OPEN_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr);
+    if (file != INVALID_HANDLE_VALUE) {
+        DWORD written = 0;
+        WriteFile(file, line.data(), static_cast<DWORD>(line.size()), &written, nullptr);
+        CloseHandle(file);
+    }
+    ReleaseSRWLockExclusive(&g_runtimeLogLock);
 }
 
 HMODULE WaitForTargetModule() {
@@ -153,6 +257,30 @@ bool ValidateTargetVersion(HMODULE module) {
     const auto* target = reinterpret_cast<const std::uint8_t*>(module) + kAddFontFromFileTtfRva;
     if (!std::equal(kExpectedFontFunctionPrologue.begin(), kExpectedFontFunctionPrologue.end(), target)) {
         DebugLog("Trinity 字体函数特征不匹配，已停用汉化。");
+        return false;
+    }
+    const auto* imageBase = reinterpret_cast<const std::uint8_t*>(module);
+    if (!std::equal(
+            kExpectedCatalogLocStringPrologue.begin(),
+            kExpectedCatalogLocStringPrologue.end(),
+            imageBase + kCatalogLocStringRva) ||
+        !std::equal(
+            kExpectedItemTableLoad.begin(),
+            kExpectedItemTableLoad.end(),
+            imageBase + kItemTableLoadRva) ||
+        !std::equal(
+            kExpectedGroupTableLoad.begin(),
+            kExpectedGroupTableLoad.end(),
+            imageBase + kGroupTableLoadRva) ||
+        !std::equal(
+            kExpectedInventoryTableLoad.begin(),
+            kExpectedInventoryTableLoad.end(),
+            imageBase + kInventoryTableLoadRva) ||
+        !std::equal(
+            kExpectedDefinitionArrayLoad.begin(),
+            kExpectedDefinitionArrayLoad.end(),
+            imageBase + kDefinitionArrayLoadRva)) {
+        DebugLog("Trinity 动态目录结构特征不匹配，已停用汉化。");
         return false;
     }
     return true;
@@ -289,6 +417,170 @@ std::size_t ApplyEmbeddedTranslations(HMODULE module) {
     return patchedCount;
 }
 
+bool ReadCurrentProcessMemory(std::uintptr_t address, void* output, std::size_t size) {
+    if (address == 0 || output == nullptr || size == 0) {
+        return false;
+    }
+    SIZE_T bytesRead = 0;
+    return ReadProcessMemory(
+               GetCurrentProcess(),
+               reinterpret_cast<const void*>(address),
+               output,
+               size,
+               &bytesRead) != FALSE &&
+        bytesRead == size;
+}
+
+bool BuildCatalogAddressTable(
+    HMODULE trinityModule,
+    std::uintptr_t trinityGlobalRva,
+    std::uintptr_t localizedFieldOffset,
+    std::uint32_t expectedRowCount,
+    const generated_catalog::CatalogTranslation* translations,
+    std::size_t translationCount,
+    std::size_t& mappedCount) {
+    mappedCount = 0;
+    std::uintptr_t gameTableGlobal = 0;
+    if (!ReadCurrentProcessMemory(
+            reinterpret_cast<std::uintptr_t>(trinityModule) + trinityGlobalRva,
+            &gameTableGlobal,
+            sizeof(gameTableGlobal))) {
+        return false;
+    }
+
+    std::uintptr_t table = 0;
+    std::uint32_t rowCount = 0;
+    std::uintptr_t definitionsAddress = 0;
+    if (!ReadCurrentProcessMemory(gameTableGlobal, &table, sizeof(table)) ||
+        !ReadCurrentProcessMemory(table + kTableCountOffset, &rowCount, sizeof(rowCount)) ||
+        rowCount != expectedRowCount ||
+        !ReadCurrentProcessMemory(
+            table + kTableDefinitionsOffset,
+            &definitionsAddress,
+            sizeof(definitionsAddress))) {
+        return false;
+    }
+
+    std::vector<std::uintptr_t> definitions(rowCount);
+    if (!ReadCurrentProcessMemory(
+            definitionsAddress,
+            definitions.data(),
+            definitions.size() * sizeof(definitions.front()))) {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < translationCount; ++index) {
+        const auto& entry = translations[index];
+        if (entry.row >= rowCount || definitions[entry.row] == 0) {
+            continue;
+        }
+        g_catalogTranslations.insert_or_assign(
+            definitions[entry.row] + localizedFieldOffset,
+            entry.translation);
+        ++mappedCount;
+    }
+    return true;
+}
+
+const char* FindCatalogTranslation(std::uintptr_t structAddress) {
+    HMODULE trinityModule = GetModuleHandleW(kTargetModuleName);
+    if (trinityModule == nullptr) {
+        return nullptr;
+    }
+
+    AcquireSRWLockExclusive(&g_catalogTranslationLock);
+    if (!g_itemCatalogAddressesReady) {
+        std::size_t mappedCount = 0;
+        g_itemCatalogAddressesReady = BuildCatalogAddressTable(
+            trinityModule,
+            kItemTableGlobalRva,
+            kItemNameFieldOffset,
+            generated_catalog::kExpectedItemRowCount,
+            generated_catalog::kItemTranslations,
+            generated_catalog::kItemTranslationCount,
+            mappedCount);
+        if (g_itemCatalogAddressesReady) {
+            DebugLog("物品中文地址表已建立：" + std::to_string(mappedCount) + " 条。");
+        } else if (!g_itemCatalogFailureLogged) {
+            g_itemCatalogFailureLogged = true;
+            DebugLog("物品中文地址表建立失败，将在后续请求中重试。");
+        }
+    }
+    if (!g_groupCatalogAddressesReady) {
+        std::size_t mappedCount = 0;
+        g_groupCatalogAddressesReady = BuildCatalogAddressTable(
+            trinityModule,
+            kGroupTableGlobalRva,
+            kGroupNameFieldOffset,
+            generated_catalog::kExpectedGroupRowCount,
+            generated_catalog::kGroupTranslations,
+            generated_catalog::kGroupTranslationCount,
+            mappedCount);
+        if (g_groupCatalogAddressesReady) {
+            DebugLog("分类中文地址表已建立：" + std::to_string(mappedCount) + " 条。");
+        } else if (!g_groupCatalogFailureLogged) {
+            g_groupCatalogFailureLogged = true;
+            DebugLog("分类中文地址表建立失败，将在后续请求中重试。");
+        }
+    }
+    if (!g_inventoryCatalogAddressesReady) {
+        std::size_t mappedCount = 0;
+        g_inventoryCatalogAddressesReady = BuildCatalogAddressTable(
+            trinityModule,
+            kInventoryTableGlobalRva,
+            kInventoryNameFieldOffset,
+            generated_catalog::kExpectedInventoryRowCount,
+            generated_catalog::kInventoryTranslations,
+            generated_catalog::kInventoryTranslationCount,
+            mappedCount);
+        if (g_inventoryCatalogAddressesReady) {
+            DebugLog("仓库中文地址表已建立：" + std::to_string(mappedCount) + " 条。");
+        } else if (!g_inventoryCatalogFailureLogged) {
+            g_inventoryCatalogFailureLogged = true;
+            DebugLog("仓库中文地址表建立失败，将在后续请求中重试。");
+        }
+    }
+    const auto translation = g_catalogTranslations.find(structAddress);
+    const char* result = translation == g_catalogTranslations.end() ? nullptr : translation->second;
+    const bool logFallback = result != nullptr && !g_catalogFallbackLogged;
+    if (logFallback) {
+        g_catalogFallbackLogged = true;
+    }
+    ReleaseSRWLockExclusive(&g_catalogTranslationLock);
+    if (logFallback) {
+        DebugLog("动态目录中文回退已首次命中。");
+    }
+    return result;
+}
+
+bool CopyCatalogTranslation(const char* translation, char* output, std::size_t capacity) {
+    if (translation == nullptr || output == nullptr || capacity == 0) {
+        return false;
+    }
+    std::size_t copySize = std::min(std::strlen(translation), capacity - 1);
+    while (copySize > 0 &&
+           (static_cast<unsigned char>(translation[copySize]) & 0xC0U) == 0x80U) {
+        --copySize;
+    }
+    std::memcpy(output, translation, copySize);
+    output[copySize] = '\0';
+    return copySize > 0;
+}
+
+bool HookedCatalogLocString(
+    std::uintptr_t structAddress,
+    char* output,
+    std::size_t capacity) {
+    if (g_originalCatalogLocString != nullptr &&
+        g_originalCatalogLocString(structAddress, output, capacity)) {
+        return true;
+    }
+    return CopyCatalogTranslation(
+        FindCatalogTranslation(structAddress),
+        output,
+        capacity);
+}
+
 bool ContainsInsensitive(std::string_view value, std::string_view needle) {
     if (needle.empty() || value.size() < needle.size()) {
         return false;
@@ -343,28 +635,54 @@ void WriteAbsoluteJump(std::uint8_t* destination, const void* target) {
     std::memcpy(destination + 6, &targetAddress, sizeof(targetAddress));
 }
 
-bool InstallFontHook(HMODULE module) {
-    auto* target = reinterpret_cast<std::uint8_t*>(module) + kAddFontFromFileTtfRva;
+template <std::size_t overwriteSize, typename FunctionPointer>
+bool InstallAbsoluteHook(
+    std::uint8_t* target,
+    const std::array<std::uint8_t, overwriteSize>& expected,
+    const void* hook,
+    FunctionPointer& original) {
+    static_assert(overwriteSize >= 14);
+    if (!std::equal(expected.begin(), expected.end(), target)) {
+        return false;
+    }
     constexpr std::size_t jumpSize = 14;
-    constexpr std::size_t trampolineSize = kHookOverwriteSize + jumpSize;
+    constexpr std::size_t trampolineSize = overwriteSize + jumpSize;
     auto* trampoline = static_cast<std::uint8_t*>(VirtualAlloc(
         nullptr, trampolineSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
     if (trampoline == nullptr) {
         return false;
     }
-    std::memcpy(trampoline, target, kHookOverwriteSize);
-    WriteAbsoluteJump(trampoline + kHookOverwriteSize, target + kHookOverwriteSize);
-    g_originalAddFontFromFileTtf = reinterpret_cast<AddFontFromFileTtfFn>(trampoline);
+    std::memcpy(trampoline, target, overwriteSize);
+    WriteAbsoluteJump(trampoline + overwriteSize, target + overwriteSize);
+    original = reinterpret_cast<FunctionPointer>(trampoline);
 
-    std::array<std::uint8_t, kHookOverwriteSize> patch{};
+    std::array<std::uint8_t, overwriteSize> patch{};
     patch.fill(0x90);
-    WriteAbsoluteJump(patch.data(), reinterpret_cast<const void*>(&HookedAddFontFromFileTtf));
+    WriteAbsoluteJump(patch.data(), hook);
     if (!WriteMemory(target, patch.data(), patch.size())) {
-        g_originalAddFontFromFileTtf = nullptr;
+        original = nullptr;
         VirtualFree(trampoline, 0, MEM_RELEASE);
         return false;
     }
     return true;
+}
+
+bool InstallFontHook(HMODULE module) {
+    auto* target = reinterpret_cast<std::uint8_t*>(module) + kAddFontFromFileTtfRva;
+    return InstallAbsoluteHook(
+        target,
+        kExpectedFontFunctionPrologue,
+        reinterpret_cast<const void*>(&HookedAddFontFromFileTtf),
+        g_originalAddFontFromFileTtf);
+}
+
+bool InstallCatalogTranslationHook(HMODULE module) {
+    auto* target = reinterpret_cast<std::uint8_t*>(module) + kCatalogLocStringRva;
+    return InstallAbsoluteHook(
+        target,
+        kExpectedCatalogLocStringPrologue,
+        reinterpret_cast<const void*>(&HookedCatalogLocString),
+        g_originalCatalogLocString);
 }
 
 bool BuildChineseFontPaths() {
@@ -386,6 +704,8 @@ bool BuildChineseFontPaths() {
 }
 
 DWORD WINAPI InitializeLocalization(void*) {
+    ResetRuntimeLog();
+    DebugLog(std::string("TrinityCN ") + kCompanionVersion + " 初始化。");
     HMODULE trinityModule = WaitForTargetModule();
     if (trinityModule == nullptr) {
         DebugLog("等待 Trinity.asi 超时，未执行任何修改。");
@@ -401,6 +721,9 @@ DWORD WINAPI InitializeLocalization(void*) {
     if (!InstallFontHook(trinityModule)) {
         DebugLog("安装 Trinity 字体 Hook 失败，未执行文本替换。");
         return 0;
+    }
+    if (!InstallCatalogTranslationHook(trinityModule)) {
+        DebugLog("安装 Trinity 动态目录中文 Hook 失败，物品与分类名称保持原样。");
     }
     RedirectVersionLabel(trinityModule);
     const std::size_t patchedCount = ApplyEmbeddedTranslations(trinityModule);

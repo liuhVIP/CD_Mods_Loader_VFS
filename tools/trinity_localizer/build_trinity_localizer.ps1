@@ -3,22 +3,28 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [string]$TrinitySample = 'G:\NppMODdown\crimsondesert\Trinity 3109 0.13.1 2026-07-23T18-18Z ifG1RWTgX\Trinity.asi'
+    [string]$TrinitySample = 'G:\NppMODdown\crimsondesert\Trinity 0.13.2 CD1.17.00 3252 1 2026-08-10T14-41Z bJyGDfFfA\Trinity.asi',
+    [string]$GameDir = 'G:\SteamLibrary\steamapps\common\Crimson Desert'
 )
 
 $ErrorActionPreference = 'Stop'
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = (Resolve-Path (Join-Path $scriptRoot '..\..')).Path
 $translationPath = Join-Path $scriptRoot 'translations.zh-CN.json'
+$catalogGenerator = Join-Path $scriptRoot 'generate_catalog_translations.py'
 $generatedDirectory = Join-Path $scriptRoot 'src\generated'
 $generatedHeader = Join-Path $generatedDirectory 'translations.generated.h'
+$generatedCatalogHeader = Join-Path $generatedDirectory 'catalog.generated.h'
+$generatedCatalogGlyphs = Join-Path $generatedDirectory 'catalog.glyphs.generated.txt'
 $buildDirectory = Join-Path $scriptRoot 'build'
 $releaseDirectory = Join-Path $projectRoot 'dist\trinity_localizer'
 $sourceAsi = Join-Path $buildDirectory "$Configuration\TrinityCN.asi"
 $releaseAsi = Join-Path $releaseDirectory 'TrinityCN.asi'
+$projectPython = Join-Path $projectRoot '.venv\Scripts\python.exe'
 
-# Trinity 0.13.1 的开发样本仅用于构建时核对英文条目，不会进入发布目录。
-$expectedTrinitySha256 = '1AAA392E5408F35ACB741A792B2F573BCA3144FBAB83D2D9A7BC3FDB4BA58D3B'
+# Trinity 0.13.2 的开发样本仅用于构建时核对英文条目，不会进入发布目录。
+$expectedTrinityVersion = 'v0.13.2'
+$expectedTrinitySha256 = '2CC92610604EDE9E75F9D884199D2EDE3382E1F26C0E99417F30ED357E179ADD'
 
 function ConvertTo-CppByteLiteral {
     param([Parameter(Mandatory)][string]$Value)
@@ -93,6 +99,10 @@ $sampleAscii = if ($null -ne $sampleBytes) {
 } else {
     $null
 }
+if ($null -ne $sampleAscii -and
+    -not $sampleAscii.Contains("$expectedTrinityVersion`0", [System.StringComparison]::Ordinal)) {
+    throw "Trinity 开发样本版本标识不匹配：$expectedTrinityVersion"
+}
 $glyphs = [System.Collections.Generic.SortedSet[int]]::new()
 foreach ($codePoint in 0x20..0xFF) {
     [void]$glyphs.Add($codePoint)
@@ -122,14 +132,14 @@ foreach ($entry in $translations) {
         throw "格式占位符不一致：$original"
     }
     if ($null -ne $sampleAscii -and -not $sampleAscii.Contains("$original`0", [System.StringComparison]::Ordinal)) {
-        throw "Trinity 0.13.1 样本中不存在英文条目：$original"
+        throw "Trinity 0.13.2 样本中不存在英文条目：$original"
     }
     if ($null -ne $sampleBytes -and -not (Test-PatchableTranslationSlot `
             -SampleBytes $sampleBytes `
             -SampleAscii $sampleAscii `
             -Original $original `
             -Capacity $capacity)) {
-        throw "Trinity 0.13.1 样本中的字符串槽容量不足：$original ($capacity)"
+        throw "Trinity 0.13.2 样本中的字符串槽容量不足：$original ($capacity)"
     }
     foreach ($rune in $translation.EnumerateRunes()) {
         if ($rune.Value -gt 0xFFFF) {
@@ -137,6 +147,26 @@ foreach ($entry in $translations) {
         }
         [void]$glyphs.Add($rune.Value)
     }
+}
+
+# 动态物品和分类名称的全部字形必须一并写入 ImGui 字体范围，避免译文显示方框。
+if (-not (Test-Path -LiteralPath $projectPython -PathType Leaf)) {
+    throw "缺少项目 Python：$projectPython"
+}
+if (-not (Test-Path -LiteralPath $catalogGenerator -PathType Leaf)) {
+    throw "缺少动态目录翻译生成器：$catalogGenerator"
+}
+& $projectPython $catalogGenerator `
+    --game-dir $GameDir `
+    --output $generatedCatalogHeader `
+    --glyph-output $generatedCatalogGlyphs
+if ($LASTEXITCODE -ne 0) { throw 'Trinity 动态目录中文生成失败。' }
+$catalogGlyphText = Get-Content -Raw -Encoding UTF8 -LiteralPath $generatedCatalogGlyphs
+foreach ($rune in $catalogGlyphText.EnumerateRunes()) {
+    if ($rune.Value -gt 0xFFFF) {
+        throw "当前 ImGui 字形表不支持动态目录中的补充平面字符：$rune"
+    }
+    [void]$glyphs.Add($rune.Value)
 }
 
 $ranges = [System.Collections.Generic.List[object]]::new()
@@ -201,4 +231,5 @@ if ($unexpectedFiles.Count -gt 0) {
 $hash = Get-FileHash -LiteralPath $releaseAsi -Algorithm SHA256
 Write-Host "构建完成：$releaseAsi"
 Write-Host "内嵌翻译：$($translations.Count) 条"
+Write-Host "字体字形：$($glyphs.Count) 个"
 Write-Host "SHA-256：$($hash.Hash)"
