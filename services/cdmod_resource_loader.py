@@ -85,13 +85,14 @@ def _build_copy_entry(
     vanilla_store: VanillaStore,
     base_entries: list[OverlayInputEntry],
 ) -> OverlayInputEntry:
-    """读取当前游戏 source 内容并写到 target 的 PAMT 元数据位置。"""
+    """读取当前合成 source 内容并写到 target 的 PAMT 元数据位置。"""
     if operation.source is None or operation.source_pamt_dir is None:
         raise ValueError("copy-entry 缺少 source")
-    source = _find_vanilla_entry(
+    source = _resolve_resource_source(
         game_dir,
         operation.source_pamt_dir,
         operation.source,
+        base_entries,
     )
     target = _resolve_target_source(
         game_dir,
@@ -99,9 +100,34 @@ def _build_copy_entry(
         operation.target,
         base_entries,
     )
-    content, _detected_source = _extract_resource_plaintext(source)
-    template = _entry_template(target, vanilla_store)
+    if isinstance(source, OverlayInputEntry):
+        content = source.content
+    else:
+        content, _detected_source = _extract_resource_plaintext(source)
+    template = (
+        target
+        if isinstance(target, OverlayInputEntry)
+        else _entry_template(target, vanilla_store)
+    )
     return _with_content(template, content)
+
+
+def _resolve_resource_source(
+    game_dir: Path,
+    pamt_dir: str,
+    source: str,
+    base_entries: list[OverlayInputEntry],
+) -> OverlayInputEntry | PazEntry:
+    """优先读取前序模组的最终 source，未覆盖时回退当前原版。"""
+    normalized = lower_game_rel_path(source)
+    matches = [
+        entry
+        for entry in base_entries
+        if _matches_base_entry(entry, pamt_dir, normalized)
+    ]
+    if matches:
+        return matches[-1]
+    return _find_vanilla_entry(game_dir, pamt_dir, source)
 
 
 def _build_replace_entry(
@@ -152,11 +178,29 @@ def _resolve_target_source(
     matches = [
         entry
         for entry in base_entries
-        if entry.pamt_dir == pamt_dir and lower_game_rel_path(entry.entry_path) == normalized
+        if _matches_base_entry(entry, pamt_dir, normalized)
     ]
     if matches:
         return matches[-1]
     return _find_vanilla_entry(game_dir, pamt_dir, target)
+
+
+def _matches_base_entry(
+    entry: OverlayInputEntry,
+    pamt_dir: str,
+    normalized_path: str,
+) -> bool:
+    """同时识别完整 entry_path 与 PAMT 扁平路径加真实目录的表示。"""
+    if entry.pamt_dir != pamt_dir:
+        return False
+    entry_path = lower_game_rel_path(entry.entry_path)
+    if entry_path == normalized_path:
+        return True
+    if not entry.resolved_dir_path:
+        return False
+    basename = entry_path.rsplit("/", 1)[-1]
+    final_path = lower_game_rel_path(f"{entry.resolved_dir_path}/{basename}")
+    return final_path == normalized_path
 
 
 def _find_vanilla_entry(game_dir: Path, pamt_dir: str, target: str) -> PazEntry:
@@ -206,4 +250,6 @@ def _with_content(template: OverlayInputEntry, content: bytes) -> OverlayInputEn
         compression_type=template.compression_type,
         encrypted=template.encrypted,
         crypto_filename=template.crypto_filename,
+        preserve_entry_dir=template.preserve_entry_dir,
+        resolved_dir_path=template.resolved_dir_path,
     )

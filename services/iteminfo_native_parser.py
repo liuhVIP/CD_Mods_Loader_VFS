@@ -405,40 +405,12 @@ def parse_iteminfo_prefab_data_list(data: bytes) -> tuple[list[dict], int, int]:
     更靠前的稳定区域。Format 3 的整条 prefab 替换只需要这个字段的边界，
     因此这里在读到该字段后立即返回，后续未知尾部保持原样。
     """
-    r = _Reader(data, 0, rec_end=len(data))
-    out: dict[str, Any] = {}
-    for spec in _ITEM_FIELDS:
-        name, kind = spec[0], spec[1]
-        if name == "item_desc" and out.get("equip_type_info") == LANTERN_EQ_TYPE:
-            out["lantern_unk_a"] = r.u32()
-            out["lantern_unk_b"] = r.u32()
-            out["lantern_unk_c"] = r.u32()
-        if name == "prefab_data_list":
-            start = r.pos
-            values = r.carray(spec[2])
-            end = r.pos
-            return values, start, end
-        out[name] = _read_item_field_for_prefab_seek(r, out, spec)
-    raise ValueError("prefab_data_list field not found")
+    return _parse_iteminfo_field(data, "prefab_data_list")
 
 
 def parse_iteminfo_drop_default_data(data: bytes) -> tuple[dict, int, int]:
     """只解析单条 ItemInfo 记录中的 `drop_default_data` 字段。"""
-    r = _Reader(data, 0, rec_end=len(data))
-    out: dict[str, Any] = {}
-    for spec in _ITEM_FIELDS:
-        name, kind = spec[0], spec[1]
-        if name == "item_desc" and out.get("equip_type_info") == LANTERN_EQ_TYPE:
-            out["lantern_unk_a"] = r.u32()
-            out["lantern_unk_b"] = r.u32()
-            out["lantern_unk_c"] = r.u32()
-        if name == "drop_default_data":
-            start = r.pos
-            values = spec[2](r)
-            end = r.pos
-            return values, start, end
-        out[name] = _read_item_field_for_prefab_seek(r, out, spec)
-    raise ValueError("drop_default_data field not found")
+    return _parse_iteminfo_field(data, "drop_default_data")
 
 
 def serialize_iteminfo_drop_default_data(value: dict) -> bytes:
@@ -459,28 +431,63 @@ def parse_iteminfo_visual_prefab_lists(
     data: bytes,
 ) -> tuple[list[dict], list[dict], int, int]:
     """解析相邻的普通 prefab 与 gimmick visual prefab 两个列表。"""
-    r = _Reader(data, 0, rec_end=len(data))
-    out: dict[str, Any] = {}
-    prefab_values: list[dict] | None = None
-    start = 0
-    for spec in _ITEM_FIELDS:
-        name = spec[0]
-        if name == "item_desc" and out.get("equip_type_info") == LANTERN_EQ_TYPE:
-            out["lantern_unk_a"] = r.u32()
-            out["lantern_unk_b"] = r.u32()
-            out["lantern_unk_c"] = r.u32()
-        if name == "prefab_data_list":
-            start = r.pos
-            prefab_values = r.carray(spec[2])
-            out[name] = prefab_values
-            continue
-        if name == "gimmick_visual_prefab_data_list":
-            gimmick_values = r.carray(spec[2])
-            if prefab_values is None:
-                raise ValueError("prefab_data_list field not found before gimmick list")
-            return prefab_values, gimmick_values, start, r.pos
-        out[name] = _read_item_field_for_prefab_seek(r, out, spec)
-    raise ValueError("gimmick_visual_prefab_data_list field not found")
+    errors: list[Exception] = []
+    preferred_layout = detect_iteminfo_layout(data, ((0, len(data)),))
+    for layout in _layout_candidates(preferred_layout):
+        r = _Reader(data, 0, rec_end=len(data))
+        out: dict[str, Any] = {}
+        prefab_values: list[dict] | None = None
+        start = 0
+        try:
+            for spec in _item_fields_for_layout(layout):
+                name = spec[0]
+                if name == "item_desc" and out.get("equip_type_info") == LANTERN_EQ_TYPE:
+                    out["lantern_unk_a"] = r.u32()
+                    out["lantern_unk_b"] = r.u32()
+                    out["lantern_unk_c"] = r.u32()
+                if name == "prefab_data_list":
+                    start = r.pos
+                    prefab_values = r.carray(spec[2])
+                    out[name] = prefab_values
+                    continue
+                if name == "gimmick_visual_prefab_data_list":
+                    gimmick_values = r.carray(spec[2])
+                    if prefab_values is None:
+                        raise ValueError("prefab_data_list field not found before gimmick list")
+                    return prefab_values, gimmick_values, start, r.pos
+                out[name] = _read_item_field_for_prefab_seek(r, out, spec)
+        except (IndexError, struct.error, UnicodeError, ValueError) as exc:
+            errors.append(exc)
+    raise ValueError("gimmick_visual_prefab_data_list field not found") from errors[-1]
+
+
+def _parse_iteminfo_field(data: bytes, target_name: str) -> tuple[Any, int, int]:
+    """按记录布局读取一个前置字段，旧版与 1.17 共用同一尝试顺序。"""
+    errors: list[Exception] = []
+    preferred_layout = detect_iteminfo_layout(data, ((0, len(data)),))
+    for layout in _layout_candidates(preferred_layout):
+        r = _Reader(data, 0, rec_end=len(data))
+        out: dict[str, Any] = {}
+        try:
+            for spec in _item_fields_for_layout(layout):
+                name = spec[0]
+                if name == "item_desc" and out.get("equip_type_info") == LANTERN_EQ_TYPE:
+                    out["lantern_unk_a"] = r.u32()
+                    out["lantern_unk_b"] = r.u32()
+                    out["lantern_unk_c"] = r.u32()
+                if name == target_name:
+                    start = r.pos
+                    if spec[1] == "carray":
+                        value = r.carray(spec[2])
+                    elif spec[1] == "struct":
+                        value = spec[2](r)
+                    else:
+                        raise ValueError(f"不支持的 ItemInfo 目标字段类型：{spec[1]}")
+                    return value, start, r.pos
+                out[name] = _read_item_field_for_prefab_seek(r, out, spec)
+        except (IndexError, struct.error, UnicodeError, ValueError) as exc:
+            errors.append(exc)
+    raise ValueError(f"{target_name} field not found") from errors[-1]
 
 
 def serialize_iteminfo_visual_prefab_lists(
@@ -2126,6 +2133,105 @@ _ITEM_FIELDS = [
     ("max_endurance", "u16"),
     ("repair_data_list", "carray", _read_RepairData, _write_RepairData),
 ]
+
+# 1.17（EXE 1.0.0.2330）从 ItemInfo 前缀删除了 inventory_info(u16)。
+# 保留旧布局，供动态选择器和单记录窄 writer 复用同一套布局判断。
+ITEMINFO_LAYOUT_WITH_INVENTORY = "with_inventory_info"
+ITEMINFO_LAYOUT_WITHOUT_INVENTORY = "without_inventory_info"
+_ITEM_FIELDS_WITH_INVENTORY = tuple(_ITEM_FIELDS)
+_ITEM_FIELDS_WITHOUT_INVENTORY = tuple(
+    spec for spec in _ITEM_FIELDS if spec[0] != "inventory_info"
+)
+
+
+def _item_fields_for_layout(layout: str) -> tuple:
+    """返回指定 ItemInfo 版本布局的字段定义。"""
+    if layout == ITEMINFO_LAYOUT_WITHOUT_INVENTORY:
+        return _ITEM_FIELDS_WITHOUT_INVENTORY
+    return _ITEM_FIELDS_WITH_INVENTORY
+
+
+def _layout_candidates(preferred_layout: str) -> tuple[str, str]:
+    """优先尝试已识别布局，失败时回退另一种已知布局。"""
+    fallback = (
+        ITEMINFO_LAYOUT_WITH_INVENTORY
+        if preferred_layout == ITEMINFO_LAYOUT_WITHOUT_INVENTORY
+        else ITEMINFO_LAYOUT_WITHOUT_INVENTORY
+    )
+    return preferred_layout, fallback
+
+
+def _iteminfo_equip_offsets(
+    data: bytes,
+    record_start: int,
+    record_end: int,
+) -> tuple[int, int] | None:
+    """定位 1.17 与旧版两个候选 equip_type_info 偏移。"""
+    try:
+        name_len = struct.unpack_from("<I", data, record_start + 4)[0]
+        cursor = record_start + 8 + name_len + 1 + 8
+        default_len = struct.unpack_from("<I", data, cursor + 1 + 8)[0]
+        without_inventory = cursor + 1 + 8 + 4 + default_len + 4
+        with_inventory = without_inventory + 2
+    except struct.error:
+        return None
+    if without_inventory + 4 > min(record_end, len(data)):
+        return None
+    return without_inventory, with_inventory
+
+
+def detect_iteminfo_layout(
+    data: bytes,
+    record_bounds: list[tuple[int, int]] | tuple[tuple[int, int], ...],
+) -> str:
+    """用多记录前缀证据判断是否为 1.17 无 inventory_info 布局。"""
+    without_inventory_votes = 0
+    for record_start, record_end in record_bounds:
+        offsets = _iteminfo_equip_offsets(data, record_start, record_end)
+        if offsets is None:
+            continue
+        without_offset, with_offset = offsets
+        if with_offset + 4 > min(record_end, len(data)):
+            continue
+        without_value = struct.unpack_from("<I", data, without_offset)[0]
+        with_value = struct.unpack_from("<I", data, with_offset)[0]
+        # 新版真实类型通常是 32 位 hash；旧偏移会读到 hash 高 16 位和后续零值。
+        if without_value > 0xFFFF and with_value <= 0xFFFF:
+            without_inventory_votes += 1
+            if without_inventory_votes >= 3:
+                return ITEMINFO_LAYOUT_WITHOUT_INVENTORY
+    return ITEMINFO_LAYOUT_WITH_INVENTORY
+
+
+def read_iteminfo_match_prefix(
+    data: bytes,
+    key: int,
+    entry_name: str,
+    entry_start: int,
+    entry_end: int,
+    preferred_layout: str,
+) -> dict[str, object] | None:
+    """按已识别布局读取动态选择器需要的 ItemInfo 前缀。"""
+    offsets = _iteminfo_equip_offsets(data, entry_start, entry_end)
+    if offsets is None:
+        return None
+    without_offset, with_offset = offsets
+    limit = min(entry_end, len(data))
+    try:
+        without_value = struct.unpack_from("<I", data, without_offset)[0]
+    except struct.error:
+        return None
+    candidates = [without_value]
+    if with_offset + 4 <= limit:
+        candidates.append(struct.unpack_from("<I", data, with_offset)[0])
+    preferred_index = 0 if preferred_layout == ITEMINFO_LAYOUT_WITHOUT_INVENTORY else 1
+    equip_type_info = candidates[min(preferred_index, len(candidates) - 1)]
+    return {
+        "key": key,
+        "string_key": entry_name,
+        "equip_type_info": equip_type_info,
+        "_equip_type_info_candidates": tuple(dict.fromkeys(candidates)),
+    }
 
 
 # Lantern records (equip_type_info == LANTERN_EQ_TYPE) carry a 12-byte

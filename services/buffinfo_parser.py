@@ -151,10 +151,16 @@ _VARIANT_TAIL_SIZES: dict[int, int] = {
     65: 12,   # round 1
     70: 8,    # round 1
     74: 0,    # round 2: 1 homogeneous entry
+    # CD 1.17 删除了位于 ChangeBuffLevelBuffData 之前的一个 variant，
+    # 后续 tag 整体前移一位；尾部结构本身没有变化。
+    79: 8,
     80: 8,    # round 1
     82: 16,   # round 1
     89: 4,    # round 2: 1 homogeneous entry
     90: 12,   # round 2: 1 homogeneous entry
+    # CD 1.17 的 AddPercentInGameContentsBuffData tag 由 104 前移为 103。
+    # 两个 FallDamageReduce 真实记录均已按 10 项边界验证为 17 字节。
+    103: 17,
     # 当前游戏10级 FallDamageReduce 记录逐项边界确认是17字节；旧版9字节
     # 布局会从第2项开始错位。结构为 f00:u8 + f01:u64 + f02:u64。
     104: 17,
@@ -207,6 +213,8 @@ _VARIANT_BODY_FIELDS: dict[int, tuple[str, list[tuple[str, str, int, int]]]] = {
           ("f02", "u32", 8, 4)]),
     70: ("DampMovementBuffData",
          [("f00", "u32", 0, 4), ("f01", "u32", 4, 4)]),
+    79: ("ChangeBuffLevelBuffData",
+         [("f00", "u32", 0, 4), ("f01", "u32", 4, 4)]),
     80: ("ChangeBuffLevelBuffData",
          [("f00", "u32", 0, 4), ("f01", "u32", 4, 4)]),
     82: ("ChangeAnimationSpeedBuffData",
@@ -217,6 +225,9 @@ _VARIANT_BODY_FIELDS: dict[int, tuple[str, list[tuple[str, str, int, int]]]] = {
     90: ("DetectBrightnessBuffData",
          [("f00", "u32", 0, 4), ("f01", "u32", 4, 4),
           ("f02", "u32", 8, 4)]),
+    103: ("AddPercentInGameContentsBuffData",
+          [("f00", "u8", 0, 1), ("f01", "u64", 1, 8),
+           ("f02", "u64", 9, 8)]),
     104: ("AddPercentInGameContentsBuffData",
           [("f00", "u8", 0, 1), ("f01", "u64", 1, 8),
            ("f02", "u64", 9, 8)]),

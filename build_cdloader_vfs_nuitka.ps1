@@ -54,6 +54,8 @@ $VfsRuntimeDir = Join-Path $ScriptDir "private\vfs_runtime"
 $VfsLauncherFile = Join-Path $VfsRuntimeDir "nppvfs_launcher.exe"
 $VfsRuntimeDll = Join-Path $VfsRuntimeDir "vfs_runtime.dll"
 $NativeDir = Join-Path $ScriptDir "native"
+# Nexus/GitHub 完整包固定使用的加载器封面，必须随 ZIP 放在根目录。
+$PackageCoverFile = Join-Path $ScriptDir "dist_nuitka\加载器封面.png"
 
 # 原生 VFS launcher 依赖的 VC/UCRT 运行库。构建时优先放进内置 runtime 目录，
 # 用户机器缺少 VC 运行库时仍能直接启动。
@@ -229,6 +231,10 @@ if (-not (Test-Path -LiteralPath $VfsLauncherFile)) {
 }
 if (-not (Test-Path -LiteralPath $VfsRuntimeDll)) {
     Write-Host "未找到闭源 VFS runtime：$VfsRuntimeDll" -ForegroundColor Red
+    exit 1
+}
+if (-not (Test-Path -LiteralPath $PackageCoverFile -PathType Leaf)) {
+    Write-Host "未找到加载器封面：$PackageCoverFile" -ForegroundColor Red
     exit 1
 }
 Ensure-VfsRuntimeDependencies
@@ -539,6 +545,9 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $PhysicalBootstrapExe))
 
 禁止只删除 .cdloader/physical_mode_state.json 冒充恢复；必须让 revert 成功完成。
 "@ | Set-Content -LiteralPath (Join-Path $PackageDir "两种加载方式说明.txt") -Encoding UTF8
+
+# 封面作为完整发布包的一部分放在 ZIP 根目录，源图保持原样不做重编码。
+Copy-Item -LiteralPath $PackageCoverFile -Destination (Join-Path $PackageDir "加载器封面.png") -Force
 
 # 为目录版全部运行文件生成相对路径 SHA256，便于发布后核验。
 $HashLines = Get-ChildItem -LiteralPath $CorePackageDir -Recurse -File |

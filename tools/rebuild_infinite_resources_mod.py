@@ -6,6 +6,7 @@ import argparse
 import bisect
 import difflib
 import json
+import re
 import struct
 import sys
 from collections import defaultdict
@@ -42,12 +43,19 @@ STAMINA_BUFF_STEP = 2000
 SPIRIT_BUFF_STEP = 200
 BUFF_VALUE_OFFSET_AFTER_HASH = 4
 
+# 旧版重建源中的 ItemInfo 标签包含稳定的记录名和 PABGH key。
+ITEM_CHANGE_LABEL_PATTERN = re.compile(r"ItemInfo (.+) \((\d+)\)$")
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--game-dir", type=Path, required=True)
     parser.add_argument("--mod-json", type=Path, required=True)
-    parser.add_argument("--old-iteminfo", type=Path, required=True)
+    parser.add_argument(
+        "--old-iteminfo",
+        type=Path,
+        help="可选：与旧版源 JSON 匹配的 ItemInfo 明文；缺省时按稳定记录标签迁移",
+    )
     parser.add_argument("--game-version", default="1.16.04")
     parser.add_argument("--source-json", type=Path, required=True)
     parser.add_argument("--output-cdmod", type=Path, required=True)
@@ -161,6 +169,136 @@ def _map_item_changes(
     return rebuilt
 
 
+def _find_all(record: bytes, needle: bytes) -> set[int]:
+    """返回字段在单条记录内的全部候选位置。"""
+    if not needle:
+        raise RuntimeError("ItemInfo change 的 original 不能为空")
+    return {
+        offset
+        for offset in range(0, len(record) - len(needle) + 1)
+        if record.startswith(needle, offset)
+    }
+
+
+def _parse_item_change_identity(change: dict) -> tuple[str, int]:
+    """从旧源标签提取稳定的 ItemInfo 记录名和 key。"""
+    match = ITEM_CHANGE_LABEL_PATTERN.search(str(change.get("label", "")))
+    if match is None:
+        raise RuntimeError(f"ItemInfo change 缺少稳定记录标签：{change.get('label')!r}")
+    return match.group(1), int(match.group(2))
+
+
+def _map_labeled_item_changes(
+    current_body: bytes,
+    current_header: bytes,
+    changes: list[dict],
+    version: str,
+) -> list[dict]:
+    """不用旧明文，按记录身份和补丁相对关系迁移 ItemInfo。"""
+    key_size, offsets = parse_pabgh_index(current_header, "iteminfo")
+    bounds = build_entry_bounds(current_body, key_size, offsets)
+    grouped: dict[int, list[dict]] = defaultdict(list)
+    record_names: dict[int, str] = {}
+
+    for change in changes:
+        name, key = _parse_item_change_identity(change)
+        bound = bounds.get(key)
+        if bound is None:
+            raise RuntimeError(f"ItemInfo 当前表缺少目标记录：{name} / {key}")
+        if bound[2] != name:
+            raise RuntimeError(
+                f"ItemInfo 当前记录名不匹配：{key} / {bound[2]} != {name}"
+            )
+        grouped[key].append(change)
+        record_names[key] = name
+
+    # 多字段记录可由旧绝对偏移间距在当前记录中求出唯一平移量。
+    record_shifts: dict[int, int] = {}
+    ambiguous_keys: list[int] = []
+    global_deltas: set[int] = set()
+    for key, items in grouped.items():
+        start, end, _name, _name_end = bounds[key]
+        record = current_body[start:end]
+        shift_candidates: list[set[int]] = []
+        for change in items:
+            original = bytes.fromhex(change["original"])
+            positions = _find_all(record, original)
+            if not positions:
+                raise RuntimeError(
+                    f"ItemInfo 当前记录找不到原字节：{record_names[key]} / {key} / "
+                    f"{original.hex()}"
+                )
+            old_offset = int(change["offset"])
+            shift_candidates.append({position - old_offset for position in positions})
+        common_shifts = set.intersection(*shift_candidates)
+        if len(common_shifts) == 1:
+            record_shift = next(iter(common_shifts))
+            record_shifts[key] = record_shift
+            global_deltas.add(start + record_shift)
+        else:
+            ambiguous_keys.append(key)
+
+    if not global_deltas:
+        raise RuntimeError("ItemInfo 没有可用于证明当前表区段平移量的记录")
+
+    # 单字段记录可能出现大量相同字节，只接受由其余记录证明、且仍在本记录内的区段平移量。
+    for key in ambiguous_keys:
+        start, end, name, _name_end = bounds[key]
+        valid_shifts: list[int] = []
+        for global_delta in global_deltas:
+            record_shift = global_delta - start
+            valid = True
+            for change in grouped[key]:
+                relative_offset = int(change["offset"]) + record_shift
+                original = bytes.fromhex(change["original"])
+                if relative_offset < 0 or relative_offset + len(original) > end - start:
+                    valid = False
+                    break
+                actual = current_body[
+                    start + relative_offset:start + relative_offset + len(original)
+                ]
+                if actual != original:
+                    valid = False
+                    break
+            if valid:
+                valid_shifts.append(record_shift)
+        if len(valid_shifts) != 1:
+            raise RuntimeError(
+                f"ItemInfo 记录无法按已证明区段唯一定位：{name} / {key} / "
+                f"候选数={len(valid_shifts)}"
+            )
+        record_shifts[key] = valid_shifts[0]
+
+    rebuilt: list[dict] = []
+    occupied_until = -1
+    for key, items in grouped.items():
+        start, end, name, _name_end = bounds[key]
+        for change in items:
+            original = bytes.fromhex(change["original"])
+            current_offset = start + int(change["offset"]) + record_shifts[key]
+            if current_offset < start or current_offset + len(original) > end:
+                raise RuntimeError(f"ItemInfo 补丁越过记录边界：{name} / {key}")
+            if current_body[current_offset:current_offset + len(original)] != original:
+                raise RuntimeError(f"ItemInfo 最终原字节校验失败：{name} / {key}")
+            rebuilt.append(
+                {
+                    "type": "replace",
+                    "offset": current_offset,
+                    "original": original.hex(),
+                    "patched": change["patched"].lower(),
+                    "label": f"{version} ItemInfo {name} ({key})",
+                }
+            )
+
+    rebuilt.sort(key=lambda item: item["offset"])
+    for change in rebuilt:
+        offset = int(change["offset"])
+        if offset < occupied_until:
+            raise RuntimeError(f"ItemInfo 补丁重叠：offset={offset}")
+        occupied_until = offset + len(bytes.fromhex(change["original"]))
+    return rebuilt
+
+
 def _build_buff_changes(body: bytes, version: str) -> list[dict]:
     changes: list[dict] = []
     specs = (
@@ -244,13 +382,21 @@ def _write_rebuilt_mod(args: argparse.Namespace) -> None:
         ),
     )
 
-    item_changes = _map_item_changes(
-        args.old_iteminfo.read_bytes(),
-        tables["iteminfo.pabgb"],
-        tables["iteminfo.pabgh"],
-        old_changes["gamedata/iteminfo.pabgb"],
-        args.game_version,
-    )
+    if args.old_iteminfo is not None:
+        item_changes = _map_item_changes(
+            args.old_iteminfo.read_bytes(),
+            tables["iteminfo.pabgb"],
+            tables["iteminfo.pabgh"],
+            old_changes["gamedata/iteminfo.pabgb"],
+            args.game_version,
+        )
+    else:
+        item_changes = _map_labeled_item_changes(
+            tables["iteminfo.pabgb"],
+            tables["iteminfo.pabgh"],
+            old_changes["gamedata/iteminfo.pabgb"],
+            args.game_version,
+        )
     buff_changes = _build_buff_changes(tables["buffinfo.pabgb"], args.game_version)
     skill_changes = _build_skill_changes(tables["skill.pabgb"], args.game_version)
 

@@ -21,6 +21,7 @@ from cdmm.services.cdmod_converter import (
     CDMOD_LOCALIZATION_COMPONENT_TYPE,
     CDMOD_MANIFEST_PATH,
     CDMOD_PATCH_PATH,
+    CDMOD_PROFILED_FILE_REPLACEMENT_COMPONENT_TYPE,
     CDMOD_RESOURCE_TRANSFORM_COMPONENT_TYPE,
     CDMOD_STANDALONE_COMPONENT_TYPE,
 )
@@ -50,7 +51,11 @@ def validate_cdmod_header(path: Path) -> None:
             manifest = _read_zip_json(archive, CDMOD_MANIFEST_PATH)
             components = _validate_manifest(manifest)
             archive_names = set(archive.namelist())
-            missing = [component["path"] for component in components if component["path"] not in archive_names]
+            missing = [
+                component["path"]
+                for component in components
+                if component["path"] not in archive_names
+            ]
             if missing:
                 raise ValueError(f"cdmod 缺少组件：{', '.join(missing)}")
     except (OSError, zipfile.BadZipFile) as exc:
@@ -69,7 +74,9 @@ def collect_cdmod_declared_targets(path: Path) -> list[str]:
                 if component_type == CDMOD_STANDALONE_COMPONENT_TYPE:
                     continue
                 document = _read_zip_json(archive, component["path"])
-                targets.extend(_declared_targets_from_component(component_type, document))
+                targets.extend(
+                    _declared_targets_from_component(component_type, document)
+                )
     except (OSError, zipfile.BadZipFile) as exc:
         raise ValueError(f"无法读取 cdmod：{exc}") from exc
     return list(dict.fromkeys(targets))
@@ -97,6 +104,7 @@ def collect_cdmod_prefab_risk_operations(path: Path) -> list[CdmodPrefabRiskOper
                 if component_type not in {
                     CDMOD_RESOURCE_TRANSFORM_COMPONENT_TYPE,
                     CDMOD_FILE_REPLACEMENT_COMPONENT_TYPE,
+                    CDMOD_PROFILED_FILE_REPLACEMENT_COMPONENT_TYPE,
                     CDMOD_LEGACY_JSON_COMPONENT_TYPE,
                 }:
                     continue
@@ -108,7 +116,11 @@ def collect_cdmod_prefab_risk_operations(path: Path) -> list[CdmodPrefabRiskOper
                         target = operation.get("target")
                         op = operation.get("op")
                         if isinstance(target, str) and _is_prefab_target(target):
-                            method = f"resource-transform {op}" if isinstance(op, str) else "resource-transform"
+                            method = (
+                                f"resource-transform {op}"
+                                if isinstance(op, str)
+                                else "resource-transform"
+                            )
                             source = operation.get("source")
                             operations.append(
                                 CdmodPrefabRiskOperation(
@@ -137,6 +149,19 @@ def collect_cdmod_prefab_risk_operations(path: Path) -> list[CdmodPrefabRiskOper
                                 )
                             )
                     continue
+                if component_type == CDMOD_PROFILED_FILE_REPLACEMENT_COMPONENT_TYPE:
+                    for file_item in document.get("files") or []:
+                        if not isinstance(file_item, dict):
+                            continue
+                        target = file_item.get("target")
+                        if isinstance(target, str) and _is_prefab_target(target):
+                            operations.append(
+                                CdmodPrefabRiskOperation(
+                                    method="profiled-file-replacement",
+                                    target=target,
+                                )
+                            )
+                    continue
                 for patch in document.get("patches") or []:
                     if not isinstance(patch, dict):
                         continue
@@ -155,7 +180,9 @@ def _is_prefab_target(target: str) -> bool:
     return target.replace("\\", "/").casefold().endswith(".prefab")
 
 
-def _declared_targets_from_component(component_type: str, document: dict[str, Any]) -> list[str]:
+def _declared_targets_from_component(
+    component_type: str, document: dict[str, Any]
+) -> list[str]:
     """从轻量组件文档提取游戏目标路径。"""
     if component_type == "semantic-patch":
         return [
@@ -165,13 +192,32 @@ def _declared_targets_from_component(component_type: str, document: dict[str, An
         ]
     if component_type == CDMOD_LEGACY_JSON_COMPONENT_TYPE:
         patches = document.get("patches")
-        return [item["game_file"] for item in patches or [] if isinstance(item, dict) and isinstance(item.get("game_file"), str)]
+        return [
+            item["game_file"]
+            for item in patches or []
+            if isinstance(item, dict) and isinstance(item.get("game_file"), str)
+        ]
     if component_type == CDMOD_LOCALIZATION_COMPONENT_TYPE:
         target = document.get("target")
         return [target] if isinstance(target, str) else []
     if component_type == CDMOD_FILE_REPLACEMENT_COMPONENT_TYPE:
         files = document.get("files")
-        return [item["target"] for item in files or [] if isinstance(item, dict) and isinstance(item.get("target"), str)]
+        return [
+            item["target"]
+            for item in files or []
+            if isinstance(item, dict) and isinstance(item.get("target"), str)
+        ]
+    if component_type == CDMOD_PROFILED_FILE_REPLACEMENT_COMPONENT_TYPE:
+        result: list[str] = []
+        probe = document.get("probe")
+        if isinstance(probe, dict) and isinstance(probe.get("target"), str):
+            result.append(probe["target"])
+        result.extend(
+            item["target"]
+            for item in document.get("files") or []
+            if isinstance(item, dict) and isinstance(item.get("target"), str)
+        )
+        return result
     if component_type == CDMOD_RESOURCE_TRANSFORM_COMPONENT_TYPE:
         result: list[str] = []
         for item in document.get("operations") or []:
@@ -269,6 +315,45 @@ class CdmodFilePatch:
 
 
 @dataclass(frozen=True)
+class CdmodProfileDefinition:
+    """一个由探针资源 SHA-256 唯一识别的兼容配置。"""
+
+    profile_id: str
+    probe_sha256: str
+
+
+@dataclass(frozen=True)
+class CdmodProfiledFileVariant:
+    """一个兼容配置对应的完整资源载荷。"""
+
+    profile_id: str
+    payload_path: str
+    sha256: str
+    content: bytes
+
+
+@dataclass(frozen=True)
+class CdmodProfiledFileReplacement:
+    """一个根据探针结果选择载荷的游戏资源目标。"""
+
+    target: str
+    pamt_dir: str
+    variants: tuple[CdmodProfiledFileVariant, ...]
+    fallback: CdmodProfiledFileVariant
+    index: int
+
+
+@dataclass(frozen=True)
+class CdmodProfiledFilePatch:
+    """共享一个探针资源的条件完整替换组件。"""
+
+    probe_target: str
+    probe_pamt_dir: str
+    profiles: tuple[CdmodProfileDefinition, ...]
+    files: tuple[CdmodProfiledFileReplacement, ...]
+
+
+@dataclass(frozen=True)
 class CdmodStandaloneArchive:
     """一个经过哈希校验的 standalone PAZ/PAMT 载荷。"""
 
@@ -292,6 +377,7 @@ class CdmodPackage:
     file_patches: tuple[CdmodFilePatch, ...] = ()
     legacy_json_patches: tuple[dict[str, Any], ...] = ()
     standalone_archives: tuple[CdmodStandaloneArchive, ...] = ()
+    profiled_file_patches: tuple[CdmodProfiledFilePatch, ...] = ()
 
 
 def load_cdmod_package(path: Path) -> CdmodPackage:
@@ -318,16 +404,23 @@ def load_cdmod_package(path: Path) -> CdmodPackage:
                 if semantic_paths
                 else []
             )
-            localization_patches = _read_localization_components(archive, component_specs)
+            localization_patches = _read_localization_components(
+                archive, component_specs
+            )
             resource_patches = _read_resource_components(archive, component_specs)
             file_patches = _read_file_components(archive, component_specs)
+            profiled_file_patches = _read_profiled_file_components(
+                archive, component_specs
+            )
             legacy_json_patches = _read_legacy_json_components(archive, component_specs)
             standalone_archives = _read_standalone_components(archive, component_specs)
     except (OSError, zipfile.BadZipFile) as exc:
         raise ValueError(f"无法读取 cdmod：{exc}") from exc
 
     dependencies = manifest.get("dependencies", [])
-    if not isinstance(dependencies, list) or not all(isinstance(item, str) for item in dependencies):
+    if not isinstance(dependencies, list) or not all(
+        isinstance(item, str) for item in dependencies
+    ):
         raise ValueError("manifest.dependencies 必须是字符串数组")
     package = CdmodPackage(
         path=path,
@@ -341,6 +434,7 @@ def load_cdmod_package(path: Path) -> CdmodPackage:
         file_patches=tuple(file_patches),
         legacy_json_patches=tuple(legacy_json_patches),
         standalone_archives=tuple(standalone_archives),
+        profiled_file_patches=tuple(profiled_file_patches),
     )
     _CDMOD_PACKAGE_CACHE[cache_key] = package
     return package
@@ -379,6 +473,7 @@ def _validate_manifest(manifest: dict[str, Any]) -> list[dict[str, str]]:
         CDMOD_LOCALIZATION_COMPONENT_TYPE,
         CDMOD_RESOURCE_TRANSFORM_COMPONENT_TYPE,
         CDMOD_FILE_REPLACEMENT_COMPONENT_TYPE,
+        CDMOD_PROFILED_FILE_REPLACEMENT_COMPONENT_TYPE,
         CDMOD_LEGACY_JSON_COMPONENT_TYPE,
         CDMOD_STANDALONE_COMPONENT_TYPE,
     }
@@ -387,7 +482,9 @@ def _validate_manifest(manifest: dict[str, Any]) -> list[dict[str, str]]:
         label = f"manifest.components[{index}]"
         if not isinstance(raw_component, dict):
             raise ValueError(f"{label} 必须是对象")
-        component_type = _require_non_empty_string(raw_component.get("type"), f"{label}.type")
+        component_type = _require_non_empty_string(
+            raw_component.get("type"), f"{label}.type"
+        )
         if component_type not in supported_types:
             raise ValueError(f"{label}.type 暂不支持：{component_type}")
         component_path = _normalize_archive_path(
@@ -427,7 +524,9 @@ def _read_standalone_components(
         if component["type"] != CDMOD_STANDALONE_COMPONENT_TYPE:
             continue
         document = _read_zip_json(archive, component["path"])
-        name = _require_non_empty_string(document.get("name"), f"{component['path']}.name")
+        name = _require_non_empty_string(
+            document.get("name"), f"{component['path']}.name"
+        )
         paz_path = _normalize_archive_path(
             _require_non_empty_string(document.get("paz"), f"{component['path']}.paz")
         )
@@ -440,7 +539,9 @@ def _read_standalone_components(
         except KeyError as exc:
             raise ValueError(f"standalone 载荷缺失：{exc}") from exc
         for label, content in (("paz", paz_bytes), ("pamt", pamt_bytes)):
-            expected = _require_sha256(document.get(f"{label}_sha256"), f"{component['path']}.{label}_sha256")
+            expected = _require_sha256(
+                document.get(f"{label}_sha256"), f"{component['path']}.{label}_sha256"
+            )
             if hashlib.sha256(content).hexdigest() != expected:
                 raise ValueError(f"standalone {label.upper()} SHA256 不匹配")
         result.append(CdmodStandaloneArchive(name, paz_bytes, pamt_bytes))
@@ -468,10 +569,14 @@ def _parse_localization_patch(
     """解析一个 schema=1 的 PALOC 文本差异文档。"""
     if document.get("schema") != 1:
         raise ValueError(f"{archive_path} 当前仅支持 schema=1")
-    target = _normalize_target(_require_non_empty_string(document.get("target"), f"{archive_path}.target"))
+    target = _normalize_target(
+        _require_non_empty_string(document.get("target"), f"{archive_path}.target")
+    )
     if not target.endswith(".paloc"):
         raise ValueError(f"{archive_path}.target 必须是 .paloc 文件或安全通配模式")
-    language = _require_non_empty_string(document.get("language"), f"{archive_path}.language")
+    language = _require_non_empty_string(
+        document.get("language"), f"{archive_path}.language"
+    )
     raw_changes = document.get("changes")
     if not isinstance(raw_changes, list) or not raw_changes:
         raise ValueError(f"{archive_path}.changes 必须是非空数组")
@@ -519,7 +624,9 @@ def _read_resource_components(
     return patches
 
 
-def _parse_resource_patch(document: dict[str, Any], archive_path: str) -> CdmodResourcePatch:
+def _parse_resource_patch(
+    document: dict[str, Any], archive_path: str
+) -> CdmodResourcePatch:
     """解析 copy-entry 与 replace-bytes 资源变换。"""
     if document.get("schema") != 1:
         raise ValueError(f"{archive_path} 当前仅支持 schema=1")
@@ -536,14 +643,20 @@ def _parse_resource_patch(document: dict[str, Any], archive_path: str) -> CdmodR
         target = _normalize_target(
             _require_non_empty_string(raw_operation.get("target"), f"{label}.target")
         )
-        target_pamt_dir = _parse_pamt_dir(raw_operation.get("target_pamt_dir"), f"{label}.target_pamt_dir")
+        target_pamt_dir = _parse_pamt_dir(
+            raw_operation.get("target_pamt_dir"), f"{label}.target_pamt_dir"
+        )
         target_identity = (target_pamt_dir, target)
         if target_identity in seen_targets:
-            raise ValueError(f"{archive_path} 存在重复资源目标：{target_pamt_dir}/{target}")
+            raise ValueError(
+                f"{archive_path} 存在重复资源目标：{target_pamt_dir}/{target}"
+            )
         seen_targets.add(target_identity)
         if op == "copy-entry":
             source = _normalize_target(
-                _require_non_empty_string(raw_operation.get("source"), f"{label}.source")
+                _require_non_empty_string(
+                    raw_operation.get("source"), f"{label}.source"
+                )
             )
             source_pamt_dir = _parse_pamt_dir(
                 raw_operation.get("source_pamt_dir"),
@@ -561,7 +674,9 @@ def _parse_resource_patch(document: dict[str, Any], archive_path: str) -> CdmodR
             )
             continue
         if op == "replace-bytes":
-            replacements = _parse_byte_replacements(raw_operation.get("replacements"), label)
+            replacements = _parse_byte_replacements(
+                raw_operation.get("replacements"), label
+            )
             operations.append(
                 CdmodResourceTransform(
                     op,
@@ -607,7 +722,9 @@ def _parse_file_patch(
         label = f"{archive_path}.files[{index}]"
         if not isinstance(raw_file, dict):
             raise ValueError(f"{label} 必须是对象")
-        target = _normalize_target(_require_non_empty_string(raw_file.get("target"), f"{label}.target"))
+        target = _normalize_target(
+            _require_non_empty_string(raw_file.get("target"), f"{label}.target")
+        )
         pamt_dir = _parse_pamt_dir(raw_file.get("pamt_dir"), f"{label}.pamt_dir")
         identity = (pamt_dir, target)
         if identity in seen_targets:
@@ -639,7 +756,152 @@ def _parse_file_patch(
     return CdmodFilePatch(tuple(files))
 
 
-def _parse_byte_replacements(raw: object, label: str) -> tuple[CdmodByteReplacement, ...]:
+def _read_profiled_file_components(
+    archive: zipfile.ZipFile,
+    components: list[dict[str, str]],
+) -> list[CdmodProfiledFilePatch]:
+    """读取按探针资源指纹选择载荷的完整资源组件。"""
+    patches: list[CdmodProfiledFilePatch] = []
+    for component in components:
+        if component["type"] != CDMOD_PROFILED_FILE_REPLACEMENT_COMPONENT_TYPE:
+            continue
+        document = _read_zip_json(archive, component["path"])
+        patches.append(_parse_profiled_file_patch(archive, document, component["path"]))
+    return patches
+
+
+def _parse_profiled_file_patch(
+    archive: zipfile.ZipFile,
+    document: dict[str, Any],
+    archive_path: str,
+) -> CdmodProfiledFilePatch:
+    """严格解析 profiled-file-replacement schema=1。"""
+    if document.get("schema") != 1:
+        raise ValueError(f"{archive_path} 当前仅支持 schema=1")
+    probe = document.get("probe")
+    if not isinstance(probe, dict):
+        raise ValueError(f"{archive_path}.probe 必须是对象")
+    probe_target = _normalize_target(
+        _require_non_empty_string(probe.get("target"), f"{archive_path}.probe.target")
+    )
+    probe_pamt_dir = _parse_pamt_dir(
+        probe.get("pamt_dir"), f"{archive_path}.probe.pamt_dir"
+    )
+
+    raw_profiles = document.get("profiles")
+    if not isinstance(raw_profiles, list) or not raw_profiles:
+        raise ValueError(f"{archive_path}.profiles 必须是非空数组")
+    profiles: list[CdmodProfileDefinition] = []
+    profile_ids: set[str] = set()
+    probe_hashes: set[str] = set()
+    for index, raw_profile in enumerate(raw_profiles):
+        label = f"{archive_path}.profiles[{index}]"
+        if not isinstance(raw_profile, dict):
+            raise ValueError(f"{label} 必须是对象")
+        profile_id = _require_non_empty_string(raw_profile.get("id"), f"{label}.id")
+        probe_sha256 = _require_sha256(
+            raw_profile.get("probe_sha256"), f"{label}.probe_sha256"
+        )
+        if profile_id in profile_ids:
+            raise ValueError(f"{archive_path} 存在重复 profile id：{profile_id}")
+        if probe_sha256 in probe_hashes:
+            raise ValueError(f"{archive_path} 存在重复探针 SHA256：{probe_sha256}")
+        profile_ids.add(profile_id)
+        probe_hashes.add(probe_sha256)
+        profiles.append(CdmodProfileDefinition(profile_id, probe_sha256))
+
+    raw_files = document.get("files")
+    if not isinstance(raw_files, list) or not raw_files:
+        raise ValueError(f"{archive_path}.files 必须是非空数组")
+    files: list[CdmodProfiledFileReplacement] = []
+    seen_targets: set[tuple[str, str]] = set()
+    fallback_profile_ids: set[str] = set()
+    for index, raw_file in enumerate(raw_files):
+        label = f"{archive_path}.files[{index}]"
+        if not isinstance(raw_file, dict):
+            raise ValueError(f"{label} 必须是对象")
+        target = _normalize_target(
+            _require_non_empty_string(raw_file.get("target"), f"{label}.target")
+        )
+        pamt_dir = _parse_pamt_dir(raw_file.get("pamt_dir"), f"{label}.pamt_dir")
+        identity = (pamt_dir, target)
+        if identity in seen_targets:
+            raise ValueError(
+                f"{archive_path} 存在重复条件资源目标：{pamt_dir}/{target}"
+            )
+        seen_targets.add(identity)
+        raw_variants = raw_file.get("variants")
+        if not isinstance(raw_variants, list) or not raw_variants:
+            raise ValueError(f"{label}.variants 必须是非空数组")
+        variants = tuple(
+            _parse_profiled_variant(archive, item, f"{label}.variants[{variant_index}]")
+            for variant_index, item in enumerate(raw_variants)
+        )
+        variant_ids = [variant.profile_id for variant in variants]
+        if len(set(variant_ids)) != len(variant_ids):
+            raise ValueError(f"{label}.variants 存在重复 profile")
+        if set(variant_ids) != profile_ids:
+            raise ValueError(
+                f"{label}.variants 必须完整覆盖 profiles："
+                f"expected={sorted(profile_ids)} actual={sorted(variant_ids)}"
+            )
+        fallback = _parse_profiled_variant(
+            archive, raw_file.get("fallback"), f"{label}.fallback"
+        )
+        if fallback.profile_id in profile_ids:
+            raise ValueError(f"{label}.fallback.profile 不得与已知 profile 重复")
+        fallback_profile_ids.add(fallback.profile_id)
+        files.append(
+            CdmodProfiledFileReplacement(
+                target,
+                pamt_dir,
+                variants,
+                fallback,
+                index,
+            )
+        )
+    if len(fallback_profile_ids) != 1:
+        raise ValueError(f"{archive_path} 的所有 fallback.profile 必须一致")
+    return CdmodProfiledFilePatch(
+        probe_target,
+        probe_pamt_dir,
+        tuple(profiles),
+        tuple(files),
+    )
+
+
+def _parse_profiled_variant(
+    archive: zipfile.ZipFile,
+    raw_variant: object,
+    label: str,
+) -> CdmodProfiledFileVariant:
+    """读取一个已预构建且带载荷哈希的体型资源变体。"""
+    if not isinstance(raw_variant, dict):
+        raise ValueError(f"{label} 必须是对象")
+    profile_id = _require_non_empty_string(
+        raw_variant.get("profile"), f"{label}.profile"
+    )
+    payload_path = _normalize_archive_path(
+        _require_non_empty_string(raw_variant.get("payload"), f"{label}.payload")
+    )
+    expected_sha256 = _require_sha256(raw_variant.get("sha256"), f"{label}.sha256")
+    try:
+        content = archive.read(payload_path)
+    except KeyError as exc:
+        raise ValueError(f"cdmod 缺少条件资源载荷 {payload_path}") from exc
+    if hashlib.sha256(content).hexdigest() != expected_sha256:
+        raise ValueError(f"{payload_path} SHA256 不匹配")
+    return CdmodProfiledFileVariant(
+        profile_id,
+        payload_path,
+        expected_sha256,
+        content,
+    )
+
+
+def _parse_byte_replacements(
+    raw: object, label: str
+) -> tuple[CdmodByteReplacement, ...]:
     """读取等长十六进制替换列表。"""
     if not isinstance(raw, list) or not raw:
         raise ValueError(f"{label}.replacements 必须是非空数组")
@@ -649,8 +911,12 @@ def _parse_byte_replacements(raw: object, label: str) -> tuple[CdmodByteReplacem
         if not isinstance(item, dict):
             raise ValueError(f"{item_label} 必须是对象")
         try:
-            old = bytes.fromhex(_require_non_empty_string(item.get("old_hex"), f"{item_label}.old_hex"))
-            new = bytes.fromhex(_require_non_empty_string(item.get("new_hex"), f"{item_label}.new_hex"))
+            old = bytes.fromhex(
+                _require_non_empty_string(item.get("old_hex"), f"{item_label}.old_hex")
+            )
+            new = bytes.fromhex(
+                _require_non_empty_string(item.get("new_hex"), f"{item_label}.new_hex")
+            )
         except ValueError as exc:
             raise ValueError(f"{item_label} 包含非法十六进制：{exc}") from exc
         if len(old) != len(new):
@@ -688,14 +954,18 @@ def _parse_operations(patch: dict[str, Any]) -> list[CdmodOperation]:
         if not isinstance(target, dict):
             raise ValueError(f"patch.targets[{target_index}] 必须是对象")
         target_file = _normalize_target(
-            _require_non_empty_string(target.get("file"), f"patch.targets[{target_index}].file")
+            _require_non_empty_string(
+                target.get("file"), f"patch.targets[{target_index}].file"
+            )
         )
         raw_operations = target.get("operations")
         if not isinstance(raw_operations, list):
             raise ValueError(f"patch.targets[{target_index}].operations 必须是数组")
         for operation_index, raw_operation in enumerate(raw_operations):
             label = f"patch.targets[{target_index}].operations[{operation_index}]"
-            result.append(_parse_operation(target_file, raw_operation, label, len(result)))
+            result.append(
+                _parse_operation(target_file, raw_operation, label, len(result))
+            )
     return result
 
 

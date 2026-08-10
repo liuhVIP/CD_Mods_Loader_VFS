@@ -40,6 +40,9 @@ CDMOD_RESOURCE_TRANSFORM_COMPONENT_TYPE = "resource-transform"
 # 完整资源替换组件用于无法安全语义化或从游戏动态重建的二进制资源。
 CDMOD_FILE_REPLACEMENT_COMPONENT_TYPE = "file-replacement"
 
+# 按最终游戏资源指纹选择预构建载荷，用于体型、骨架等离散兼容配置。
+CDMOD_PROFILED_FILE_REPLACEMENT_COMPONENT_TYPE = "profiled-file-replacement"
+
 # 传统 JSON byte patch 作为原语组件封装，运行时复用现有稳定补丁器。
 CDMOD_LEGACY_JSON_COMPONENT_TYPE = "legacy-byte-patch"
 
@@ -66,7 +69,9 @@ class CdmodConversionResult:
     conservative_operation_count: int
 
 
-def convert_format3_to_cdmod(source_path: Path, output_path: Path) -> CdmodConversionResult:
+def convert_format3_to_cdmod(
+    source_path: Path, output_path: Path
+) -> CdmodConversionResult:
     """将一个 Format 3 JSON 转换成确定性的 ``.cdmod`` ZIP。"""
     source_path = source_path.resolve()
     output_path = output_path.resolve()
@@ -167,7 +172,9 @@ def result_to_json(result: CdmodConversionResult) -> dict[str, Any]:
     return value
 
 
-def convert_format3_intent(target: str, intent: Format3Intent) -> tuple[dict[str, Any], bool]:
+def convert_format3_intent(
+    target: str, intent: Format3Intent
+) -> tuple[dict[str, Any], bool]:
     """把单条 Format 3 intent 转换为新格式操作。"""
     selector: dict[str, Any] = {"key": intent.key}
     if intent.entry:
@@ -239,9 +246,13 @@ def _read_json_object(path: Path) -> dict[str, Any]:
     return value
 
 
-def _write_cdmod_zip(output_path: Path, documents: dict[str, dict[str, Any] | bytes]) -> None:
+def _write_cdmod_zip(
+    output_path: Path, documents: dict[str, dict[str, Any] | bytes]
+) -> None:
     """按固定顺序、固定时间戳写入确定性 ZIP。"""
-    with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+    with zipfile.ZipFile(
+        output_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+    ) as archive:
         for archive_path in sorted(documents):
             document = documents[archive_path]
             payload = (

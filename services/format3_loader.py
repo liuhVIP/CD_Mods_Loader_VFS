@@ -15,7 +15,6 @@ Format 3 入口重写一遍。
 from __future__ import annotations
 
 import logging
-import struct
 from collections.abc import Callable
 from pathlib import Path
 
@@ -45,6 +44,10 @@ from cdmm.services.json_loader import (
     build_patch_overlay_entries,
     extract_plaintext,
     fixup_pabgh_after_inserts,
+)
+from cdmm.services.iteminfo_native_parser import (
+    detect_iteminfo_layout,
+    read_iteminfo_match_prefix,
 )
 from cdmm.services.pab_table_service import build_entry_bounds, parse_pabgh_index
 from cdmm.services.pamt_index_service import get_game_pamt_index
@@ -586,8 +589,10 @@ def collect_iteminfo_match_records(
 ) -> list[dict[str, object]]:
     """轻量读取 iteminfo match 需要的字段，避免整表解析导致 VFS 构建卡住。"""
     records: list[dict[str, object]] = []
+    record_bounds = [(bounds[0], bounds[1]) for bounds in entry_bounds.values()]
+    preferred_layout = detect_iteminfo_layout(body, record_bounds)
     for key, bounds in entry_bounds.items():
-        parsed = _read_iteminfo_match_prefix(body, key, bounds)
+        parsed = _read_iteminfo_match_prefix(body, key, bounds, preferred_layout)
         if parsed is not None:
             records.append(parsed)
     return records
@@ -597,43 +602,18 @@ def _read_iteminfo_match_prefix(
     body: bytes,
     key: int,
     bounds: tuple[int, int, str, int],
+    preferred_layout: str,
 ) -> dict[str, object] | None:
     """只读取 ItemInfo 前缀中的 string_key 和 equip_type_info。"""
-    _entry_off, entry_end, entry_name, name_end = bounds
-    cursor = name_end
-    try:
-        # ItemInfo 前缀：is_blocked(u8)、max_stack_count(u64)、
-        # item_name(LocalizableString)、broken_item_prefix_string(u32)、
-        # inventory_info(u16)、equip_type_info(u32)。
-        cursor += 1 + 8
-        localizable_size = _consume_iteminfo_localizable(body, cursor, entry_end)
-        if localizable_size is None:
-            return None
-        cursor += localizable_size
-        if cursor + 4 + 2 + 4 > entry_end:
-            return None
-        cursor += 4 + 2
-        equip_type_info = struct.unpack_from("<I", body, cursor)[0]
-    except (struct.error, IndexError):
-        return None
-    return {
-        "key": key,
-        "string_key": entry_name,
-        "equip_type_info": equip_type_info,
-    }
-
-
-def _consume_iteminfo_localizable(body: bytes, offset: int, entry_end: int) -> int | None:
-    """消费 ItemInfo 前缀里的 LocalizableString：u8 + u64 + CString。"""
-    limit = min(entry_end, len(body))
-    if offset + 1 + 8 + 4 > limit:
-        return None
-    length_offset = offset + 1 + 8
-    string_len = struct.unpack_from("<I", body, length_offset)[0]
-    total = 1 + 8 + 4 + string_len
-    if string_len > 1_000_000 or offset + total > limit:
-        return None
-    return total
+    entry_off, entry_end, entry_name, _name_end = bounds
+    return read_iteminfo_match_prefix(
+        body,
+        key,
+        entry_name,
+        entry_off,
+        entry_end,
+        preferred_layout,
+    )
 
 
 def _unsupported_iteminfo_match_fields(match_spec: dict[str, object]) -> list[str]:
@@ -644,7 +624,14 @@ def _unsupported_iteminfo_match_fields(match_spec: dict[str, object]) -> list[st
 def iteminfo_record_matches(record: dict, match_spec: dict[str, object]) -> bool:
     """判断 iteminfo 记录是否满足已支持的简单 match 条件。"""
     for field, expected in match_spec.items():
-        if not _match_simple_value(record.get(field), expected):
+        actual = record.get(field)
+        if field == "equip_type_info":
+            candidates = record.get("_equip_type_info_candidates")
+            if isinstance(candidates, tuple) and any(
+                _match_simple_value(candidate, expected) for candidate in candidates
+            ):
+                continue
+        if not _match_simple_value(actual, expected):
             return False
     return True
 
