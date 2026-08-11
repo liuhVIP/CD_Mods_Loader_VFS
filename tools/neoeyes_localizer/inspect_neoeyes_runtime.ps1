@@ -128,12 +128,12 @@ public static class NeoEyesRuntimeNative
 }
 '@
 
-# 目标 1.2.4 样本中已重新确认的固定 RVA。
+# 目标 1.2.7 样本中已重新确认的固定 RVA。
 $neoEyesModuleName = 'NeoEyesSimpleMenu.asi'
 $companionModulePrefix = 'NeoEyesCN'
-$drawThunkRva = [uint64]0x10C18
-$drawImportSlotRva = [uint64]0x13400
-$originalThunkBytes = 'FF25E2270000'
+$drawThunkRva = [uint64]0x14248
+$drawImportSlotRva = [uint64]0x17408
+$originalThunkBytes = 'FF25BA310000'
 
 function ConvertTo-HexText {
     param([Parameter(Mandatory)][byte[]]$Bytes)

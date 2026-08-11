@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(NeoEyesCN VERSION 1.2.0 LANGUAGES CXX)
+project(NeoEyesCN VERSION 1.3.0 LANGUAGES CXX)
 
 add_library(NeoEyesCN SHARED
     src/neoeyes_localizer.cpp

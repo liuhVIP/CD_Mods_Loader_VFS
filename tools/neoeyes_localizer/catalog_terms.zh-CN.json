@@ -188,11 +188,15 @@
     ,{ "source": "Davrella", "translation": "达芙蕾拉", "kind": "core" }
     ,{ "source": "Ayut", "translation": "阿尤特", "kind": "core" }
     ,{ "source": "Pukret", "translation": "普克雷特", "kind": "core" }
+    ,{ "source": "Graymane", "translation": "灰鬃", "kind": "core" }
+    ,{ "source": "Greyfur", "translation": "灰毛", "kind": "core" }
+    ,{ "source": "Pirate", "translation": "海盗", "kind": "core" }
+    ,{ "source": "Goblin", "translation": "地精", "kind": "core" }
   ],
   "smoke_tests": [
-    { "source": "Animal_AlpineIbex_10", "contains": "高山野山羊" },
-    { "source": "Animal_Arctic_Fox_Wild_30038", "contains": "北极狐狸" },
-    { "source": "Animal_Axolotl_Wild_32430", "contains": "美西螈" },
+    { "source": "Animal_AlpineIbex_10", "contains": "北山羊" },
+    { "source": "Animal_Arctic_Fox_Wild_30038", "contains": "雪狐" },
+    { "source": "Animal_Axolotl_Wild_32430", "contains": "六角恐龙" },
     { "source": "Animal_Desert_Fox_Wild_31410", "contains": "沙漠狐狸" },
     { "source": "Animal_Fox_Wild_30046", "contains": "狐狸" }
   ]

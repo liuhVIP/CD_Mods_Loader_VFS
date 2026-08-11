@@ -1,4 +1,4 @@
-// NeoEyes Simple Menu 1.2.4 中文伴生 ASI v1.2：运行时替换文本、目录并记录 Hook 状态。
+// NeoEyes Simple Menu 1.2.7 中文伴生 ASI v1.3：优先显示游戏原版中文角色名称。
 #include <Windows.h>
 
 #include <algorithm>
@@ -13,6 +13,7 @@
 #include <string_view>
 #include <vector>
 
+#include "generated/catalog_names.generated.h"
 #include "generated/catalog_terms.generated.h"
 #include "generated/translations.generated.h"
 
@@ -21,19 +22,20 @@ namespace neoeyes_cn {
 // 当前样本没有版本资源，必须通过模块名、PE 时间戳、布局、代码特征和界面标记共同锁定。
 constexpr wchar_t kTargetModuleName[] = L"NeoEyesSimpleMenu.asi";
 constexpr wchar_t kTargetProcessName[] = L"CrimsonDesert.exe";
-constexpr DWORD kTargetPeTimestamp = 0x6A735149;
-constexpr std::uintptr_t kFirstUtf8ConversionRva = 0xB2A2;
-constexpr std::uintptr_t kSecondUtf8ConversionRva = 0xD81B;
-constexpr std::uintptr_t kRegularFontReferenceRva = 0x4F99;
-constexpr std::uintptr_t kMonospaceFontReferenceRva = 0x4FB6;
-constexpr std::uintptr_t kGdipDrawStringThunkRva = 0x10C18;
+constexpr DWORD kTargetPeTimestamp = 0x6A769730;
+constexpr std::uintptr_t kFirstUtf8ConversionRva = 0xDFE2;
+constexpr std::uintptr_t kSecondUtf8ConversionRva = 0x109E3;
+constexpr std::uintptr_t kRegularFontReferenceRva = 0x6639;
+constexpr std::uintptr_t kMonospaceFontReferenceRva = 0x6656;
+constexpr std::uintptr_t kGdipDrawStringThunkRva = 0x14248;
+constexpr std::uintptr_t kGdipDrawStringImportSlotRva = 0x17408;
 constexpr DWORD kModuleWaitMilliseconds = 30'000;
 constexpr DWORD kModulePollMilliseconds = 1;
 constexpr DWORD kHookWarmupMilliseconds = 1'000;
 constexpr DWORD kHookWatchdogPollMilliseconds = 250;
 constexpr std::size_t kMaximumRenderedTextBytes = 4'096;
 constexpr LONG kMaximumDrawDiagnostics = 300;
-constexpr std::size_t kMaximumDiscoveredDrawTexts = 2'048;
+constexpr std::size_t kMaximumDiscoveredDrawTexts = 8'192;
 
 using GdipDrawStringFunction = int(WINAPI*)(
     void*, const wchar_t*, int, const void*, const void*, const void*, const void*);
@@ -53,27 +55,38 @@ std::size_t gDiscoveredDrawTextCount = 0;
 constexpr std::array<std::uint8_t, 29> kFirstUtf8ConversionSignature{
     0xC7, 0x44, 0x24, 0x28, 0x00, 0x10, 0x00, 0x00, 0x44, 0x8B,
     0xCB, 0x48, 0x89, 0x44, 0x24, 0x20, 0x33, 0xD2, 0xB9, 0xE9,
-    0xFD, 0x00, 0x00, 0xFF, 0x15, 0xC1, 0x7E, 0x00, 0x00,
+    0xFD, 0x00, 0x00, 0xFF, 0x15, 0x81, 0x91, 0x00, 0x00,
 };
-constexpr std::array<std::uint8_t, 32> kSecondUtf8ConversionSignature{
-    0x33, 0xD2, 0x48, 0x89, 0x44, 0x24, 0x20, 0xB9, 0xE9, 0xFD,
-    0x00, 0x00, 0x48, 0x89, 0xBC, 0x24, 0x58, 0x20, 0x00, 0x00,
-    0x41, 0xB9, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x15, 0x45, 0x59,
-    0x00, 0x00,
+constexpr std::array<std::uint8_t, 40> kSecondUtf8ConversionSignature{
+    0xC7, 0x44, 0x24, 0x28, 0x00, 0x10, 0x00, 0x00, 0x33, 0xD2,
+    0x48, 0x89, 0x44, 0x24, 0x20, 0xB9, 0xE9, 0xFD, 0x00, 0x00,
+    0x48, 0x89, 0xBC, 0x24, 0x58, 0x20, 0x00, 0x00, 0x41, 0xB9,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x15, 0x75, 0x67, 0x00, 0x00,
 };
 
 // 两条 RIP 相对指令分别引用 Segoe UI 与 Consolas；字节变化时拒绝改写字体槽。
 constexpr std::array<std::uint8_t, 7> kRegularFontReferenceSignature{
-    0x48, 0x8D, 0x0D, 0x08, 0xE4, 0x07, 0x00,
+    0x48, 0x8D, 0x0D, 0x08, 0x0F, 0x08, 0x00,
 };
 constexpr std::array<std::uint8_t, 7> kMonospaceFontReferenceSignature{
-    0x48, 0x8D, 0x0D, 0x03, 0xE4, 0x07, 0x00,
+    0x48, 0x8D, 0x0D, 0x03, 0x0F, 0x08, 0x00,
 };
 
 // NeoEyes 的四处文字绘制调用统一进入该跳板，跳板再转到 GdipDrawString IAT。
 constexpr std::array<std::uint8_t, 6> kGdipDrawStringThunkSignature{
-    0xFF, 0x25, 0xE2, 0x27, 0x00, 0x00,
+    0xFF, 0x25, 0xBA, 0x31, 0x00, 0x00,
 };
+
+// 四处可见文字绘制调用均直接进入上面的唯一跳板。
+constexpr std::array<std::uintptr_t, 4> kGdipDrawStringCallRvas{
+    0x6857, 0x6A47, 0x6C7E, 0x6CE1,
+};
+constexpr std::array<std::array<std::uint8_t, 5>, 4> kGdipDrawStringCallSignatures{{
+    {{0xE8, 0xEC, 0xD9, 0x00, 0x00}},
+    {{0xE8, 0xFC, 0xD7, 0x00, 0x00}},
+    {{0xE8, 0xC5, 0xD5, 0x00, 0x00}},
+    {{0xE8, 0x62, 0xD5, 0x00, 0x00}},
+}};
 
 struct PeSectionView {
     std::uint8_t* address{};
@@ -153,7 +166,7 @@ void InitializeRuntimeLogPath() {
         return;
     }
     path.resize(separator + 1);
-    path.append(L"NeoEyesCNv1.2.runtime.log");
+    path.append(L"NeoEyesCNv1.3.runtime.log");
     wcsncpy_s(gRuntimeLogPath, path.c_str(), _TRUNCATE);
     // 每次游戏启动生成独立采集结果，避免旧会话的名称干扰当前排查。
     DeleteFileW(gRuntimeLogPath);
@@ -252,13 +265,13 @@ bool MatchesCodeSignature(HMODULE module, std::uintptr_t rva, const std::array<s
 bool ValidateTarget(HMODULE module) {
     const auto* ntHeaders = ReadNtHeaders(module);
     if (ntHeaders == nullptr || ntHeaders->FileHeader.TimeDateStamp != kTargetPeTimestamp ||
-        ntHeaders->OptionalHeader.SizeOfImage != 0xAB000) {
+        ntHeaders->OptionalHeader.SizeOfImage != 0xB0000) {
         DebugLog("NeoEyes PE 标识不匹配，已停用汉化。");
         return false;
     }
     PeSectionView readOnlyData{};
     if (!ReadPeSection(module, ".rdata", readOnlyData) ||
-        readOnlyData.size != 0x77924 ||
+        readOnlyData.size != 0x78AA6 ||
         !ContainsNullTerminatedString(readOnlyData, "Search by name") ||
         !ContainsNullTerminatedString(readOnlyData, "NEO EYES / NPC  [%d/%d]   8/2 move  5 enter  0 back  7 close")) {
         DebugLog("NeoEyes 界面标识不匹配，已停用汉化。");
@@ -271,6 +284,13 @@ bool ValidateTarget(HMODULE module) {
         !MatchesCodeSignature(module, kGdipDrawStringThunkRva, kGdipDrawStringThunkSignature)) {
         DebugLog("NeoEyes UTF-8 或字体代码特征不匹配，已停用汉化。");
         return false;
+    }
+    for (std::size_t index = 0; index < kGdipDrawStringCallRvas.size(); ++index) {
+        if (!MatchesCodeSignature(module, kGdipDrawStringCallRvas[index],
+                                  kGdipDrawStringCallSignatures[index])) {
+            DebugLog("NeoEyes GdipDrawString 可见调用点不匹配，已停用汉化。");
+            return false;
+        }
     }
     return true;
 }
@@ -297,6 +317,34 @@ bool EqualsAsciiInsensitive(std::string_view left, std::string_view right) {
         };
         return lower(a) == lower(b);
     });
+}
+
+const generated::CatalogName* FindOfficialCatalogName(std::string_view source) {
+    const auto* begin = generated::kCatalogNames;
+    const auto* end = begin + generated::kCatalogNameCount;
+    const auto* match = std::lower_bound(
+        begin,
+        end,
+        source,
+        [](const generated::CatalogName& entry, std::string_view value) {
+            return std::string_view(entry.source) < value;
+        });
+    if (match == end || std::string_view(match->source) != source) {
+        return nullptr;
+    }
+    return match;
+}
+
+std::string FormatOfficialCatalogName(std::string_view source, std::string_view translation) {
+    std::string result(translation);
+    const std::size_t separator = source.find_last_of('_');
+    const auto isDigit = [](char value) { return value >= '0' && value <= '9'; };
+    if (separator != std::string_view::npos && separator + 1 < source.size() &&
+        std::all_of(source.begin() + static_cast<std::ptrdiff_t>(separator + 1), source.end(), isDigit)) {
+        result.append(" #");
+        result.append(source.substr(separator + 1));
+    }
+    return result;
 }
 
 const generated::CatalogTerm* FindCatalogTerm(std::string_view source) {
@@ -444,6 +492,9 @@ void TranslateCatalogChunk(CatalogNameParts& parts, std::string_view chunk) {
 }
 
 std::optional<std::string> TranslateCatalogIdentifier(std::string_view identifier) {
+    if (const auto* official = FindOfficialCatalogName(identifier)) {
+        return FormatOfficialCatalogName(identifier, official->translation);
+    }
     if (identifier.size() < 5 || identifier.find('_') == std::string_view::npos) {
         return std::nullopt;
     }
@@ -465,6 +516,9 @@ std::optional<std::string> TranslateCatalogIdentifier(std::string_view identifie
 }
 
 std::optional<std::string> TranslateCatalogDisplayToken(std::string_view token) {
+    if (const auto* official = FindOfficialCatalogName(token)) {
+        return FormatOfficialCatalogName(token, official->translation);
+    }
     if (const auto* wholeTerm = FindCatalogTerm(token)) {
         CatalogNameParts parts;
         ApplyCatalogTerm(parts, token, wholeTerm);
@@ -537,9 +591,6 @@ std::optional<std::string> ConvertWideTextToUtf8(const wchar_t* source, int sour
         ? terminatedLength
         : std::min<std::size_t>(static_cast<std::size_t>(sourceLength), terminatedLength);
     if (characterCount == 0 || characterCount > kMaximumRenderedTextBytes) {
-        return std::nullopt;
-    }
-    if (std::find(source, source + characterCount, L'_') == source + characterCount) {
         return std::nullopt;
     }
     const int requiredBytes = WideCharToMultiByte(
@@ -651,7 +702,7 @@ bool InstallGdipDrawStringHook(HMODULE module) {
     auto* imageBase = reinterpret_cast<std::uint8_t*>(module);
     // 目标样本已在 ValidateTarget 中锁定时间戳、镜像大小、跳板字节和 GdipDrawString
     // 导入布局。直接写唯一 IAT 槽，兼容会清理 OriginalFirstThunk 的 ASI 加载器。
-    auto* importSlot = reinterpret_cast<ULONGLONG*>(imageBase + 0x13400);
+    auto* importSlot = reinterpret_cast<ULONGLONG*>(imageBase + kGdipDrawStringImportSlotRva);
     gGdipDrawStringImportSlot = importSlot;
     DebugLog("IAT slot=" + std::to_string(reinterpret_cast<std::uintptr_t>(importSlot)) +
         " before=" + std::to_string(static_cast<std::uintptr_t>(*importSlot)));
@@ -687,7 +738,7 @@ bool InstallGdipDrawStringHook(HMODULE module) {
                         kRelaySize,
                         MEM_RESERVE | MEM_COMMIT,
                         PAGE_EXECUTE_READWRITE));
-    if (gGdipDrawStringRelay != nullptr) {
+                    if (gGdipDrawStringRelay != nullptr) {
                         break;
                     }
                 }
@@ -819,7 +870,7 @@ std::size_t PatchWideFontEntry(PeSectionView section, const WideFontReplacement&
 
 DWORD WINAPI InitializeLocalization(void*) {
     InitializeRuntimeLogPath();
-    DebugLog("初始化 v1.2");
+    DebugLog("初始化 v1.3");
     HMODULE targetModule = WaitForTargetModule();
     if (targetModule == nullptr) {
         DebugLog("等待 NeoEyesSimpleMenu.asi 超时，未执行任何修改。");

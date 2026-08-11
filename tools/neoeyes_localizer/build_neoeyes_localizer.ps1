@@ -3,7 +3,8 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [string]$NeoEyesSample = 'G:\NppMODdown\crimsondesert\NeoEyesSimpleMenuv1.2.4 3215 1 2026-08-05T15-20Z 8W1ESuYzJ\NeoEyesSimpleMenu.asi'
+    [string]$NeoEyesSample = 'G:\NppMODdown\crimsondesert\NeoEyesSimpleMenuv1.2.7 3215 1 2026-08-08T02-58Z UHbidxlmY\NeoEyesSimpleMenu.asi',
+    [string]$GameDir = 'G:\SteamLibrary\steamapps\common\Crimson Desert'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,23 +15,26 @@ $catalogTermsPath = Join-Path $scriptRoot 'catalog_terms.zh-CN.json'
 $generatedDirectory = Join-Path $scriptRoot 'src\generated'
 $generatedHeader = Join-Path $generatedDirectory 'translations.generated.h'
 $generatedCatalogHeader = Join-Path $generatedDirectory 'catalog_terms.generated.h'
+$generatedCatalogNamesHeader = Join-Path $generatedDirectory 'catalog_names.generated.h'
+$catalogNamesGenerator = Join-Path $scriptRoot 'generate_catalog_names.py'
+$pythonExecutable = Join-Path $projectRoot '.venv\Scripts\python.exe'
 $buildDirectory = Join-Path $scriptRoot 'build'
 $releaseDirectory = Join-Path $projectRoot 'dist\neoeyes_localizer'
 $sourceAsi = Join-Path $buildDirectory "$Configuration\NeoEyesCN.asi"
 $catalogTestExecutable = Join-Path $buildDirectory "$Configuration\NeoEyesCatalogTranslationTest.exe"
 $releaseAsi = Join-Path $releaseDirectory 'NeoEyesCN.asi'
 
-# 当前 NeoEyes Simple Menu 1.2.4 样本哈希，用于阻止误绑其他版本。
-$expectedSampleSha256 = '632061165892B9744209B1CD8E872F364FDC2827DDE52ACC89F82C84B89B9B69'
+# 当前 NeoEyes Simple Menu 1.2.7 样本哈希，用于阻止误绑其他版本。
+$expectedSampleSha256 = '619FCFA0F54128227DCA152E6E36C2606C6A944DD1CBDB1567E8188CE9C17D80'
 
 # 两处 UTF-8 转换调用的完整代码特征，均明确把代码页设为 65001。
 $expectedUtf8Signatures = @(
-    'C744242800100000448BCB488944242033D2B9E9FD0000FF15C17E0000',
-    '33D24889442420B9E9FD00004889BC245820000041B9FFFFFFFFFF1545590000'
+    'C744242800100000448BCB488944242033D2B9E9FD0000FF1581910000',
+    'C74424280010000033D24889442420B9E9FD00004889BC245820000041B9FFFFFFFFFF1575670000'
 )
 
 # GDI+ 最终文字绘制跳板：JMP [GdipDrawString IAT]，目录缓存文本必须在这里翻译。
-$expectedGdipDrawStringThunkSignature = 'FF25E2270000'
+$expectedGdipDrawStringThunkSignature = 'FF25BA310000'
 
 function ConvertTo-CppByteLiteral {
     param([Parameter(Mandatory)][AllowEmptyString()][string]$Value)
@@ -116,6 +120,15 @@ if (-not (Test-Path -LiteralPath $translationPath -PathType Leaf)) {
 }
 if (-not (Test-Path -LiteralPath $catalogTermsPath -PathType Leaf)) {
     throw "缺少召唤目录词典：$catalogTermsPath"
+}
+if (-not (Test-Path -LiteralPath $catalogNamesGenerator -PathType Leaf)) {
+    throw "缺少原版目录名称生成器：$catalogNamesGenerator"
+}
+if (-not (Test-Path -LiteralPath $pythonExecutable -PathType Leaf)) {
+    throw "缺少项目 Python：$pythonExecutable"
+}
+if (-not (Test-Path -LiteralPath $GameDir -PathType Container)) {
+    throw "缺少游戏目录：$GameDir"
 }
 
 $sampleHash = (Get-FileHash -LiteralPath $NeoEyesSample -Algorithm SHA256).Hash
@@ -252,6 +265,16 @@ $catalogHeaderLines.Add('inline constexpr std::size_t kCatalogTermCount = sizeof
 $catalogHeaderLines.Add('}')
 [System.IO.File]::WriteAllLines($generatedCatalogHeader, $catalogHeaderLines, [System.Text.UTF8Encoding]::new($false))
 
+# 原版角色名称只在最终绘制边界使用，生成表不会进入 NeoEyes 的搜索或召唤容器。
+& $pythonExecutable $catalogNamesGenerator `
+    --game-dir $GameDir `
+    --neoeyes-sample $NeoEyesSample `
+    --output $generatedCatalogNamesHeader
+if ($LASTEXITCODE -ne 0) { throw 'NeoEyes 原版目录名称生成失败。' }
+$officialCatalogNameCount = @(
+    Select-String -LiteralPath $generatedCatalogNamesHeader -Pattern '^    \{ '
+).Count
+
 cmake -S $scriptRoot -B $buildDirectory -G 'Visual Studio 17 2022' -A x64
 if ($LASTEXITCODE -ne 0) { throw 'CMake 配置失败。' }
 cmake --build $buildDirectory --config $Configuration --target NeoEyesCN --parallel
@@ -278,4 +301,5 @@ $hash = Get-FileHash -LiteralPath $releaseAsi -Algorithm SHA256
 Write-Host "构建完成：$releaseAsi"
 Write-Host "内嵌翻译：$($translations.Count) 条"
 Write-Host "召唤目录词典：$($catalogTerms.Count) 条"
+Write-Host "原版目录名称：$officialCatalogNameCount 条"
 Write-Host "SHA-256：$($hash.Hash)"

@@ -36,21 +36,21 @@ void RequireTranslation(std::string_view source, std::string_view expected) {
 }  // namespace
 
 int main() {
-    RequireTranslation("Animal_AlpineIbex_10", "动物·高山野山羊 #10");
-    RequireTranslation("Animal_Arctic_Fox_Wild_30038", "动物·北极狐狸（野生） #30038");
-    RequireTranslation("Animal_Axolotl_Wild_32430", "动物·美西螈（野生） #32430");
-    RequireTranslation("Animal_Desert_Fox_Wild_31410", "动物·沙漠狐狸（野生） #31410");
-    RequireTranslation("Animal_Fox_Wild_30046", "动物·狐狸（野生） #30046");
+    RequireTranslation("Animal_AlpineIbex_10", "北山羊 #10");
+    RequireTranslation("Animal_Arctic_Fox_Wild_30038", "雪狐 #30038");
+    RequireTranslation("Animal_Axolotl_Wild_32430", "六角恐龙 #32430");
+    RequireTranslation("Animal_Desert_Fox_Wild_31410", "沙漠狐狸 #31410");
+    RequireTranslation("Animal_Fox_Wild_30046", "狐狸 #30046");
 
     const auto rendered = neoeyes_cn::TranslateCatalogDisplayText("01  Animal_AlpineIbex_10");
-    if (!rendered || *rendered != "01  动物·高山野山羊 #10") {
+    if (!rendered || *rendered != "01  北山羊 #10") {
         std::cerr << "列表行翻译不匹配。\n";
         return EXIT_FAILURE;
     }
     const auto multiRendered = neoeyes_cn::TranslateCatalogDisplayText(
         "02  Animal_Desert_Fox_Wild_31410  Animal_Arctic_Fox_Wild_30038");
     if (!multiRendered ||
-        *multiRendered != "02  动物·沙漠狐狸（野生） #31410  动物·北极狐狸（野生） #30038") {
+        *multiRendered != "02  沙漠狐狸 #31410  雪狐 #30038") {
         std::cerr << "同一绘制文本中的多目录翻译不匹配。\n";
         return EXIT_FAILURE;
     }
@@ -95,7 +95,7 @@ int main() {
         nullptr,
         nullptr,
         nullptr);
-    if (gCapturedDrawText != L"01  动物·沙漠狐狸（野生） #31410") {
+    if (gCapturedDrawText != L"01  沙漠狐狸 #31410") {
         std::cerr << "GdipDrawString 最终绘制翻译不匹配。\n";
         return EXIT_FAILURE;
     }
@@ -112,7 +112,7 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    constexpr std::size_t fakeImageSize = 0x14000;
+    constexpr std::size_t fakeImageSize = 0x18000;
     auto* fakeImage = static_cast<std::uint8_t*>(VirtualAlloc(
         nullptr, fakeImageSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
     if (fakeImage == nullptr) {
@@ -131,14 +131,14 @@ int main() {
         sizeof(IMAGE_IMPORT_DESCRIPTOR) * 2;
     auto* importDescriptor = reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(fakeImage + 0x1000);
     importDescriptor->OriginalFirstThunk = 0x1100;
-    importDescriptor->FirstThunk = 0x13400;
+    importDescriptor->FirstThunk = 0x17408;
     importDescriptor->Name = 0x1300;
     auto* originalThunk = reinterpret_cast<IMAGE_THUNK_DATA64*>(fakeImage + 0x1100);
     originalThunk[0].u1.AddressOfData = 0x1200;
     auto* importByName = reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(fakeImage + 0x1200);
     strcpy_s(reinterpret_cast<char*>(importByName->Name), 32, "GdipDrawString");
     strcpy_s(reinterpret_cast<char*>(fakeImage + 0x1300), 32, "gdiplus.dll");
-    auto* importSlot = reinterpret_cast<ULONGLONG*>(fakeImage + 0x13400);
+    auto* importSlot = reinterpret_cast<ULONGLONG*>(fakeImage + 0x17408);
     *importSlot = reinterpret_cast<ULONGLONG>(&CaptureGdipDrawString);
     neoeyes_cn::gOriginalGdipDrawString = nullptr;
     if (!neoeyes_cn::InstallGdipDrawStringHook(reinterpret_cast<HMODULE>(fakeImage)) ||
