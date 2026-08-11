@@ -35,6 +35,8 @@ DEFAULT_GAME_VERSION = "1.17.00"
 OUTPUT_NAME_TEMPLATE = (
     "All Craft Material All Gear All Dye - Early Barber - All Items 1 Copper-{version}.cdmod"
 )
+# 仅转换信誉商品货币时使用的默认文件名，避免误解为普通商店全商品改价。
+CONTRIBUTION_ONLY_OUTPUT_NAME_TEMPLATE = "Contribution Currency To Copper-{version}.cdmod"
 # 来源模组中三个 standalone 的职责分别为 StoreInfo、StageInfo 和 MissionInfo。
 SOURCE_ARCHIVE_DIRS = ("0036", "0037", "0038")
 # StoreInfo 正文与索引的固定目标文件名。
@@ -228,6 +230,74 @@ def build_one_copper_cdmod(
         changed_store_count=len(summaries),
         stock_record_count=sum(item.stock_count for item in summaries),
         unique_item_count=len(all_item_keys),
+        contribution_currency_change_count=currency_change_count,
+        ignored_non_price_reference_count=ignored_reference_count,
+    )
+
+
+def build_contribution_currency_cdmod(
+    game_dir: Path,
+    output_path: Path,
+    game_version: str = DEFAULT_GAME_VERSION,
+) -> BuildResult:
+    """生成仅将信誉商品购买货币转换为铜币的独立 cdmod。"""
+    game_dir = game_dir.resolve()
+    output_path = output_path.resolve()
+    vanilla_item_body, vanilla_item_header = _extract_vanilla_iteminfo(game_dir)
+    (
+        contribution_patch,
+        currency_change_count,
+        currency_record_count,
+        ignored_reference_count,
+    ) = _build_contribution_currency_patch(vanilla_item_body, vanilla_item_header)
+    documents: dict[str, dict[str, object] | bytes] = {
+        CONTRIBUTION_PATCH_PATH: contribution_patch,
+        CDMOD_MANIFEST_PATH: {
+            "format": CDMOD_FORMAT_NAME,
+            "format_version": CDMOD_FORMAT_VERSION,
+            "id": "contribution-currency-to-copper",
+            "name": "Contribution Currency To Copper",
+            "version": game_version,
+            "author": "Codex custom build",
+            "description": (
+                "Converts verified contribution-item purchase currency fields to "
+                "copper key 1 while preserving non-price item references."
+            ),
+            "dependencies": [],
+            "source": {
+                "format": "legacy-byte-patch",
+                "game_version": game_version,
+            },
+            "components": [
+                {
+                    "type": CDMOD_LEGACY_JSON_COMPONENT_TYPE,
+                    "path": CONTRIBUTION_PATCH_PATH,
+                }
+            ],
+        },
+        CDMOD_REPORT_PATH: {
+            "schema": 1,
+            "game_version": game_version,
+            "summary": {
+                "contribution_currency_change_count": currency_change_count,
+                "contribution_currency_record_count": currency_record_count,
+                "ignored_non_price_reference_count": ignored_reference_count,
+            },
+            "safety": {
+                "standalone_archives_included": False,
+                "contribution_currency_keys": list(CONTRIBUTION_CURRENCY_KEYS),
+                "copper_currency_key": COPPER_CURRENCY_KEY,
+            },
+        },
+    }
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_cdmod_zip(output_path, documents)
+    return BuildResult(
+        output_path=output_path,
+        package_sha256=_sha256(output_path),
+        changed_store_count=0,
+        stock_record_count=0,
+        unique_item_count=0,
         contribution_currency_change_count=currency_change_count,
         ignored_non_price_reference_count=ignored_reference_count,
     )
@@ -530,27 +600,46 @@ def _sha256(path: Path) -> str:
 def _build_parser() -> argparse.ArgumentParser:
     """创建命令行参数解析器。"""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source-dir", required=True, type=Path, help="3.7 Early Barber 模组目录")
+    parser.add_argument("--source-dir", type=Path, help="3.7 Early Barber 模组目录")
     parser.add_argument("--game-dir", required=True, type=Path, help="Crimson Desert 游戏根目录")
     parser.add_argument("--output", type=Path, help="输出 cdmod 路径；默认写入游戏 mods")
     parser.add_argument("--game-version", default=DEFAULT_GAME_VERSION, help="写入成品的游戏版本")
+    parser.add_argument(
+        "--contribution-only",
+        action="store_true",
+        help="只生成信誉商品铜币购买补丁，不包含商店 standalone archive",
+    )
     return parser
 
 
 def main() -> int:
     """执行生成器并输出机器可读摘要。"""
-    args = _build_parser().parse_args()
+    parser = _build_parser()
+    args = parser.parse_args()
     output = args.output or (
         args.game_dir
         / "mods"
-        / OUTPUT_NAME_TEMPLATE.format(version=args.game_version)
+        / (
+            CONTRIBUTION_ONLY_OUTPUT_NAME_TEMPLATE
+            if args.contribution_only
+            else OUTPUT_NAME_TEMPLATE
+        ).format(version=args.game_version)
     )
-    result = build_one_copper_cdmod(
-        args.source_dir,
-        args.game_dir,
-        output,
-        args.game_version,
-    )
+    if args.contribution_only:
+        result = build_contribution_currency_cdmod(
+            args.game_dir,
+            output,
+            args.game_version,
+        )
+    else:
+        if args.source_dir is None:
+            parser.error("未指定 --contribution-only 时必须提供 --source-dir")
+        result = build_one_copper_cdmod(
+            args.source_dir,
+            args.game_dir,
+            output,
+            args.game_version,
+        )
     payload = asdict(result)
     payload["output_path"] = str(result.output_path)
     print(json.dumps(payload, ensure_ascii=False, indent=2))

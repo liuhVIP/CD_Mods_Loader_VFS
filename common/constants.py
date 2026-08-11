@@ -97,6 +97,8 @@ KNOWN_GAME_TOP_DIRS = frozenset(
         "gamedata",
         "level",
         "prefab",
+        # 渲染管线配置（例如 renderpass/renderpassssdm.xml）属于游戏根路径 loose 文件。
+        "renderpass",
         "sequencer",
         "sound",
         "ui",
