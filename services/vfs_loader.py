@@ -53,6 +53,7 @@ from cdmm.services.scanner import (
 from cdmm.services.standalone_archive_service import (
     STANDALONE_CONFLICT_WARNING_PREFIX,
     collect_standalone_archives,
+    promote_partshrink_descriptor_archives,
     standalone_state_items,
 )
 from cdmm.storage.state_store import load_state
@@ -89,8 +90,8 @@ GAME_EXECUTABLE_RELATIVE_PATH = Path("bin64") / "CrimsonDesert.exe"
 # VFS 状态中保存游戏主程序最后修改时间的字段名。
 GAME_EXECUTABLE_MTIME_STATE_KEY = "game_executable_mtime_ns"
 
-# VFS 状态结构版本。v8 保留唯一不可变快照，并恢复分包缓存到快照的硬链接物化。
-VFS_STATE_SCHEMA = 8
+# VFS 状态结构版本。v9 强制重建曾以未加密形式打包的 PAC_XML 资源。
+VFS_STATE_SCHEMA = 10
 
 # 活动快照物化模式写入状态，确保旧复制快照只冷构建一次后切换到硬链接。
 VFS_MATERIALIZATION_MODE = "hardlink"
@@ -98,9 +99,9 @@ VFS_MATERIALIZATION_MODE = "hardlink"
 # 空模组集合是合法状态：仍写入空映射，确保旧 VFS 映射被明确清除。
 VFS_EMPTY_MAPPING_WARNING = "没有生成 VFS overlay entry，已使用空映射启动"
 
-# 分包构建算法版本，必须参与缓存key。当前版本要求按最终PAMT路径去重，
-# 防止复用旧版可能含重复entry的PAZ/PAMT缓存。
-VFS_PACKAGE_BUILD_SCHEMA = 2
+# 分包构建算法版本，必须参与缓存key。v3 为下划线 XML（包括服装
+# PAC_XML）恢复游戏原生加密标记。
+VFS_PACKAGE_BUILD_SCHEMA = 4
 
 # 冷构建返回后只读取文件元数据确认稳定，不重复读取或哈希大型 PAZ。
 VFS_STABILITY_CHECK_INTERVAL_SECONDS = 0.1
@@ -366,6 +367,15 @@ def build_vfs_package(
         ordered_mods=mods,
         warnings=warnings,
     )
+    standalone_archives, promoted_partshrink_inputs = promote_partshrink_descriptor_archives(
+        standalone_archives,
+        warnings,
+    )
+    if promoted_partshrink_inputs:
+        overlay_packages = _merge_promoted_loose_inputs(
+            overlay_packages,
+            promoted_partshrink_inputs,
+        )
     _log_vfs_stage("收集 standalone 包", stage_started)
 
     if not overlay_packages and not standalone_archives:
@@ -776,6 +786,26 @@ def _build_dmm_like_overlay_packages(
         for name in NPP_LIKE_PACKAGE_ORDER
         if (entries := grouped.get(name))
     ]
+
+
+def _merge_promoted_loose_inputs(
+    packages: list[VfsOverlayPackage],
+    promoted_inputs: list[OverlayInputEntry],
+) -> list[VfsOverlayPackage]:
+    """把全局描述表提升项并入 nppsa，并保持提升项拥有最终覆盖权。"""
+    result: list[VfsOverlayPackage] = []
+    merged = False
+    promoted_keys = {_entry_key(entry) for entry in promoted_inputs}
+    for package in packages:
+        if package.name != NPP_LOOSE_PACKAGE:
+            result.append(package)
+            continue
+        retained = [entry for entry in package.entries if _entry_key(entry) not in promoted_keys]
+        result.append(replace(package, entries=[*retained, *promoted_inputs]))
+        merged = True
+    if not merged:
+        result.append(VfsOverlayPackage(name=NPP_LOOSE_PACKAGE, entries=promoted_inputs))
+    return result
 
 
 def _entry_key(entry: OverlayInputEntry) -> str:

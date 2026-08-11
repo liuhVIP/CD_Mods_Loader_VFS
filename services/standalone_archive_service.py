@@ -17,7 +17,7 @@ from cdmm.common.constants import (
     OVERLAY_PAZ_NAME,
     OVERLAY_START_DIR,
 )
-from cdmm.common.models import DiscoveredMod, PazEntry
+from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
 from cdmm.services.json_loader import decompress_entry
 from cdmm.services.cdmod_package import load_cdmod_package
 from cdmm.services.mod_risk_service import (
@@ -32,6 +32,9 @@ STANDALONE_CONFLICT_WARNING_PREFIX = VERIFIED_STANDALONE_CONFLICT_WARNING_PREFIX
 
 # 已实机确认不能由两个 standalone 同时注册的条件装配表文件名。
 CONDITIONAL_PART_PREFAB_TABLE_NAME = "conditionalpartprefab_transmog.xml"
+
+# 全局身体裁剪描述表不能依赖重编号 standalone 的同路径覆盖优先级。
+PART_SHRINK_DESCRIPTOR_PATH = "character/descriptors/partshrinkdesc.xml"
 
 
 @dataclass(frozen=True)
@@ -98,6 +101,84 @@ def collect_standalone_archives(
     if warnings is not None:
         _append_standalone_conflict_warnings(result, warnings)
     return result
+
+
+def promote_partshrink_descriptor_archives(
+    archives: list[StandaloneArchive],
+    warnings: list[str] | None = None,
+) -> tuple[list[StandaloneArchive], list[OverlayInputEntry]]:
+    """把单文件 PartShrink 承载包提升为普通最终覆盖 entry。
+
+    游戏对全局 ``partshrinkdesc.xml`` 的解析不稳定地遵循重编号 standalone
+    优先级。仅当一个 archive 恰好只承载该文件时才提升并移除原 archive，避免
+    改变普通服装、多文件 standalone 或其他全局描述表的行为。
+    """
+    remaining: list[StandaloneArchive] = []
+    promoted: list[OverlayInputEntry] = []
+    for archive in archives:
+        entry = _read_single_partshrink_entry(archive)
+        if entry is None:
+            remaining.append(archive)
+            continue
+        try:
+            content, resolved_entry = _read_archive_entry_content(archive, entry)
+        except Exception as exc:
+            remaining.append(archive)
+            if warnings is not None:
+                warnings.append(
+                    f"{archive.mod_name}/{archive.source_dir.name}: "
+                    f"PartShrink 描述表提升失败，保留 standalone：{exc}"
+                )
+            continue
+        promoted.append(
+            OverlayInputEntry(
+                content=content,
+                entry_path=PART_SHRINK_DESCRIPTOR_PATH,
+                pamt_dir=archive.assigned_dir,
+                compression_type=resolved_entry.compression_type,
+                encrypted=resolved_entry.encrypted,
+                crypto_filename=Path(PART_SHRINK_DESCRIPTOR_PATH).name,
+                preserve_entry_dir=True,
+                resolved_dir_path="character/descriptors",
+            )
+        )
+        if warnings is not None:
+            warnings.append(
+                f"{archive.mod_name}/{archive.source_dir.name}: "
+                "PartShrink 描述表已提升到 nppsa，避免重编号 standalone 同路径覆盖失效"
+            )
+    return remaining, promoted
+
+
+def _read_single_partshrink_entry(archive: StandaloneArchive) -> PazEntry | None:
+    """仅识别恰好包含一个 PartShrink 描述表的 standalone。"""
+    with TemporaryDirectory(prefix="cdmm-partshrink-") as temp_dir:
+        archive_dir = Path(temp_dir)
+        (archive_dir / OVERLAY_PAMT_NAME).write_bytes(archive.pamt_bytes)
+        (archive_dir / OVERLAY_PAZ_NAME).write_bytes(archive.paz_bytes)
+        try:
+            entries = parse_pamt(archive_dir / OVERLAY_PAMT_NAME, paz_dir=archive_dir)
+        except (OSError, ValueError):
+            return None
+        if len(entries) != 1 or _entry_final_path(entries[0]) != PART_SHRINK_DESCRIPTOR_PATH:
+            return None
+        return entries[0]
+
+
+def _read_archive_entry_content(
+    archive: StandaloneArchive,
+    entry: PazEntry,
+) -> tuple[bytes, PazEntry]:
+    """从内存中的 standalone PAZ 读取并解密解压一个 entry。"""
+    raw = archive.paz_bytes[entry.offset : entry.offset + entry.comp_size]
+    return decompress_entry(raw, entry)
+
+
+def _entry_final_path(entry: PazEntry) -> str:
+    """按 PAMT folder record 还原规范最终路径。"""
+    filename = entry.path.replace("\\", "/").rsplit("/", 1)[-1]
+    parent = (entry.resolved_dir_path or "").replace("\\", "/").strip("/")
+    return f"{parent}/{filename}".strip("/").casefold()
 
 
 def _append_directory_archive(

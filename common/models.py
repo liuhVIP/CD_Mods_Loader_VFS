@@ -37,7 +37,12 @@ class PazEntry:
         """根据文件后缀和运行时探测结果判断是否需要 ChaCha20。"""
         if self.encrypted_override is not None:
             return self.encrypted_override
-        return self.path.lower().endswith((".xml", ".css", ".html", ".js"))
+        # 服装材质使用 ``*.pac_xml``，它不是 ``.xml`` 后缀，但与普通 XML
+        # 一样由游戏按文件名派生密钥加密。不能泛化到全部 ``*_xml``，例如
+        # ``*.app_xml`` 是原始载荷，误加密会破坏其他 loose 资源。
+        return self.path.lower().endswith(
+            (".xml", ".pac_xml", ".css", ".html", ".js")
+        )
 
     def with_encrypted_override(self, value: bool) -> "PazEntry":
         """返回带加密探测覆盖值的新对象，保持 dataclass 不可变语义。"""
