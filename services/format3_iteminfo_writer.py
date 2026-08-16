@@ -78,6 +78,14 @@ MAX_PREFAB_SCAN_COUNT = 128
 # 真实字节形态为 count + 多个 legacy element，element 以三个 f32 scale 开头。
 LEGACY_PREFAB_SCALE_NEEDLE = struct.pack("<fff", 1.0, 1.0, 1.0)
 
+# 1.18（EXE 1.0.0.2443）起，ItemInfo 的 legacy PrefabData 元素在
+# tribe_gender_list 之后新增一个 u32 unk 字段，随后才是 3 个尾字节
+# （is_craft_material / use_gimmick_prefab / prefab_data_type）。
+# 实测 1.18 原版装备记录中该字段恒为 0xEAC5E173（8 个样本全一致），
+# 旧版（1.17 及以前）没有该字段，尾部只有 3 字节。
+LEGACY_PREFAB_UNK_MAGIC = 0xEAC5E173
+LEGACY_PREFAB_UNK_TAIL_BYTES = 4
+
 # 只在单条 ItemInfo 记录尾部小窗口内扫描 legacy prefab，避免误命中普通数据。
 LEGACY_PREFAB_SCAN_TAIL_BYTES = 8192
 
@@ -722,15 +730,21 @@ def _build_legacy_prefab_list_change(
     intent: Format3Intent,
 ) -> tuple[dict | None, str | None]:
     """生成 DMM V3 legacy prefab-list 的整段替换补丁。"""
-    patched = _pack_legacy_prefab_data_list(intent.new)
-    if patched is None:
-        return None, "prefab_data_list 不是 DMM V3 legacy 结构"
-
     block = _locate_legacy_prefab_data_list(entry_bytes, intent.new)
     if block is None:
         return None, "未定位到 DMM V3 legacy prefab_data_list 尾部块"
 
     start, end = block
+    # 以原版块实际尾部形态打包：1.18 元素尾部含 u32 unk，旧版没有。
+    # 避免把新游戏字节错误地按旧 3 字节尾部生成，或反之。
+    has_unk_tail = (
+        _consume_legacy_prefab_data_list_with_tail(entry_bytes, start, unk_tail=True)
+        is not None
+    )
+    patched = _pack_legacy_prefab_data_list(intent.new, include_unk_tail=has_unk_tail)
+    if patched is None:
+        return None, "prefab_data_list 不是 DMM V3 legacy 结构"
+
     original = entry_bytes[start:end]
     if original == patched:
         return None, "目标字节已是期望值"
@@ -744,8 +758,14 @@ def _build_legacy_prefab_list_change(
     }, None
 
 
-def _pack_legacy_prefab_data_list(value: object) -> bytes | None:
-    """按 DMM V3 / Equip Everything V6 的 legacy prefab 尾部结构打包。"""
+def _pack_legacy_prefab_data_list(value: object, *, include_unk_tail: bool = True) -> bytes | None:
+    """按 DMM V3 / Equip Everything V6 的 legacy prefab 尾部结构打包。
+
+    1.18（EXE 1.0.0.2443）起每个元素在 tribe_gender_list 后新增 u32
+    unk 字段（恒为 0xEAC5E173），再跟 3 个尾字节。旧版没有该字段。
+    include_unk_tail=True 时输出 1.18 新版 7 字节尾部；False 输出旧版
+    3 字节尾部（保留给旧游戏版本兼容路径）。
+    """
     if not isinstance(value, list):
         return None
 
@@ -782,6 +802,9 @@ def _pack_legacy_prefab_data_list(value: object) -> bytes | None:
         out += _pack_u32_array(animation_paths)
         out += _pack_u16_array(equip_slots)
         out += _pack_u32_array(tribe_genders)
+        if include_unk_tail:
+            # 1.18 新增：tribe 后固定 u32 unk 标记。
+            out += struct.pack("<I", LEGACY_PREFAB_UNK_MAGIC)
         # 三个尾字节均是实际字段，V8 中 prefab_data_type 大量使用值 3。
         out += struct.pack("<BBB", craft_material, use_gimmick_prefab, prefab_data_type)
     return bytes(out)
@@ -873,8 +896,33 @@ def _legacy_prefab_bounds(entry_bytes: bytes, offset: int) -> tuple[int, int] | 
     return offset, end
 
 
-def _consume_legacy_prefab_data_list(entry_bytes: bytes, offset: int) -> int | None:
-    """消费 DMM V3 legacy prefab_data_list，返回字段结束偏移。"""
+def _consume_legacy_prefab_data_list(
+    entry_bytes: bytes,
+    offset: int,
+    *,
+    prefer_unk_tail: bool = True,
+) -> int | None:
+    """消费 DMM V3 legacy prefab_data_list，返回字段结束偏移。
+
+    1.18 起每个元素在 tribe_gender_list 后多一个 u32 unk 字段（值
+    0xEAC5E173），尾部从 3 字节变为 7 字节。为兼容旧版（1.17 及以前）
+    的 3 字节尾部，先按新版 7 字节消费；若失败再回退旧版 3 字节。
+    """
+    end = _consume_legacy_prefab_data_list_with_tail(entry_bytes, offset, unk_tail=True)
+    if end is not None:
+        return end
+    if prefer_unk_tail:
+        return _consume_legacy_prefab_data_list_with_tail(entry_bytes, offset, unk_tail=False)
+    return None
+
+
+def _consume_legacy_prefab_data_list_with_tail(
+    entry_bytes: bytes,
+    offset: int,
+    *,
+    unk_tail: bool,
+) -> int | None:
+    """按指定尾部形态消费 legacy prefab_data_list。"""
     if offset + 4 > len(entry_bytes):
         return None
     count = struct.unpack_from("<I", entry_bytes, offset)[0]
@@ -899,6 +947,13 @@ def _consume_legacy_prefab_data_list(entry_bytes: bytes, offset: int) -> int | N
         pos = _consume_legacy_u32_array(entry_bytes, pos)
         if pos is None:
             return None
+        if unk_tail:
+            if pos + 4 > len(entry_bytes):
+                return None
+            unk = struct.unpack_from("<I", entry_bytes, pos)[0]
+            if unk != LEGACY_PREFAB_UNK_MAGIC:
+                return None
+            pos += 4
         # is_craft_material、use_gimmick_prefab、prefab_data_type。
         if pos + 3 > len(entry_bytes):
             return None
