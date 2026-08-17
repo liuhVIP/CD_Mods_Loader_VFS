@@ -1,4 +1,4 @@
-// NeoEyes Simple Menu 1.4.0 中文伴生 ASI v1.4：优先显示游戏原版中文角色名称。
+// NeoEyes Simple Menu 1.4.0 中文伴生 ASI v1.4.1：优先显示游戏原版中文角色名称。
 #include <Windows.h>
 
 #include <algorithm>
@@ -24,8 +24,8 @@ constexpr wchar_t kTargetModuleName[] = L"NeoEyesSimpleMenu.asi";
 constexpr wchar_t kTargetProcessName[] = L"CrimsonDesert.exe";
 constexpr DWORD kTargetPeTimestamp = 0x6A7E4343;
 constexpr DWORD kTargetSizeOfImage = 0xC7000;
-constexpr std::uintptr_t kFirstUtf8ConversionRva = 0x12494;
-constexpr std::uintptr_t kSecondUtf8ConversionRva = 0x16F52;
+constexpr std::uintptr_t kFirstUtf8ConversionRva = 0x12482;
+constexpr std::uintptr_t kSecondUtf8ConversionRva = 0x16F43;
 constexpr std::uintptr_t kRegularFontReferenceRva = 0x72F9;
 constexpr std::uintptr_t kMonospaceFontReferenceRva = 0x7316;
 constexpr std::uintptr_t kGdipDrawStringThunkRva = 0x1AF38;
@@ -167,7 +167,7 @@ void InitializeRuntimeLogPath() {
         return;
     }
     path.resize(separator + 1);
-    path.append(L"NeoEyesCNv1.4.runtime.log");
+    path.append(L"NeoEyesCNv1.4.1.runtime.log");
     wcsncpy_s(gRuntimeLogPath, path.c_str(), _TRUNCATE);
     // 每次游戏启动生成独立采集结果，避免旧会话的名称干扰当前排查。
     DeleteFileW(gRuntimeLogPath);
@@ -266,13 +266,13 @@ bool MatchesCodeSignature(HMODULE module, std::uintptr_t rva, const std::array<s
 bool ValidateTarget(HMODULE module) {
     const auto* ntHeaders = ReadNtHeaders(module);
     if (ntHeaders == nullptr || ntHeaders->FileHeader.TimeDateStamp != kTargetPeTimestamp ||
-        ntHeaders->OptionalHeader.SizeOfImage != 0xB0000) {
+        ntHeaders->OptionalHeader.SizeOfImage != kTargetSizeOfImage) {
         DebugLog("NeoEyes PE 标识不匹配，已停用汉化。");
         return false;
     }
     PeSectionView readOnlyData{};
     if (!ReadPeSection(module, ".rdata", readOnlyData) ||
-        readOnlyData.size != 0x78AA6 ||
+        readOnlyData.size != 0x7B1F4 ||
         !ContainsNullTerminatedString(readOnlyData, "Search by name") ||
         !ContainsNullTerminatedString(readOnlyData, "NEO EYES / NPC  [%d/%d]   8/2 move  5 enter  0 back  7 close")) {
         DebugLog("NeoEyes 界面标识不匹配，已停用汉化。");
@@ -871,7 +871,7 @@ std::size_t PatchWideFontEntry(PeSectionView section, const WideFontReplacement&
 
 DWORD WINAPI InitializeLocalization(void*) {
     InitializeRuntimeLogPath();
-    DebugLog("初始化 v1.4");
+    DebugLog("初始化 v1.4.1");
     HMODULE targetModule = WaitForTargetModule();
     if (targetModule == nullptr) {
         DebugLog("等待 NeoEyesSimpleMenu.asi 超时，未执行任何修改。");

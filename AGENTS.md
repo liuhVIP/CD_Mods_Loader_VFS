@@ -1789,7 +1789,11 @@ Thank you.
 - 普通商店 stock count 常在 payload `+45`，贡献商店头部更长；当前 writer 通过 count 后的 119/132 字节记录链动态定位，不按商店名称或固定绝对偏移硬编码。支持字段限定为 `stock_data_list`、`buyable_stock_count`、`sellable_stock_count`、`exchange_item_info_for_buy` 与 `stock_data_list[N].raw_c`。
 - 多个商店大幅增长时必须先在内存中合成完整 `storeinfo.pabgb`，再一次性生成整表 body change 和完整 PABGH change。禁止逐 entry 依赖 legacy `DYNAMIC_ENTRY_RELOCATION_WINDOW=512`，否则后续商店会因累计漂移跳过。
 - ItemInfo 价格支持限定为基础 `price_list[N]` 和 `enchant_data_list[N].buy_price_list[M]` 的 `key`、`price.price`、`price.item_info_wrapper`。ItemPriceInfo 当前布局为 `key:u32 + price:u64 + sym_no:u32 + wrapper:u32`；强化价格必须从可完整解析的 EnchantData 序列定位，无强化记录只接受唯一合法价格数组，不做跨记录模糊扫描。
-- DyeColorGroupInfo 每个追加元素为两个 u32（`texture_lookup/raw_color`）。NpcInfo 每个追加元素为三个 u32（`dye_color_group_key/dye_target_key/常量1`），数组位置必须动态满足 `u32 count + count*12 + 10 字节 footer`，不能假设原始 count 为 1；这样同一记录已追加过后仍可继续处理。
+- DyeColorGroupInfo 每个追加元素为两个 u32（`texture_lookup/raw_color`）。1.18 NpcInfo
+  必须先消费旧三个 LocalizableString 后新增的 `u32 + 2*LocalizableString + u32`，
+  再定位 `DyeColorGroupData`（8 字节）和 `DyeTextureSetData`（6 字节），并保留其后的
+  `CArray<u16>` 尾数组；禁止用“从 entry 尾部扫描可闭合 count”的近似算法。原版
+  `dye_target_key=0` 是合法值，不得擅自改成 owner key。
 - 使用当前 1.18 原版四张表的最终验证：`storeinfo 2882 intents -> 2 changes / 0 skipped`、`iteminfo 2127 -> 73 / 0`、`dyecolorgroupinfo 220 -> 2 / 0`、`npcinfo 90 -> 2 / 0`，总计 5319 intents、79 changes、0 skipped。ItemInfo 2127 个目标字段逐项回读均为 1且表长/PABGH 不变；StoreInfo 重建后 437 条 PABGH 边界和 23 个目标商店均可重新解析，119/132 字节记录、Disc0/Disc3、sub_data 与目标字段均完成往返验证。
 - 上述结论是加载器解析、写入、PABGH 和最终字段回读的字节级基线，不等于游戏内商店库存、价格或染色功能已经实测。未取得用户实机结果前不得写成“游戏内已确认生效”。
 - 真实 VFS 冷构建还暴露了统一语义计划层的集成边界：原 JSON 对同一商店连续执行大量 `stock_data_list array_append`，再对追加后的 `stock_data_list[N].raw_c` 执行 `set`。计划层不得把同坐标 append 当成后写覆盖而只保留最后一条，也不得把这个同包有序序列误判为跨模组父子冲突。
@@ -1797,6 +1801,13 @@ Thank you.
 - 2026-08-17 实际安装两个 JSON 后的 BuildOnly 成功指纹为 `b3a8292d7976330df83b800f6a73ab512cf36fae65a9f1ceac99d1f23977c397`，新快照映射 24 个文件，统一 Format 3 日志为 9 个目标、2775 个生成 change、无 Format 3 skipped。这里的 change 是 writer 合并后的表/记录变更数，不等同于原始 5319 条 intent 数。
 - 与旧成功快照逐字节比较：`nppgen` 原有 11 个 entry 全部不变，只新增 StoreInfo、DyeColorGroupInfo、NpcInfo 的 6 个 PABGB/PABGH entry；`nppv3_statusinfo`、`nppv3_stringinfo`、`nppv3_equipslotinfo`、`nppsa`、PATHC 和 5 个 standalone 均不变。最终 `nppv3_iteminfo` 精确等于旧合成 ItemInfo 再应用 2127 条价格 intent；四张最终表均与“旧有效 base + 对应新 intent”的内存结果完全相同。
 - 冷构建仍保留此前已有的 `fat_stacks_plus_999999_except_weapons_1.18.1.json` 2/4970 条传统 byte patch 未匹配警告；这不是 Expanded Vendor 或本次 Format 3 writer 新增的跳过。BuildOnly 只证明产物和其他模组隔离，仍需用户启动游戏验证商店库存/价格、染色功能和存档加载。
+- **真实原版全表验证门槛（强制）**：任何新 table parser、字段 walker 或数组定位器，
+  必须先对当前游戏版本的真实 vanilla `.pabgb/.pabgh` 全表逐条验证：每条 entry
+  能完整消费、PABGH offset 全部闭合、已知非空数组字段逐项回读；长度变化 writer
+  还必须做完整表合成后的边界复核。合成 bytes 测试只能作为补充，不能替代真实原版
+  全表验证。未通过该门槛不得进入 VFS BuildOnly，更不得进入实机。此次 NpcInfo
+  旧尾部扫描算法虽然通过了合成测试，未经过真实 542 条原版全表验证就进入实机，
+  造成了本轮长时间误判；今后禁止重复该流程。
 
 ## 游戏更新适配标准流程（每次游戏更新后必须照做）
 

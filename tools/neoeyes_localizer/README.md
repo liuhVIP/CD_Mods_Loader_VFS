@@ -1,10 +1,10 @@
-# NeoEyes Simple Menu 1.4.0 运行时汉化（NeoEyesCN v1.4）
+# NeoEyes Simple Menu 1.4.0 运行时汉化（NeoEyesCN v1.4.1）
 
 本工程生成独立的 `NeoEyesCN.asi`，不会修改原始 `NeoEyesSimpleMenu.asi`。伴生 ASI 在运行时严格
-核对当前 1.2.7 样本的 PE 布局、代码特征和界面标记，然后替换内嵌 UTF-8 文本，并将 GDI+ 使用的
+核对当前 1.4.0 样本的 PE 布局、代码特征和界面标记，然后替换内嵌 UTF-8 文本，并将 GDI+ 使用的
 `Segoe UI`、`Consolas` 字体族切换为微软雅黑以显示中文。召唤目录名称在送入 UTF-8 绘制转换前按
 `catalog_names.generated.h` 的当前游戏官方简中 PALOC 映射优先解析，未命中时再使用
-`catalog_terms.zh-CN.json` 的组件词典。1.2.7 会提前缓存目录宽字符串，因此伴生补丁在最终
+`catalog_terms.zh-CN.json` 的组件词典。1.4.0 会提前缓存目录宽字符串，因此伴生补丁在最终
 `GdipDrawString` 绘制入口替换屏幕显示文本，不改写用于搜索和召唤的原始英文 ID；末尾数字作为
 游戏内部目录编号保留。官方名称映射来自当前 `CharacterInfo` 的本地化哈希和游戏简中 PALOC，
 不是手工猜测的英文直译。
@@ -30,7 +30,7 @@ dist/neoeyes_localizer/NeoEyesCN.asi
 & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -ExecutionPolicy Bypass -File '.\tools\neoeyes_localizer\inspect_neoeyes_runtime.ps1'
 ```
 
-v1.4 会在游戏 `bin64` 目录写入 `NeoEyesCNv1.4.runtime.log`，记录 Hook 安装结果和前 300 次
+v1.4.1 会在游戏 `bin64` 目录写入 `NeoEyesCNv1.4.1.runtime.log`，记录 Hook 安装结果和前 300 次
 最终绘制文本，便于确认列表是否经过翻译入口。
 
 批量提取运行中出现但词典尚未收录的词：
