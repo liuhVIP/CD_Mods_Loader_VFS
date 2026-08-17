@@ -1,24 +1,16 @@
-"""storeinfo.pabgb 的 Format 3 `stock_data_list` writer。
-
-该 writer 用于 HernandPets 等商店库存模组：把 Format 3 中导出的完整
-stock list 合成为 `storeinfo.pabgb` 的局部 byte patch，并在记录长度变化时
-同步生成 companion `storeinfo.pabgh` offset rebuild change。
-
-安全策略：
-1. 与 vanilla 已有记录 identity 匹配的 stock record，直接复用 vanilla 字节。
-2. 新记录只允许写入已映射字段；未映射字段非零时拒绝，避免猜错布局。
-3. 非空 `effect_list` 暂不支持，直接拒绝。
-"""
+"""StoreInfo Format 3 writer for the current 1.18 table layout."""
 
 from __future__ import annotations
 
 import logging
 import struct
+from collections import defaultdict
+from dataclasses import replace
 from typing import Any
 
-from cdmm.services.pab_table_service import parse_pabgh_index
+from cdmm.services.pab_table_service import build_entry_bounds, parse_pabgh_index
 from cdmm.services.storeinfo_native_parser import (
-    LIST_COUNT_PAYLOAD_OFFSET,
+    STOCK_CONST_OFFSET,
     StockRecord,
     StoreinfoParseError,
     parse_stock_list,
@@ -27,24 +19,11 @@ from cdmm.services.storeinfo_native_parser import (
 
 logger = logging.getLogger(__name__)
 
-# value struct 内部尚未映射的字段；新记录不能携带非零值。
-_UNMAPPED_VALUE_FIELDS = (
-    "disc",
-    "lookup_a",
-    "lookup_b",
-    "lookup_c",
-    "raw_a",
-    "raw_b",
-    "raw_c",
-    "raw_d",
-    "raw_f",
-)
-# stock record 顶层尚未映射的字段；新记录不能携带非零值。
-_UNMAPPED_RECORD_FIELDS = ("lookup_b", "lookup_c")
+StockTemplateIndex = dict[int, list[StockRecord]]
 
 
 class StoreinfoWriteRefused(ValueError):
-    """当前 storeinfo intent 无法在安全边界内应用。"""
+    """The target cannot be changed inside the verified StoreInfo layout."""
 
 
 def build_storeinfo_changes(
@@ -52,246 +31,431 @@ def build_storeinfo_changes(
     vanilla_header: bytes,
     intents: list[Any],
 ) -> tuple[list[dict], dict | None]:
-    """把 `stock_data_list` intents 转成传统 byte patch changes。"""
+    """Apply all requested StoreInfo edits in memory and rebuild PABGH once."""
     key_size, offsets = parse_pabgh_index(vanilla_header, "storeinfo")
-    if not offsets:
-        logger.warning("storeinfo writer: PABGH 解析失败")
-        return [], None
-    sorted_offsets = sorted(offsets.values()) + [len(vanilla_body)]
+    if key_size not in (2, 4) or not offsets:
+        raise StoreinfoWriteRefused("storeinfo.pabgh 索引无效")
+    bounds = build_entry_bounds(vanilla_body, key_size, offsets)
+    by_name = {item[2]: key for key, item in bounds.items() if item[2]}
+    templates_by_store, templates_by_item, generic_templates = _build_template_indexes(
+        vanilla_body,
+        bounds,
+    )
 
-    # key 缺省为 0 时，按 entry 名称回退解析真实 key。
-    name_to_key: dict[str, int] = {}
-    for key, offset in offsets.items():
-        _entry_id, entry_name, _payload = _parse_entry_header(
-            vanilla_body,
-            offset,
-            key_size,
-        )
-        if entry_name:
-            name_to_key.setdefault(entry_name, key)
-
-    per_key: dict[int, list] = {}
-    name_resolved = 0
+    grouped: dict[int, list[Any]] = defaultdict(list)
     for intent in intents:
-        field = (getattr(intent, "field", "") or "").strip()
-        if field not in ("stock_data_list", "_exchangeItemInfoListForSell"):
-            logger.warning("storeinfo writer: 不支持字段 %r，已跳过", field)
-            continue
-        if (getattr(intent, "op", "set") or "set") != "set":
-            logger.warning(
-                "storeinfo writer: 不支持 op %r，已跳过",
-                getattr(intent, "op", None),
-            )
-            continue
-        new = getattr(intent, "new", None)
-        key = getattr(intent, "key", None)
-        if not isinstance(new, list) or not isinstance(key, int):
-            logger.warning("storeinfo writer: intent 形状非法，key=%r", key)
-            continue
-        if key not in offsets:
-            entry_name = getattr(intent, "entry", "") or ""
-            resolved = name_to_key.get(entry_name)
-            if resolved is not None:
-                key = resolved
-                name_resolved += 1
-            else:
-                logger.warning(
-                    "storeinfo writer: store key=%r / entry=%r 未命中，已跳过",
-                    key,
-                    entry_name,
-                )
-                continue
-        per_key[key] = new
+        key = _resolve_intent_key(intent, offsets, by_name)
+        grouped[key].append(intent)
 
-    if name_resolved:
-        logger.info("storeinfo writer: %d 个 intent 通过 entry 名称解析", name_resolved)
-    if not per_key:
-        return [], None
-
-    replacements: dict[int, tuple[int, int, bytes]] = {}
-    for key, json_records in per_key.items():
-        offset = offsets[key]
-        entry_end = sorted_offsets[sorted_offsets.index(offset) + 1]
-        _entry_id, _entry_name, payload = _parse_entry_header(vanilla_body, offset, key_size)
-        count_offset = payload + LIST_COUNT_PAYLOAD_OFFSET
-        try:
-            vanilla_records, list_start, list_end = parse_stock_list(
-                vanilla_body,
-                count_offset,
-            )
-        except (StoreinfoParseError, struct.error, IndexError) as exc:
-            raise StoreinfoWriteRefused(
-                f"store entry {key}: vanilla stock list 不符合已验证布局：{exc}"
-            ) from exc
-        if list_end > entry_end:
-            raise StoreinfoWriteRefused(f"store entry {key}: stock list 越过 entry 边界")
-
-        by_body: dict[int, StockRecord] = {}
-        for record in vanilla_records:
-            by_body.setdefault(record.body, record)
-
-        output_records: list[StockRecord] = []
-        new_count = 0
-        for index, json_record in enumerate(json_records):
-            identity = _record_identity(json_record)
-            vanilla_record = by_body.get(identity) if identity is not None else None
-            if vanilla_record is not None:
-                output_records.append(vanilla_record)
-                continue
-            output_records.append(_build_new_record(json_record, index))
-            new_count += 1
-
-        new_list = serialize_stock_list(output_records)
-        replacements[key] = (list_start, list_end, new_list)
-        logger.info(
-            "storeinfo writer: store %d stock list %d -> %d records (%d new, %+d bytes)",
-            key,
-            len(vanilla_records),
-            len(output_records),
-            new_count,
-            len(new_list) - (list_end - list_start),
-        )
-
-    pabgb_changes: list[dict] = []
+    replacements: dict[int, bytes] = {}
     deltas: list[tuple[int, int]] = []
-    for key in sorted(replacements, key=lambda item: replacements[item][0]):
-        start, end, blob = replacements[key]
-        if vanilla_body[start:end] == blob:
-            continue
-        pabgb_changes.append(
-            {
-                "offset": start,
-                "original": vanilla_body[start:end].hex(),
-                "patched": blob.hex(),
-                "label": f"store {key}.stock_data_list",
-            }
+    for key, entry_intents in grouped.items():
+        if key not in bounds:
+            raise StoreinfoWriteRefused(f"store entry {key} 边界无效")
+        start, end, _name, _name_end = bounds[key]
+        original_entry = vanilla_body[start:end]
+        patched_entry = _patch_store_entry(
+            original_entry,
+            key,
+            key_size,
+            entry_intents,
+            templates_by_store.get(key, []),
+            templates_by_item,
+            generic_templates,
         )
-        deltas.append((offsets[key], len(blob) - (end - start)))
+        if patched_entry == original_entry:
+            continue
+        replacements[start] = patched_entry
+        deltas.append((start, len(patched_entry) - len(original_entry)))
 
-    if not pabgb_changes:
+    if not replacements:
         return [], None
 
-    new_header = bytearray(vanilla_header)
-    count = struct.unpack_from("<H", vanilla_header, 0)[0]
-    pos = 2
-    changed = False
-    for _ in range(count):
-        entry_offset = struct.unpack_from("<I", vanilla_header, pos + key_size)[0]
-        new_offset = _shifted_offset(entry_offset, deltas)
-        if new_offset != entry_offset:
-            struct.pack_into("<I", new_header, pos + key_size, new_offset)
-            changed = True
-        pos += key_size + 4
+    patched_body = bytearray(vanilla_body)
+    for start in sorted(replacements, reverse=True):
+        end = next(item[1] for item in bounds.values() if item[0] == start)
+        patched_body[start:end] = replacements[start]
 
-    pabgh_change = None
-    if changed:
-        pabgh_change = {
+    patched_header = _rebuild_header(vanilla_header, key_size, deltas)
+    body_change = {
+        "offset": 0,
+        "original": vanilla_body.hex(),
+        "patched": bytes(patched_body).hex(),
+        "label": "storeinfo whole-table rebuild",
+    }
+    header_change = None
+    if patched_header != vanilla_header:
+        header_change = {
             "offset": 0,
             "original": vanilla_header.hex(),
-            "patched": bytes(new_header).hex(),
+            "patched": patched_header.hex(),
             "label": "storeinfo.pabgh offset rebuild",
         }
-    return pabgb_changes, pabgh_change
+    return [body_change], header_change
 
 
-def _record_identity(json_record: dict) -> int | None:
-    """返回 stock record 的稳定身份：`value.payload.body`。"""
+def _resolve_intent_key(
+    intent: Any,
+    offsets: dict[int, int],
+    by_name: dict[str, int],
+) -> int:
+    key = getattr(intent, "key", None)
+    if isinstance(key, int) and key in offsets:
+        return key
+    entry = getattr(intent, "entry", "") or ""
+    resolved = by_name.get(entry)
+    if resolved is None:
+        raise StoreinfoWriteRefused(f"store key={key!r} / entry={entry!r} 未命中")
+    return resolved
+
+
+def _patch_store_entry(
+    entry: bytes,
+    key: int,
+    key_size: int,
+    intents: list[Any],
+    store_templates: list[StockRecord],
+    templates_by_item: StockTemplateIndex,
+    generic_templates: list[StockRecord],
+) -> bytes:
+    count_offset, list_end, vanilla_records = _locate_stock_list(entry, key)
+    output_records = list(vanilla_records)
+    replace_list = False
+    structural_change = False
+    raw_c_changes: list[tuple[int, int]] = []
+    scalar_changes: list[tuple[str, int]] = []
+    template_replays = 0
+    generic_replays = 0
+    rejected_records = 0
+
+    for intent in intents:
+        field = (getattr(intent, "field", "") or "").strip()
+        op = getattr(intent, "op", "set") or "set"
+        value = getattr(intent, "new", None)
+        if field in {"stock_data_list", "_exchangeItemInfoListForSell"}:
+            if op == "set" and isinstance(value, list):
+                output_records = []
+                for item in value:
+                    requested = _record_from_json(item)
+                    replayed, replay_kind = _replay_current_stock_template(
+                        requested,
+                        key,
+                        store_templates,
+                        templates_by_item,
+                        generic_templates,
+                    )
+                    if replayed is None:
+                        rejected_records += 1
+                        continue
+                    output_records.append(replayed)
+                    template_replays += replay_kind == "item"
+                    generic_replays += replay_kind == "generic"
+                replace_list = True
+                structural_change = True
+            elif op == "array_append" and isinstance(value, dict):
+                requested = _record_from_json(value)
+                replayed, replay_kind = _replay_current_stock_template(
+                    requested,
+                    key,
+                    store_templates,
+                    templates_by_item,
+                    generic_templates,
+                )
+                if replayed is None:
+                    rejected_records += 1
+                    continue
+                output_records.append(replayed)
+                template_replays += replay_kind == "item"
+                generic_replays += replay_kind == "generic"
+                structural_change = True
+            else:
+                raise StoreinfoWriteRefused(f"{field} 不支持 op={op!r} / value={type(value).__name__}")
+            continue
+        if field in {"buyable_stock_count", "sellable_stock_count", "exchange_item_info_for_buy"}:
+            if op != "set" or isinstance(value, bool) or not isinstance(value, int):
+                raise StoreinfoWriteRefused(f"{field} 必须是整数 set")
+            scalar_changes.append((field, value))
+            continue
+        index = _raw_c_index(field)
+        if index is not None:
+            if op != "set" or isinstance(value, bool) or not isinstance(value, int):
+                raise StoreinfoWriteRefused(f"{field} 必须是整数 set")
+            raw_c_changes.append((index, value))
+            continue
+        raise StoreinfoWriteRefused(f"不支持字段 {field!r}")
+
+    for index, value in raw_c_changes:
+        if not 0 <= index < len(output_records):
+            raise StoreinfoWriteRefused(
+                f"stock_data_list[{index}].raw_c 越界，当前记录数 {len(output_records)}"
+            )
+        output_records[index].raw_c = value
+
+    patched = bytearray(entry)
     try:
-        return int(json_record["value"]["payload"]["body"])
-    except (KeyError, TypeError, ValueError):
+        new_list = serialize_stock_list(output_records)
+    except StoreinfoParseError as exc:
+        raise StoreinfoWriteRefused(f"stock list 序列化失败：{exc}") from exc
+    patched[count_offset:list_end] = new_list
+    delta = len(new_list) - (list_end - count_offset)
+
+    payload = _entry_payload_offset(entry, key_size)
+    for field, value in scalar_changes:
+        if field == "buyable_stock_count":
+            offset = count_offset - 9
+            if structural_change:
+                value = len(output_records)
+        elif field == "sellable_stock_count":
+            offset = count_offset - 5
+        else:
+            offset = payload
+        if offset < 0 or offset + 4 > len(entry):
+            raise StoreinfoWriteRefused(f"{field} 定位越界")
+        if offset >= list_end:
+            offset += delta
+        struct.pack_into("<I", patched, offset, value & 0xFFFFFFFF)
+
+    logger.info(
+        "storeinfo writer: store %d stock list %d -> %d records%s; "
+        "current-item templates=%d generic-current templates=%d rejected=%d",
+        key,
+        len(vanilla_records),
+        len(output_records),
+        " (replace)" if replace_list else "",
+        template_replays,
+        generic_replays,
+        rejected_records,
+    )
+    return bytes(patched)
+
+
+def _build_template_indexes(
+    body: bytes,
+    bounds: dict[int, tuple[int, int, str, int]],
+) -> tuple[dict[int, list[StockRecord]], StockTemplateIndex, list[StockRecord]]:
+    """Index only stock records that round-trip from the current vanilla table."""
+    by_store: dict[int, list[StockRecord]] = {}
+    by_item: StockTemplateIndex = defaultdict(list)
+    all_records: list[StockRecord] = []
+    for key, (start, end, _name, _name_end) in bounds.items():
+        try:
+            _count_offset, _list_end, records = _locate_stock_list(body[start:end], key)
+        except StoreinfoWriteRefused:
+            continue
+        by_store[key] = records
+        all_records.extend(records)
+        for record in records:
+            by_item[record.body].append(record)
+    return by_store, dict(by_item), all_records
+
+
+def _replay_current_stock_template(
+    requested: StockRecord,
+    store_key: int,
+    store_templates: list[StockRecord],
+    templates_by_item: StockTemplateIndex,
+    generic_templates: list[StockRecord],
+) -> tuple[StockRecord | None, str]:
+    """Rebuild one exported record from current-version vanilla semantics.
+
+    A known item must retain its current discriminator.  New items that have no
+    vanilla StoreInfo record inherit a compatible record from the target store;
+    only the store identity, item identity, stock count and ordering fields are
+    changed.  This keeps 1.18-only value fields out of older Format 3 exports.
+    """
+    item_templates = templates_by_item.get(requested.body, [])
+    same_disc = [item for item in item_templates if item.disc == requested.disc]
+    if item_templates and not same_disc:
+        logger.warning(
+            "storeinfo writer: store %d item %d requested disc=%d, but current "
+            "vanilla only has disc=%s; replaying as a discriminator-distinct "
+            "generic current record",
+            store_key,
+            requested.body,
+            requested.disc,
+            sorted({item.disc for item in item_templates}),
+        )
+
+    if same_disc:
+        template = next(
+            (item for item in same_disc if item.lookup_a == store_key),
+            same_disc[0],
+        )
+        if template.is_restore_item and template.lookup_a != store_key:
+            logger.warning(
+                "storeinfo writer: store %d item %d only has a RestoreItem "
+                "template from store %d; rejected to preserve global uniqueness",
+                store_key,
+                requested.body,
+                template.lookup_a,
+            )
+            return None, "rejected"
+        replayed = replace(
+            template,
+            lookup_a=store_key,
+        )
+        return replayed, "item"
+
+    compatible = [
+        item
+        for item in store_templates
+        if item.disc == requested.disc
+        and (item.sub_data is None) == (requested.sub_data is None)
+        and not item.is_restore_item
+    ]
+    if not compatible:
+        compatible = [
+            item
+            for item in generic_templates
+            if item.disc == requested.disc
+            and (item.sub_data is None) == (requested.sub_data is None)
+            and not item.is_restore_item
+        ]
+        if not compatible:
+            raise StoreinfoWriteRefused(
+                f"当前原版没有非 RestoreItem 的 disc={requested.disc} / "
+                f"sub_data={requested.sub_data is not None} 的 stock 模板"
+            )
+    template = compatible[0]
+    replayed = replace(
+        template,
+        lookup_a=store_key,
+        body=requested.body,
+        value_raw_q=requested.body,
+    )
+    return replayed, "generic"
+
+
+def _locate_stock_list(entry: bytes, key: int) -> tuple[int, int, list[StockRecord]]:
+    """Locate the unique verified stock chain by its key and preceding count."""
+    candidates: list[tuple[int, int, list[StockRecord]]] = []
+    key_format = "<H" if key <= 0xFFFF else "<I"
+    key_width = 2 if key_format == "<H" else 4
+    for record_start in range(4, len(entry) - 118):
+        if record_start + key_width > len(entry):
+            break
+        if struct.unpack_from(key_format, entry, record_start)[0] != key:
+            continue
+        if entry[record_start + STOCK_CONST_OFFSET] != 1:
+            continue
+        count_offset = record_start - 4
+        count = struct.unpack_from("<I", entry, count_offset)[0]
+        if not 0 < count < 10000:
+            continue
+        try:
+            records, _start, list_end = parse_stock_list(entry, count_offset)
+        except (StoreinfoParseError, struct.error, IndexError):
+            continue
+        if len(records) == count:
+            candidates.append((count_offset, list_end, records))
+    unique = {(start, end): records for start, end, records in candidates}
+    if len(unique) != 1:
+        raise StoreinfoWriteRefused(
+            f"store entry {key}: stock list 未唯一定位，候选 {len(unique)}"
+        )
+    (start, end), records = next(iter(unique.items()))
+    return start, end, records
+
+
+def _record_from_json(value: object) -> StockRecord:
+    if not isinstance(value, dict):
+        raise StoreinfoWriteRefused("stock record 必须是 object")
+    nested = value.get("value")
+    if not isinstance(nested, dict):
+        raise StoreinfoWriteRefused("stock record.value 必须是 object")
+    payload = nested.get("payload")
+    if not isinstance(payload, dict):
+        raise StoreinfoWriteRefused("stock record.value.payload 必须是 object")
+    disc = _integer(nested, "disc", 0)
+    if disc not in (0, 3):
+        raise StoreinfoWriteRefused(f"新增 stock record disc={disc} 未验证")
+    payload_type = payload.get("type")
+    if payload_type not in (None, f"Disc{disc}"):
+        raise StoreinfoWriteRefused(
+            f"stock payload type {payload_type!r} 与 disc={disc} 不一致"
+        )
+    effects = value.get("effect_list") or []
+    if effects:
+        raise StoreinfoWriteRefused("stock record effect_list 非空，当前布局未验证")
+    return StockRecord(
+        lookup_a=_integer(value, "lookup_a"),
+        raw_a=_integer(value, "raw_a"),
+        raw_b=_integer(value, "raw_b"),
+        raw_c=_integer(value, "raw_c"),
+        order_index_113=_integer(value, "order_index_113", 0xFFFFFFFF),
+        raw_d=_integer(value, "raw_d"),
+        raw_e=_integer(value, "raw_e"),
+        low_price_threshold_count_116=_integer(
+            value, "low_price_threshold_count_116", 0xFFFFFFFF
+        ),
+        flag_a=_integer(value, "flag_a"),
+        flag_b=_integer(value, "flag_b"),
+        flag_c=_integer(value, "flag_c"),
+        is_restore_item=_integer(value, "is_restore_item"),
+        body=_integer(payload, "body"),
+        value_lookup_a=_integer(nested, "lookup_a"),
+        disc=disc,
+        value_lookup_b=_integer(nested, "lookup_b"),
+        value_lookup_c=_integer(nested, "lookup_c"),
+        value_raw_a=_integer(nested, "raw_a"),
+        value_raw_b=_integer(nested, "raw_b"),
+        value_raw_d=_integer(nested, "raw_d"),
+        value_raw_e=_integer(nested, "raw_e"),
+        value_raw_f=_integer(nested, "raw_f"),
+        value_raw_g=_integer(nested, "raw_g", 0xFFFF),
+        value_raw_q=_integer(nested, "raw_q", _integer(payload, "body")),
+        lookup_b=_integer(value, "lookup_b"),
+        lookup_c=_integer(value, "lookup_c"),
+        sub_data=value.get("sub_data"),
+        effect_list=[],
+    )
+
+
+def _integer(mapping: dict, field: str, default: int = 0) -> int:
+    value = mapping.get(field, default)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise StoreinfoWriteRefused(f"{field}={value!r} 不是整数")
+    return value
+
+
+def _raw_c_index(field: str) -> int | None:
+    prefix = "stock_data_list["
+    suffix = "].raw_c"
+    if not field.startswith(prefix) or not field.endswith(suffix):
+        return None
+    try:
+        return int(field[len(prefix):-len(suffix)])
+    except ValueError:
         return None
 
 
-def _build_new_record(json_record: dict, index: int) -> StockRecord:
-    """根据已映射字段构造一个新的 stock record。"""
-    _check_new_record_buildable(json_record, index)
-    value = json_record.get("value") or {}
-    record = StockRecord(
-        lookup_a=int(json_record.get("lookup_a") or 0),
-        raw_a=int(json_record.get("raw_a") or 0),
-        raw_b=int(json_record.get("raw_b") or 0),
-        raw_c=int(json_record.get("raw_c") or 0),
-        raw_d=int(json_record.get("raw_d") or 0),
-        raw_e=int(json_record.get("raw_e") or 0),
-        flag_a=int(json_record.get("flag_a") or 0),
-        flag_b=int(json_record.get("flag_b") or 0),
-        flag_c=int(json_record.get("flag_c") or 0),
-        is_restore_item=int(json_record.get("is_restore_item") or 0),
-        const33=1,
-        body=int(_record_identity(json_record) or 0),
-    )
-    vgap = bytearray(record.vgap)
-    struct.pack_into("<I", vgap, 41, int(value.get("raw_e") or 0))
-    struct.pack_into("<H", vgap, 57, int(value.get("raw_g") or 0) & 0xFFFF)
-    struct.pack_into("<I", vgap, 59, int(value.get("raw_q") or 0))
-    record.vgap = bytes(vgap)
-
-    sub_data = json_record.get("sub_data")
-    if sub_data is not None:
-        record.sub_data = {
-            "flag": int(sub_data.get("flag") or 0),
-            "lookup_a": int(sub_data.get("lookup_a") or 0) & 0xFFFFFFFF,
-            "lookup_b": int(sub_data.get("lookup_b") or 0) & 0xFFFFFFFF,
-            "lookup_c": int(sub_data.get("lookup_c") or 0) & 0xFFFFFFFF,
-        }
-    return record
+def _entry_payload_offset(entry: bytes, key_size: int) -> int:
+    if len(entry) < key_size + 4:
+        raise StoreinfoWriteRefused("store entry header truncated")
+    name_length = struct.unpack_from("<I", entry, key_size)[0]
+    name_end = key_size + 4 + name_length
+    if name_end > len(entry):
+        raise StoreinfoWriteRefused("store entry name out of range")
+    return name_end + 1 if name_end < len(entry) and entry[name_end] == 0 else name_end
 
 
-def _check_new_record_buildable(json_record: dict, index: int) -> None:
-    """确认新增 stock record 不携带尚未映射的非零字段。"""
-    value = json_record.get("value") or {}
-    for field in _UNMAPPED_VALUE_FIELDS:
-        if value.get(field):
-            raise StoreinfoWriteRefused(
-                f"new stock record [{index}] 设置了未映射 value.{field}={value[field]!r}"
-            )
-    for field in _UNMAPPED_RECORD_FIELDS:
-        if json_record.get(field):
-            raise StoreinfoWriteRefused(
-                f"new stock record [{index}] 设置了未映射 {field}={json_record[field]!r}"
-            )
-    if json_record.get("effect_list"):
-        raise StoreinfoWriteRefused(f"new stock record [{index}] effect_list 非空，暂不支持")
-    if value.get("raw_q") is not None:
-        try:
-            raw_q = int(value["raw_q"])
-        except (TypeError, ValueError) as exc:
-            raise StoreinfoWriteRefused(
-                f"new stock record [{index}]: value.raw_q={value['raw_q']!r} 不是整数"
-            ) from exc
-        if _record_identity(json_record) != raw_q:
-            raise StoreinfoWriteRefused(
-                f"new stock record [{index}]: value.raw_q 与 value.payload.body 不一致"
-            )
+def _rebuild_header(header: bytes, key_size: int, deltas: list[tuple[int, int]]) -> bytes:
+    for candidate in (2, 4):
+        if len(header) < candidate:
+            continue
+        count = struct.unpack_from("<H" if candidate == 2 else "<I", header, 0)[0]
+        if candidate + count * (key_size + 4) == len(header):
+            count_size = candidate
+            break
+    else:
+        raise StoreinfoWriteRefused("storeinfo.pabgh 长度与 count 不一致")
 
-
-def _parse_entry_header(data: bytes, offset: int, key_size: int) -> tuple[int, str, int]:
-    """解析 PABGB entry 头，并返回 payload 起点。"""
-    entry_id_format = "<H" if key_size == 2 else "<I"
-    entry_id_size = 2 if key_size == 2 else 4
-    head_size = entry_id_size + 4
-    if offset + head_size > len(data):
-        return 0, "", offset
-
-    entry_id = struct.unpack_from(entry_id_format, data, offset)[0]
-    name_len = struct.unpack_from("<I", data, offset + entry_id_size)[0]
-    if name_len > 500 or offset + head_size + name_len > len(data):
-        return entry_id, "", offset + head_size
-
-    name_start = offset + head_size
-    name_end = name_start + name_len
-    try:
-        entry_name = data[name_start:name_end].decode("utf-8") if name_len else ""
-    except UnicodeDecodeError:
-        entry_name = ""
-    payload = name_end + 1 if name_end < len(data) and data[name_end] == 0 else name_end
-    return entry_id, entry_name, payload
-
-
-def _shifted_offset(offset: int, deltas: list[tuple[int, int]]) -> int:
-    """根据已修改 entry 的长度变化，计算 PABGH 中的新 offset。"""
-    shifted = offset
-    for changed_entry_offset, delta in deltas:
-        if offset > changed_entry_offset:
-            shifted += delta
-    return shifted
+    output = bytearray(header)
+    count = struct.unpack_from("<H" if count_size == 2 else "<I", header, 0)[0]
+    pos = count_size
+    for _ in range(count):
+        old_offset = struct.unpack_from("<I", header, pos + key_size)[0]
+        new_offset = old_offset + sum(delta for start, delta in deltas if old_offset > start)
+        struct.pack_into("<I", output, pos + key_size, new_offset)
+        pos += key_size + 4
+    return bytes(output)

@@ -3,7 +3,7 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [string]$TrinitySample = 'G:\NppMODdown\crimsondesert\Trinity 0.13.2 CD1.17.00 3252 1 2026-08-10T14-41Z bJyGDfFfA\Trinity.asi',
+    [string]$TrinitySample = 'G:\NppMODdown\crimsondesert\Trinity V1.2.3 VTweak (1.18.01) 3289 1.2.3 2026-08-17T04-36Z UHbidxlDB\Trinity.asi',
     [string]$GameDir = 'G:\SteamLibrary\steamapps\common\Crimson Desert'
 )
 
@@ -22,9 +22,9 @@ $sourceAsi = Join-Path $buildDirectory "$Configuration\TrinityCN.asi"
 $releaseAsi = Join-Path $releaseDirectory 'TrinityCN.asi'
 $projectPython = Join-Path $projectRoot '.venv\Scripts\python.exe'
 
-# Trinity 0.13.2 的开发样本仅用于构建时核对英文条目，不会进入发布目录。
-$expectedTrinityVersion = 'v0.13.2'
-$expectedTrinitySha256 = '2CC92610604EDE9E75F9D884199D2EDE3382E1F26C0E99417F30ED357E179ADD'
+# Trinity V1.2.3 VTweak 的开发样本仅用于构建时核对英文条目，不会进入发布目录。
+$expectedTrinityVersion = 'v1.2.3 (vTweak by Lian)'
+$expectedTrinitySha256 = '81BB3AE40481004FF710530184BF57886E424BA4F12C3C1904A51FFAED913CE8'
 
 function ConvertTo-CppByteLiteral {
     param([Parameter(Mandatory)][string]$Value)
@@ -132,14 +132,14 @@ foreach ($entry in $translations) {
         throw "格式占位符不一致：$original"
     }
     if ($null -ne $sampleAscii -and -not $sampleAscii.Contains("$original`0", [System.StringComparison]::Ordinal)) {
-        throw "Trinity 0.13.2 样本中不存在英文条目：$original"
+        throw "Trinity V1.2.3 VTweak 样本中不存在英文条目：$original"
     }
     if ($null -ne $sampleBytes -and -not (Test-PatchableTranslationSlot `
             -SampleBytes $sampleBytes `
             -SampleAscii $sampleAscii `
             -Original $original `
             -Capacity $capacity)) {
-        throw "Trinity 0.13.2 样本中的字符串槽容量不足：$original ($capacity)"
+        throw "Trinity V1.2.3 VTweak 样本中的字符串槽容量不足：$original ($capacity)"
     }
     foreach ($rune in $translation.EnumerateRunes()) {
         if ($rune.Value -gt 0xFFFF) {

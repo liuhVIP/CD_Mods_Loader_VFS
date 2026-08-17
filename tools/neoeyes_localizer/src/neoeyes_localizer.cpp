@@ -1,4 +1,4 @@
-// NeoEyes Simple Menu 1.2.7 中文伴生 ASI v1.3：优先显示游戏原版中文角色名称。
+// NeoEyes Simple Menu 1.4.0 中文伴生 ASI v1.4：优先显示游戏原版中文角色名称。
 #include <Windows.h>
 
 #include <algorithm>
@@ -22,13 +22,14 @@ namespace neoeyes_cn {
 // 当前样本没有版本资源，必须通过模块名、PE 时间戳、布局、代码特征和界面标记共同锁定。
 constexpr wchar_t kTargetModuleName[] = L"NeoEyesSimpleMenu.asi";
 constexpr wchar_t kTargetProcessName[] = L"CrimsonDesert.exe";
-constexpr DWORD kTargetPeTimestamp = 0x6A769730;
-constexpr std::uintptr_t kFirstUtf8ConversionRva = 0xDFE2;
-constexpr std::uintptr_t kSecondUtf8ConversionRva = 0x109E3;
-constexpr std::uintptr_t kRegularFontReferenceRva = 0x6639;
-constexpr std::uintptr_t kMonospaceFontReferenceRva = 0x6656;
-constexpr std::uintptr_t kGdipDrawStringThunkRva = 0x14248;
-constexpr std::uintptr_t kGdipDrawStringImportSlotRva = 0x17408;
+constexpr DWORD kTargetPeTimestamp = 0x6A7E4343;
+constexpr DWORD kTargetSizeOfImage = 0xC7000;
+constexpr std::uintptr_t kFirstUtf8ConversionRva = 0x12494;
+constexpr std::uintptr_t kSecondUtf8ConversionRva = 0x16F52;
+constexpr std::uintptr_t kRegularFontReferenceRva = 0x72F9;
+constexpr std::uintptr_t kMonospaceFontReferenceRva = 0x7316;
+constexpr std::uintptr_t kGdipDrawStringThunkRva = 0x1AF38;
+constexpr std::uintptr_t kGdipDrawStringImportSlotRva = 0x1D480;
 constexpr DWORD kModuleWaitMilliseconds = 30'000;
 constexpr DWORD kModulePollMilliseconds = 1;
 constexpr DWORD kHookWarmupMilliseconds = 1'000;
@@ -55,37 +56,37 @@ std::size_t gDiscoveredDrawTextCount = 0;
 constexpr std::array<std::uint8_t, 29> kFirstUtf8ConversionSignature{
     0xC7, 0x44, 0x24, 0x28, 0x00, 0x10, 0x00, 0x00, 0x44, 0x8B,
     0xCB, 0x48, 0x89, 0x44, 0x24, 0x20, 0x33, 0xD2, 0xB9, 0xE9,
-    0xFD, 0x00, 0x00, 0xFF, 0x15, 0x81, 0x91, 0x00, 0x00,
+    0xFD, 0x00, 0x00, 0xFF, 0x15, 0x09, 0xAD, 0x00, 0x00,
 };
 constexpr std::array<std::uint8_t, 40> kSecondUtf8ConversionSignature{
     0xC7, 0x44, 0x24, 0x28, 0x00, 0x10, 0x00, 0x00, 0x33, 0xD2,
     0x48, 0x89, 0x44, 0x24, 0x20, 0xB9, 0xE9, 0xFD, 0x00, 0x00,
     0x48, 0x89, 0xBC, 0x24, 0x58, 0x20, 0x00, 0x00, 0x41, 0xB9,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x15, 0x75, 0x67, 0x00, 0x00,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x15, 0x3D, 0x62, 0x00, 0x00,
 };
 
 // 两条 RIP 相对指令分别引用 Segoe UI 与 Consolas；字节变化时拒绝改写字体槽。
 constexpr std::array<std::uint8_t, 7> kRegularFontReferenceSignature{
-    0x48, 0x8D, 0x0D, 0x08, 0x0F, 0x08, 0x00,
+    0x48, 0x8D, 0x0D, 0xC8, 0x63, 0x08, 0x00,
 };
 constexpr std::array<std::uint8_t, 7> kMonospaceFontReferenceSignature{
-    0x48, 0x8D, 0x0D, 0x03, 0x0F, 0x08, 0x00,
+    0x48, 0x8D, 0x0D, 0xC3, 0x63, 0x08, 0x00,
 };
 
 // NeoEyes 的四处文字绘制调用统一进入该跳板，跳板再转到 GdipDrawString IAT。
 constexpr std::array<std::uint8_t, 6> kGdipDrawStringThunkSignature{
-    0xFF, 0x25, 0xBA, 0x31, 0x00, 0x00,
+    0xFF, 0x25, 0x42, 0x25, 0x00, 0x00,
 };
 
 // 四处可见文字绘制调用均直接进入上面的唯一跳板。
 constexpr std::array<std::uintptr_t, 4> kGdipDrawStringCallRvas{
-    0x6857, 0x6A47, 0x6C7E, 0x6CE1,
+    0x7517, 0x7707, 0x793E, 0x79A1,
 };
 constexpr std::array<std::array<std::uint8_t, 5>, 4> kGdipDrawStringCallSignatures{{
-    {{0xE8, 0xEC, 0xD9, 0x00, 0x00}},
-    {{0xE8, 0xFC, 0xD7, 0x00, 0x00}},
-    {{0xE8, 0xC5, 0xD5, 0x00, 0x00}},
-    {{0xE8, 0x62, 0xD5, 0x00, 0x00}},
+    {{0xE8, 0x1C, 0x3A, 0x01, 0x00}},
+    {{0xE8, 0x2C, 0x38, 0x01, 0x00}},
+    {{0xE8, 0xF5, 0x35, 0x01, 0x00}},
+    {{0xE8, 0x92, 0x35, 0x01, 0x00}},
 }};
 
 struct PeSectionView {
@@ -166,7 +167,7 @@ void InitializeRuntimeLogPath() {
         return;
     }
     path.resize(separator + 1);
-    path.append(L"NeoEyesCNv1.3.runtime.log");
+    path.append(L"NeoEyesCNv1.4.runtime.log");
     wcsncpy_s(gRuntimeLogPath, path.c_str(), _TRUNCATE);
     // 每次游戏启动生成独立采集结果，避免旧会话的名称干扰当前排查。
     DeleteFileW(gRuntimeLogPath);
@@ -870,7 +871,7 @@ std::size_t PatchWideFontEntry(PeSectionView section, const WideFontReplacement&
 
 DWORD WINAPI InitializeLocalization(void*) {
     InitializeRuntimeLogPath();
-    DebugLog("初始化 v1.3");
+    DebugLog("初始化 v1.4");
     HMODULE targetModule = WaitForTargetModule();
     if (targetModule == nullptr) {
         DebugLog("等待 NeoEyesSimpleMenu.asi 超时，未执行任何修改。");

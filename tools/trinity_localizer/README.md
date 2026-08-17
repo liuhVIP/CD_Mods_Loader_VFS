@@ -1,4 +1,4 @@
-# Trinity 0.13.2 运行时汉化
+# Trinity V1.2.3 VTweak 运行时汉化
 
 本工程生成独立的 `TrinityCN.asi`，不修改原始 `Trinity.asi`。英文到中文的映射只在开发阶段保存在
 `translations.zh-CN.json`，构建时转换为 C++ 只读数据并编译进 ASI；发布目录禁止携带 JSON。
@@ -21,13 +21,19 @@
 dist/trinity_localizer/TrinityCN.asi
 ```
 
-将其与 `Trinity.asi` 一起交给游戏的 ASI Loader 加载。当前实现严格匹配 Trinity `v0.13.2` 和 ImGui
-`1.91.5`，动态目录数据严格匹配 Crimson Desert `1.17.00`。目标版本、字体函数序言、动态本地化
-函数序言或游戏数据表哈希不一致时会自动拒绝对应功能，不修改 Trinity 的功能逻辑。
+将其与 `Trinity.asi` 一起交给游戏的 ASI Loader 加载。当前实现严格匹配 Trinity `v1.2.3 VTweak`
+（ReXooGen fork）和 ImGui `1.91.5`，动态目录数据严格匹配 Crimson Desert `1.18.01`（EXE
+SHA-256 `974C0446...`）。目标版本、字体函数序言、组名 getter 序言或游戏数据表哈希不一致时
+会自动拒绝对应功能，不修改 Trinity 的功能逻辑。
 
-每次游戏启动都会在 `bin64/TrinityCN.log` 覆盖写入运行诊断，包括物品/分类地址表建立数量和
+VTweak fork 自带 `Trinity_*.ini` 多语言覆盖静态主菜单文本，因此伴生补丁只补充 ini 未覆盖的
+英文残留；动态分类/仓库名通过 Hook 组名 getter（0x22250）按游戏表行号查中文回退表。VTweak
+的物品名机制已改为"0x6C 索引 → 子向量"，与旧版固定名称字段不同，当前不建立 ItemInfo 地址表
+（避免错误映射），Add Item 界面的物品名仍需实机复核后再接入。
+
+每次游戏启动都会在 `bin64/TrinityCN.log` 覆盖写入运行诊断，包括分类/仓库地址表建立数量和
 动态目录中文回退的首次命中结果；该日志不包含游戏存档或用户隐私数据。
 
 旅行传送的顶层分类由 Trinity 在 `kSceneRules` 中硬编码，并非游戏本地化表字段；构建时按当前
-0.13.2 二进制中逐项验证过的 UTF-8 字符串槽翻译。分类内地点仍可能来自场景 key、地区缩写、
+v1.2.3 二进制中逐项验证过的 UTF-8 字符串槽翻译。分类内地点仍可能来自场景 key、地区缩写、
 固定场景名或游戏节点原名，需按各自生成模式分别处理。

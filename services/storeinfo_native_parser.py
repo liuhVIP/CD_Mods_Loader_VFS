@@ -1,8 +1,8 @@
-"""storeinfo.pabgb stock list 的原生解析/序列化工具。
+"""StoreInfo 1.18 stock-list clean-room parser and serializer.
 
-该解析器服务 Format 3 `stock_data_list` writer。storeinfo 表一旦写坏，
-游戏打开商店时很容易崩溃，所以本模块只接受已验证的 disc-0 stock record
-布局；遇到未知 sub_data flag 或非空 effect_list 时直接拒绝。
+The current table stores each stock record as a fixed 114-byte prefix followed
+by an optional 13-byte sub-record and an empty effect-list count. That yields
+119-byte records without sub-data and 132-byte records with sub-data.
 """
 
 from __future__ import annotations
@@ -12,193 +12,207 @@ from dataclasses import dataclass, field
 
 
 class StoreinfoParseError(ValueError):
-    """二进制不符合当前已验证 storeinfo stock record 布局。"""
+    """The bytes do not match the verified StoreInfo 1.18 layout."""
 
 
-# CD 1.11 后 disc-0 stock record 固定头长度为 110。
-_HEAD_SIZE = 110
-# value struct 内部尚未全部命名，按不透明字节原样保留。
-_VGAP_SIZE = _HEAD_SIZE - 39
-# stock list 的 u32 count 相对 entry payload 起点的偏移。
-LIST_COUNT_PAYLOAD_OFFSET = 44
+# Regular StoreInfo entries place the stock count at payload +45. Writers use
+# dynamic chain discovery because contribution stores have a longer head.
+LIST_COUNT_PAYLOAD_OFFSET = 45
+STOCK_FIXED_SIZE = 114
+STOCK_RECORD_SIZE = 119
+STOCK_RECORD_WITH_SUB_SIZE = 132
+STOCK_CONST_OFFSET = 42
+STOCK_ITEM_KEY_OFFSET = 43
+STOCK_RAW_C_OFFSET = 18
+STOCK_OPTIONAL_OFFSET = 114
 
 
 @dataclass
 class StockRecord:
-    """一条 disc-0 stock record。字段名沿用 Format 3 JSON 的通用命名。"""
+    """One StoreInfo stock record using the current exported field names."""
 
     lookup_a: int = 0
     raw_a: int = 0
     raw_b: int = 0
     raw_c: int = 0
+    order_index_113: int = 0xFFFFFFFF
     raw_d: int = 0
     raw_e: int = 0
+    low_price_threshold_count_116: int = 0xFFFFFFFF
     flag_a: int = 0
     flag_b: int = 0
     flag_c: int = 0
     is_restore_item: int = 0
-    const33: int = 1
     body: int = 0
-    vgap: bytes = b"\x00" * _VGAP_SIZE
+    value_lookup_a: int = 0
+    disc: int = 0
+    value_lookup_b: int = 0
+    value_lookup_c: int = 0
+    value_raw_a: int = 0
+    value_raw_b: int = 0
+    value_raw_d: int = 0
+    value_raw_e: int = 0
+    value_raw_f: int = 0
+    value_raw_g: int = 0xFFFF
+    value_raw_q: int = 0
+    lookup_b: int = 0
+    lookup_c: int = 0
     sub_data: dict | None = None
     effect_list: list = field(default_factory=list)
 
 
-class _Reader:
-    """带游标的小端读取器。"""
-
-    def __init__(self, data: bytes, pos: int = 0) -> None:
-        self.data = data
-        self.pos = pos
-
-    def u8(self) -> int:
-        """读取 u8。"""
-        value = self.data[self.pos]
-        self.pos += 1
-        return value
-
-    def u16(self) -> int:
-        """读取小端 u16。"""
-        value = struct.unpack_from("<H", self.data, self.pos)[0]
-        self.pos += 2
-        return value
-
-    def u32(self) -> int:
-        """读取小端 u32。"""
-        value = struct.unpack_from("<I", self.data, self.pos)[0]
-        self.pos += 4
-        return value
-
-    def u64(self) -> int:
-        """读取小端 u64。"""
-        value = struct.unpack_from("<Q", self.data, self.pos)[0]
-        self.pos += 8
-        return value
-
-    def raw(self, size: int) -> bytes:
-        """读取固定长度原始字节。"""
-        value = self.data[self.pos:self.pos + size]
-        if len(value) != size:
-            raise StoreinfoParseError(f"unexpected EOF at {self.pos} (wanted {size} bytes)")
-        self.pos += size
-        return value
-
-
-class _Writer:
-    """带缓冲区的小端写入器。"""
-
-    def __init__(self) -> None:
-        self.out = bytearray()
-
-    def u8(self, value: int) -> None:
-        """写入 u8。"""
-        self.out.append(value & 0xFF)
-
-    def u16(self, value: int) -> None:
-        """写入小端 u16。"""
-        self.out += struct.pack("<H", value)
-
-    def u32(self, value: int) -> None:
-        """写入小端 u32。"""
-        self.out += struct.pack("<I", value)
-
-    def u64(self, value: int) -> None:
-        """写入小端 u64。"""
-        self.out += struct.pack("<Q", value)
-
-    def raw(self, data: bytes) -> None:
-        """写入原始字节。"""
-        self.out += data
-
-
-def read_stock_record(reader: _Reader) -> StockRecord:
-    """从当前游标读取一条 disc-0 stock record。"""
-    record = StockRecord()
-    record.lookup_a = reader.u16()
-    record.raw_a = reader.u64()
-    record.raw_b = reader.u64()
-    record.raw_c = reader.u32()
-    record.raw_d = reader.u32()
-    record.raw_e = reader.u32()
-    record.flag_a = reader.u8()
-    record.flag_b = reader.u8()
-    record.flag_c = reader.u8()
-    record.is_restore_item = reader.u8()
-    record.const33 = reader.u8()
-    if record.const33 != 1:
+def read_stock_record(data: bytes, offset: int = 0) -> tuple[StockRecord, int]:
+    """Read one current stock record and return ``(record, end_offset)``."""
+    if offset < 0 or offset + STOCK_RECORD_SIZE > len(data):
+        raise StoreinfoParseError(f"stock record at {offset} is truncated")
+    if data[offset + STOCK_CONST_OFFSET] != 1:
         raise StoreinfoParseError(
-            f"record offset 34 const={record.const33}，预期 1，布局可能漂移"
+            f"stock record at {offset} const={data[offset + STOCK_CONST_OFFSET]}，预期 1"
         )
-    record.body = reader.u32()
-    record.vgap = reader.raw(_VGAP_SIZE)
 
-    sub_flag = reader.u8()
-    if sub_flag == 1:
+    values = struct.unpack_from("<HQQIIIII4BBIIBIIQQQQQHIII", data, offset)
+    if values[12] != 1:
+        raise StoreinfoParseError(f"stock record at {offset} variant const={values[12]}")
+    record = StockRecord(
+        lookup_a=values[0],
+        raw_a=values[1],
+        raw_b=values[2],
+        raw_c=values[3],
+        order_index_113=values[4],
+        raw_d=values[5],
+        raw_e=values[6],
+        low_price_threshold_count_116=values[7],
+        flag_a=values[8],
+        flag_b=values[9],
+        flag_c=values[10],
+        is_restore_item=values[11],
+        body=values[13],
+        value_lookup_a=values[14],
+        disc=values[15],
+        value_lookup_b=values[16],
+        value_lookup_c=values[17],
+        value_raw_a=values[18],
+        value_raw_b=values[19],
+        value_raw_d=values[20],
+        value_raw_e=values[21],
+        value_raw_f=values[22],
+        value_raw_g=values[23],
+        value_raw_q=values[24],
+        lookup_b=values[25],
+        lookup_c=values[26],
+    )
+    cursor = offset + STOCK_OPTIONAL_OFFSET
+    optional_flag = data[cursor]
+    cursor += 1
+    if optional_flag == 1:
+        if cursor + 13 > len(data):
+            raise StoreinfoParseError(f"stock record at {offset} sub_data truncated")
+        lookup_a, lookup_b, lookup_c, flag = struct.unpack_from("<IIIB", data, cursor)
         record.sub_data = {
-            "flag": reader.u8(),
-            "lookup_a": reader.u32(),
-            "lookup_b": reader.u32(),
-            "lookup_c": reader.u32(),
+            "flag": flag,
+            "lookup_a": lookup_a,
+            "lookup_b": lookup_b,
+            "lookup_c": lookup_c,
         }
-    elif sub_flag == 0:
+        cursor += 13
+    elif optional_flag == 0:
         record.sub_data = None
     else:
-        raise StoreinfoParseError(f"sub_data optional flag is {sub_flag}")
+        raise StoreinfoParseError(
+            f"stock record at {offset} sub_data optional flag={optional_flag}"
+        )
 
-    effect_count = reader.u32()
+    if cursor + 4 > len(data):
+        raise StoreinfoParseError(f"stock record at {offset} effect count truncated")
+    effect_count = struct.unpack_from("<I", data, cursor)[0]
     if effect_count != 0:
         raise StoreinfoParseError(
-            f"effect_list has {effect_count} element(s); element layout 未解码"
+            f"stock record at {offset} effect_list has {effect_count} element(s)"
         )
-    record.effect_list = []
-    return record
+    cursor += 4
+    return record, cursor
 
 
-def write_stock_record(writer: _Writer, record: StockRecord) -> None:
-    """序列化一条 disc-0 stock record。"""
+def write_stock_record(record: StockRecord) -> bytes:
+    """Serialize one current stock record."""
     if record.effect_list:
         raise StoreinfoParseError("cannot serialize a non-empty effect_list")
-    if len(record.vgap) != _VGAP_SIZE:
-        raise StoreinfoParseError(f"vgap 必须是 {_VGAP_SIZE} 字节，实际 {len(record.vgap)}")
+    if not 0 <= record.disc <= 0xFF:
+        raise StoreinfoParseError(f"disc={record.disc} 超出 u8")
+    try:
+        output = bytearray(
+            struct.pack(
+                "<HQQIIIII4BBIIBIIQQQQQHIII",
+                record.lookup_a,
+                record.raw_a,
+                record.raw_b,
+                record.raw_c,
+                record.order_index_113,
+                record.raw_d,
+                record.raw_e,
+                record.low_price_threshold_count_116,
+                record.flag_a,
+                record.flag_b,
+                record.flag_c,
+                record.is_restore_item,
+                1,
+                record.body,
+                record.value_lookup_a,
+                record.disc,
+                record.value_lookup_b,
+                record.value_lookup_c,
+                record.value_raw_a,
+                record.value_raw_b,
+                record.value_raw_d,
+                record.value_raw_e,
+                record.value_raw_f,
+                record.value_raw_g,
+                record.value_raw_q,
+                record.lookup_b,
+                record.lookup_c,
+            )
+        )
+    except struct.error as exc:
+        raise StoreinfoParseError(f"stock record field out of range: {exc}") from exc
+    if len(output) != STOCK_FIXED_SIZE:
+        raise AssertionError(f"unexpected stock fixed size: {len(output)}")
 
-    writer.u16(record.lookup_a)
-    writer.u64(record.raw_a)
-    writer.u64(record.raw_b)
-    writer.u32(record.raw_c)
-    writer.u32(record.raw_d)
-    writer.u32(record.raw_e)
-    writer.u8(record.flag_a)
-    writer.u8(record.flag_b)
-    writer.u8(record.flag_c)
-    writer.u8(record.is_restore_item)
-    writer.u8(record.const33)
-    writer.u32(record.body)
-    writer.raw(record.vgap)
     if record.sub_data is None:
-        writer.u8(0)
+        output.append(0)
     else:
-        writer.u8(1)
-        writer.u8(record.sub_data["flag"])
-        writer.u32(record.sub_data["lookup_a"])
-        writer.u32(record.sub_data["lookup_b"])
-        writer.u32(record.sub_data["lookup_c"])
-    writer.u32(0)
+        output.append(1)
+        try:
+            output += struct.pack(
+                "<IIIB",
+                int(record.sub_data["lookup_a"]),
+                int(record.sub_data["lookup_b"]),
+                int(record.sub_data["lookup_c"]),
+                int(record.sub_data["flag"]),
+            )
+        except (KeyError, TypeError, ValueError, struct.error) as exc:
+            raise StoreinfoParseError(f"invalid stock sub_data: {record.sub_data!r}") from exc
+    output += struct.pack("<I", 0)
+    return bytes(output)
 
 
 def parse_stock_list(data: bytes, count_offset: int) -> tuple[list[StockRecord], int, int]:
-    """解析从 `count_offset` 开始的 stock list。"""
-    reader = _Reader(data, count_offset)
-    count = reader.u32()
-    if not (0 <= count < 10000):
+    """Parse ``u32 count + stock records`` from ``count_offset``."""
+    if count_offset < 0 or count_offset + 4 > len(data):
+        raise StoreinfoParseError(f"stock count offset {count_offset} out of range")
+    count = struct.unpack_from("<I", data, count_offset)[0]
+    if not 0 <= count < 10000:
         raise StoreinfoParseError(f"stock record count 不可信：{count}")
-    records = [read_stock_record(reader) for _ in range(count)]
-    return records, count_offset, reader.pos
+    cursor = count_offset + 4
+    records: list[StockRecord] = []
+    for _ in range(count):
+        record, cursor = read_stock_record(data, cursor)
+        records.append(record)
+    return records, count_offset, cursor
 
 
 def serialize_stock_list(records: list[StockRecord]) -> bytes:
-    """序列化完整 stock list：u32 count + records。"""
-    writer = _Writer()
-    writer.u32(len(records))
+    """Serialize ``u32 count + stock records``."""
+    output = bytearray(struct.pack("<I", len(records)))
     for record in records:
-        write_stock_record(writer, record)
-    return bytes(writer.out)
+        output += write_stock_record(record)
+    return bytes(output)

@@ -19,59 +19,58 @@
 
 namespace trinity_cn {
 
-// 当前适配对象为 Trinity 0.13.2；版本变化时必须重新确认函数入口和序言。
+// 当前适配对象为 Trinity V1.2.3 VTweak（ReXooGen/Lian fork）；版本变化时必须重新确认函数入口和序言。
 constexpr wchar_t kTargetModuleName[] = L"Trinity.asi";
 constexpr wchar_t kTargetProcessName[] = L"CrimsonDesert.exe";
-constexpr char kTargetVersion[] = "v0.13.2";
-constexpr char kVersionLabel[] = "b站up 改名_汉化 v0.13.2";
-constexpr char kCompanionVersion[] = "0.4.3.0";
-constexpr std::uintptr_t kAddFontFromFileTtfRva = 0x64C30;
-constexpr std::uintptr_t kVersionTextLeaRva = 0x25945;
-constexpr std::uintptr_t kCatalogLocStringRva = 0x15630;
-constexpr std::uintptr_t kItemTableGlobalRva = 0xE6A70;
-constexpr std::uintptr_t kGroupTableGlobalRva = 0xE6A78;
-constexpr std::uintptr_t kInventoryTableGlobalRva = 0xE6A88;
-constexpr std::uintptr_t kItemTableLoadRva = 0x15799;
-constexpr std::uintptr_t kGroupTableLoadRva = 0x136DC;
-constexpr std::uintptr_t kInventoryTableLoadRva = 0x15FA8;
-constexpr std::uintptr_t kDefinitionArrayLoadRva = 0x143E1;
+constexpr char kTargetVersion[] = "v1.2.3 (vTweak by Lian)";
+constexpr char kVersionLabel[] = "b站up 改名_汉化 v1.2.3";
+constexpr char kCompanionVersion[] = "0.5.0.0";
+constexpr std::uintptr_t kAddFontFromFileTtfRva = 0x79BD0;
+constexpr std::uintptr_t kVersionTextLeaRva = 0x358D4;
+constexpr std::uintptr_t kCatalogLocStringRva = 0x22250;
+constexpr std::uintptr_t kItemTableGlobalRva = 0x179B00;
+constexpr std::uintptr_t kGroupTableGlobalRva = 0x179B08;
+constexpr std::uintptr_t kInventoryTableGlobalRva = 0x179B10;
+constexpr std::uintptr_t kItemTableLoadRva = 0x1F50A;
+constexpr std::uintptr_t kGroupTableLoadRva = 0x1F994;
+constexpr std::uintptr_t kInventoryTableLoadRva = 0x21396;
+constexpr std::uintptr_t kDefinitionArrayLoadRva = 0x206D1;
 constexpr std::uintptr_t kTableCountOffset = 0x08;
 constexpr std::uintptr_t kTableDefinitionsOffset = 0x58;
-constexpr std::uintptr_t kItemNameFieldOffset = 0x20;
+constexpr std::uintptr_t kItemNameFieldOffset = 0x18;
 constexpr std::uintptr_t kGroupNameFieldOffset = 0x18;
-constexpr std::uintptr_t kInventoryNameFieldOffset = 0x70;
+constexpr std::uintptr_t kInventoryNameFieldOffset = 0x18;
 constexpr std::size_t kHookOverwriteSize = 17;
 constexpr std::size_t kCatalogHookOverwriteSize = 15;
 constexpr DWORD kModuleWaitMilliseconds = 30'000;
 constexpr DWORD kModulePollMilliseconds = 10;
 
-// Trinity 0.13.2 的 AddFontFromFileTTF 前 17 字节；不一致时拒绝安装 Hook。
+// Trinity V1.2.3 VTweak 的 AddFontFromFileTTF 前 17 字节（与 0.13.2 一致）；不一致时拒绝安装 Hook。
 constexpr std::array<std::uint8_t, kHookOverwriteSize> kExpectedFontFunctionPrologue{
     0x40, 0x55, 0x53, 0x56, 0x57, 0x41, 0x56, 0x41, 0x57,
     0x48, 0x8D, 0xAC, 0x24, 0x38, 0xFF, 0xFF, 0xFF,
 };
 
-// 唯一版本文本引用：lea r12, [rip + v0.13.2]。
+// 唯一版本文本引用：lea rsi, [rip + v1.2.3 (vTweak by Lian)]。
 constexpr std::array<std::uint8_t, 7> kExpectedVersionTextLea{
-    0x4C, 0x8D, 0x25, 0x0C, 0x58, 0x09, 0x00,
+    0x48, 0x8D, 0x35, 0xF5, 0x00, 0x11, 0x00,
 };
 
-// Trinity 0.13.2 的动态本地化读取函数前 15 字节；仅含完整的栈保存指令。
+// Trinity V1.2.3 VTweak 的组名 getter（0x22250）前 15 字节；仅含完整的栈保存指令。
 constexpr std::array<std::uint8_t, kCatalogHookOverwriteSize> kExpectedCatalogLocStringPrologue{
-    0x48, 0x89, 0x5C, 0x24, 0x08,
-    0x48, 0x89, 0x6C, 0x24, 0x10,
-    0x48, 0x89, 0x74, 0x24, 0x18,
+    0x48, 0x8B, 0xC4, 0x53, 0x55, 0x56, 0x57, 0x48, 0x83,
+    0xEC, 0x48, 0x48, 0x83, 0x3D, 0xBD,
 };
 
 // 当前 ItemInfo / ItemGroupInfo 全局与 definitions(+0x58) 的固定引用特征。
 constexpr std::array<std::uint8_t, 7> kExpectedItemTableLoad{
-    0x48, 0x8B, 0x0D, 0xD0, 0x12, 0x0D, 0x00,
+    0x48, 0x8D, 0x15, 0x0F, 0x6A, 0x0B, 0x00,
 };
 constexpr std::array<std::uint8_t, 7> kExpectedGroupTableLoad{
-    0x48, 0x8B, 0x0D, 0x95, 0x33, 0x0D, 0x00,
+    0x48, 0x8B, 0x0D, 0x6D, 0xA1, 0x15, 0x00,
 };
 constexpr std::array<std::uint8_t, 7> kExpectedInventoryTableLoad{
-    0x48, 0x8B, 0x0D, 0xD9, 0x0A, 0x0D, 0x00,
+    0x48, 0x8B, 0x0D, 0x73, 0x87, 0x15, 0x00,
 };
 constexpr std::array<std::uint8_t, 4> kExpectedDefinitionArrayLoad{
     0x48, 0x8D, 0x4F, 0x58,
@@ -489,23 +488,8 @@ const char* FindCatalogTranslation(std::uintptr_t structAddress) {
     }
 
     AcquireSRWLockExclusive(&g_catalogTranslationLock);
-    if (!g_itemCatalogAddressesReady) {
-        std::size_t mappedCount = 0;
-        g_itemCatalogAddressesReady = BuildCatalogAddressTable(
-            trinityModule,
-            kItemTableGlobalRva,
-            kItemNameFieldOffset,
-            generated_catalog::kExpectedItemRowCount,
-            generated_catalog::kItemTranslations,
-            generated_catalog::kItemTranslationCount,
-            mappedCount);
-        if (g_itemCatalogAddressesReady) {
-            DebugLog("物品中文地址表已建立：" + std::to_string(mappedCount) + " 条。");
-        } else if (!g_itemCatalogFailureLogged) {
-            g_itemCatalogFailureLogged = true;
-            DebugLog("物品中文地址表建立失败，将在后续请求中重试。");
-        }
-    }
+    // Trinity V1.2.3 VTweak 的物品名机制已变化（0x6C 索引 → 子向量），不再走固定名称字段，
+    // 因此不建立 ItemInfo 地址表，避免错误映射。只启用 ItemGroupInfo 与 InventoryInfo 动态名。
     if (!g_groupCatalogAddressesReady) {
         std::size_t mappedCount = 0;
         g_groupCatalogAddressesReady = BuildCatalogAddressTable(
@@ -571,14 +555,17 @@ bool HookedCatalogLocString(
     std::uintptr_t structAddress,
     char* output,
     std::size_t capacity) {
-    if (g_originalCatalogLocString != nullptr &&
-        g_originalCatalogLocString(structAddress, output, capacity)) {
-        return true;
+    // Trinity V1.2.3 VTweak 的名称 getter 总是能返回英文可读名，因此必须先查中文回退表：
+    // 命中则直接输出中文，未命中才调用原函数保留默认英文。
+    if (const char* translation = FindCatalogTranslation(structAddress)) {
+        if (CopyCatalogTranslation(translation, output, capacity)) {
+            return true;
+        }
     }
-    return CopyCatalogTranslation(
-        FindCatalogTranslation(structAddress),
-        output,
-        capacity);
+    if (g_originalCatalogLocString != nullptr) {
+        return g_originalCatalogLocString(structAddress, output, capacity);
+    }
+    return false;
 }
 
 bool ContainsInsensitive(std::string_view value, std::string_view needle) {

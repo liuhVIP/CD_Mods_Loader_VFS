@@ -15,7 +15,7 @@ from typing import Any
 from cdmm.services.cdmod_build_plan import CDMOD_PLAN_VALID, CdmodBuildPlan
 
 # 桥接文件格式版本，参与诊断但仍保持DMM Format 3兼容形态。
-CDMOD_FORMAT3_BRIDGE_VERSION = 1
+CDMOD_FORMAT3_BRIDGE_VERSION = 2
 
 # ItemInfo不同字段必须进入现有writer的正确分流，不能混成一个巨型目标。
 ITEMINFO_PREFAB_NARROW_PATTERN = re.compile(
@@ -42,20 +42,22 @@ def build_format3_bridge_document(plan: CdmodBuildPlan) -> dict[str, Any]:
         }
         for operation in target_plan.operations:
             selector = operation.selector
-            intent: dict[str, Any] = {
-                "entry": str(selector.get("string_key") or ""),
-                "key": selector.get("key", 0),
-                "field": operation.path,
-                "op": "set",
-                "new": operation.payload,
-            }
             family = _bridge_family(
                 target_plan.target,
                 operation.path,
                 operation.selector,
                 visual_selectors,
             )
-            intent_batches.setdefault(family, []).append(intent)
+            batch = intent_batches.setdefault(family, [])
+            if operation.op == "array_append":
+                if not isinstance(operation.payload, list):
+                    raise ValueError("array_append 计划 payload 必须是列表")
+                for value in operation.payload:
+                    batch.append(
+                        _bridge_intent(selector, operation.path, "array_append", value)
+                    )
+            else:
+                batch.append(_bridge_intent(selector, operation.path, "set", operation.payload))
         for family in _ordered_bridge_families(intent_batches):
             targets.append(
                 {
@@ -82,6 +84,22 @@ def build_format3_bridge_document(plan: CdmodBuildPlan) -> dict[str, Any]:
                 for target_plan in plan.targets
             },
         },
+    }
+
+
+def _bridge_intent(
+    selector: dict[str, Any],
+    path: str,
+    op: str,
+    value: Any,
+) -> dict[str, Any]:
+    """Build one legacy Format 3 intent without losing append order."""
+    return {
+        "entry": str(selector.get("string_key") or ""),
+        "key": selector.get("key", 0),
+        "field": path,
+        "op": op,
+        "new": value,
     }
 
 

@@ -29,6 +29,10 @@ from cdmm.services.format3_iteminfo_record_writer import (
     build_iteminfo_record_result,
     should_use_iteminfo_record_writer,
 )
+from cdmm.services.format3_iteminfo_price_writer import (
+    build_iteminfo_price_result,
+    is_iteminfo_price_field,
+)
 from cdmm.services.iteminfo_native_parser import (
     _Reader,
     _read_EnchantStatData,
@@ -292,6 +296,8 @@ def build_iteminfo_prefab_result(
     intents: list[Format3Intent],
 ) -> Format3DispatchResult:
     """按字段能力自动分流到窄 writer 或 whole-table writer。"""
+    if intents and all(is_iteminfo_price_field(intent.field) for intent in intents):
+        return build_iteminfo_price_result(context, intents)
     visual_fields = {"prefab_data_list", "gimmick_visual_prefab_data_list"}
     if intents and all(intent.field in visual_fields for intent in intents):
         if any(intent.field == "gimmick_visual_prefab_data_list" for intent in intents):

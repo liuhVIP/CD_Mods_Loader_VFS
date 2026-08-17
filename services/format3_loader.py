@@ -21,6 +21,10 @@ from pathlib import Path
 from cdmm.archive.pamt import derive_pamt_dir
 from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
 from cdmm.services.format3_buffinfo_writer import build_buffinfo_byte_patch_result
+from cdmm.services.format3_array_writer import (
+    build_dyecolorgroupinfo_result,
+    build_npcinfo_result,
+)
 from cdmm.services.format3_capabilities import partition_supported_intents
 from cdmm.services.format3_characterinfo_writer import build_characterinfo_byte_patch_result
 from cdmm.services.format3_dropset_writer import build_dropsetinfo_result
@@ -75,6 +79,8 @@ _FORMAT3_WRITERS: dict[str, Format3Writer] = {
     "skill": build_skill_whole_table_result,
     "stringinfo": build_stringinfo_result,
     "storeinfo": build_storeinfo_result,
+    "dyecolorgroupinfo": build_dyecolorgroupinfo_result,
+    "npcinfo": build_npcinfo_result,
     "statusinfo": build_statusinfo_result,
 }
 

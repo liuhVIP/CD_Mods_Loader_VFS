@@ -3,7 +3,7 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [string]$NeoEyesSample = 'G:\NppMODdown\crimsondesert\NeoEyesSimpleMenuv1.2.7 3215 1 2026-08-08T02-58Z UHbidxlmY\NeoEyesSimpleMenu.asi',
+    [string]$NeoEyesSample = 'G:\NppMODdown\crimsondesert\NeoEyesSimpleMenuv1.4.0 3215 1 2026-08-13T22-27Z XOtFiw9fY\NeoEyesSimpleMenu.asi',
     [string]$GameDir = 'G:\SteamLibrary\steamapps\common\Crimson Desert'
 )
 
@@ -24,17 +24,17 @@ $sourceAsi = Join-Path $buildDirectory "$Configuration\NeoEyesCN.asi"
 $catalogTestExecutable = Join-Path $buildDirectory "$Configuration\NeoEyesCatalogTranslationTest.exe"
 $releaseAsi = Join-Path $releaseDirectory 'NeoEyesCN.asi'
 
-# 当前 NeoEyes Simple Menu 1.2.7 样本哈希，用于阻止误绑其他版本。
-$expectedSampleSha256 = '619FCFA0F54128227DCA152E6E36C2606C6A944DD1CBDB1567E8188CE9C17D80'
+# 当前 NeoEyes Simple Menu 1.4.0 样本哈希，用于阻止误绑其他版本。
+$expectedSampleSha256 = '4D179DA9A5C55B58CFD79B65AE15E2E1FF1E49D49763489269234CDBDEF6CE1E'
 
 # 两处 UTF-8 转换调用的完整代码特征，均明确把代码页设为 65001。
 $expectedUtf8Signatures = @(
-    'C744242800100000448BCB488944242033D2B9E9FD0000FF1581910000',
-    'C74424280010000033D24889442420B9E9FD00004889BC245820000041B9FFFFFFFFFF1575670000'
+    'C744242800100000448BCB488944242033D2B9E9FD0000FF1509AD0000',
+    'C74424280010000033D24889442420B9E9FD00004889BC245820000041B9FFFFFFFFFF153D620000'
 )
 
 # GDI+ 最终文字绘制跳板：JMP [GdipDrawString IAT]，目录缓存文本必须在这里翻译。
-$expectedGdipDrawStringThunkSignature = 'FF25BA310000'
+$expectedGdipDrawStringThunkSignature = 'FF2542250000'
 
 function ConvertTo-CppByteLiteral {
     param([Parameter(Mandatory)][AllowEmptyString()][string]$Value)

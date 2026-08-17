@@ -14,9 +14,10 @@ from cdmm.services.format3_runtime import (
     Format3SkippedIntent,
 )
 from cdmm.services.storeinfo_writer import StoreinfoWriteRefused, build_storeinfo_changes
+from cdmm.services.storeinfo_native_parser import StoreinfoParseError
 
 STOREINFO_SUPPORTED_FIELD_REASON = (
-    "storeinfo 当前仅支持 stock_data_list / _exchangeItemInfoListForSell 字段"
+    "storeinfo 当前支持库存列表、库存计数、raw_c 与贡献购买货币字段"
 )
 
 
@@ -31,7 +32,7 @@ def build_storeinfo_result(
             context.header,
             intents,
         )
-    except StoreinfoWriteRefused as exc:
+    except (StoreinfoWriteRefused, StoreinfoParseError) as exc:
         return Format3DispatchResult(
             changes=(),
             skipped=tuple(

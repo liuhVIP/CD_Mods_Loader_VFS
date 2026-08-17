@@ -3,7 +3,6 @@ dist/
 dist_nuitka/
 
 # 本地敏感/内部资料，不上传 GitHub
-AGENTS.md
 .codex/
 docs/
 !docs/
@@ -25,3 +24,4 @@ nexusmods/
 prototype_output/
 diagnostics/
 output/
+.diagnostics/

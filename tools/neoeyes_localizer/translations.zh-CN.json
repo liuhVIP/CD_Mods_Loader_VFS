@@ -1,159 +1,1170 @@
 [
-  { "original": "Men", "translation": "男", "capacity": 3 },
-  { "original": "Women", "translation": "女", "capacity": 7 },
-  { "original": "Desert (m)", "translation": "沙漠男", "capacity": 11 },
-  { "original": "Desert (f)", "translation": "沙漠女", "capacity": 11 },
-  { "original": "Desert elite", "translation": "沙漠精英", "capacity": 15 },
-  { "original": "Goblins (m)", "translation": "男地精", "capacity": 11 },
-  { "original": "Goblins (f)", "translation": "女地精", "capacity": 11 },
-  { "original": "Tribal", "translation": "部族", "capacity": 7 },
-  { "original": "Trades (m)", "translation": "男商人", "capacity": 11 },
-  { "original": "Trades (f)", "translation": "女商人", "capacity": 11 },
-  { "original": "Monsters", "translation": "怪物", "capacity": 11 },
-  { "original": "Animal", "translation": "动物", "capacity": 7 },
-  { "original": "Animals", "translation": "动物", "capacity": 7 },
-  { "original": "Riding", "translation": "骑乘", "capacity": 7 },
-  { "original": "Mounts", "translation": "坐骑", "capacity": 7 },
-  { "original": "Bosses", "translation": "首领", "capacity": 7 },
-  { "original": "Mid bosses", "translation": "中首领", "capacity": 11 },
-  { "original": "Marionettes", "translation": "人偶", "capacity": 15 },
-  { "original": "Creatures", "translation": "生物", "capacity": 11 },
-  { "original": "Insects", "translation": "昆虫", "capacity": 7 },
-  { "original": "Edit my stats", "translation": "自身属性", "capacity": 15 },
-  { "original": "NPC  >", "translation": "NPC  >", "capacity": 7 },
-  { "original": "Controller", "translation": "控制器", "capacity": 15 },
-  { "original": "No target", "translation": "无目标", "capacity": 15 },
-  { "original": "Close menu", "translation": "关闭菜单", "capacity": 15 },
-  { "original": "Bring companion", "translation": "召唤同伴", "capacity": 15 },
-  { "original": "Search by name", "translation": "按名称搜索", "capacity": 15 },
-  { "original": "Browse by type", "translation": "按类型浏览", "capacity": 15 },
-  { "original": "Edit their stats  >", "translation": "编辑属性  >", "capacity": 23 },
-  { "original": "Make it ALLY   >", "translation": "设为友军   >", "capacity": 23 },
-  { "original": "Make it ENEMY  >", "translation": "设为敌军  >", "capacity": 23 },
-  { "original": "Quick actions  >", "translation": "快捷操作  >", "capacity": 23 },
-  { "original": "Distance", "translation": "距离", "capacity": 11 },
-  { "original": "Count", "translation": "数量", "capacity": 7 },
-  { "original": "(no identity)", "translation": "（无身份）", "capacity": 15 },
-  { "original": "actor manager not found", "translation": "无角色管理器", "capacity": 23 },
-  { "original": "your character not found", "translation": "未找到你的角色", "capacity": 31 },
-  { "original": "no server context: walk around a bit", "translation": "无服务器上下文，请走动一下", "capacity": 39 },
-  { "original": "could not allocate memory", "translation": "无法分配内存", "capacity": 31 },
-  { "original": "spawn descriptor not found (game patched?)", "translation": "未找到生成描述（游戏更新？）", "capacity": 47 },
-  { "original": "spawn disabled: engine moved (see log)", "translation": "生成禁用：引擎变动，见日志", "capacity": 39 },
-  { "original": "no catalog entry for %.30s", "translation": "目录中没有%.30s", "capacity": 31 },
-  { "original": "could not spawn %.30s", "translation": "无法生成%.30s", "capacity": 23 },
-  { "original": "%.28s spawned but I cannot find it", "translation": "%.28s已生成但找不到", "capacity": 39 },
-  { "original": "engine cannot find it", "translation": "引擎找不到目标", "capacity": 23 },
-  { "original": "engine refuses to hire this one", "translation": "引擎拒绝招募该目标", "capacity": 31 },
-  { "original": "invalid mercenary category", "translation": "佣兵分类无效", "capacity": 31 },
-  { "original": "invalid mercenary data", "translation": "佣兵数据无效", "capacity": 23 },
-  { "original": "missing character data", "translation": "缺少角色数据", "capacity": 23 },
-  { "original": "error", "translation": "错误", "capacity": 7 },
-  { "original": "%.30s IS YOURS (handle 0x%X)", "translation": "%.30s归你（句柄0x%X）", "capacity": 31 },
-  { "original": "spawned x%d: %.40s", "translation": "已生成x%d：%.40s", "capacity": 23 },
-  { "original": "spawned x0: %.30s (sin motivo)", "translation": "生成x0：%.30s（无原因）", "capacity": 31 },
-  { "original": "Attack", "translation": "攻击", "capacity": 11 },
-  { "original": "Defense", "translation": "防御", "capacity": 7 },
-  { "original": "DefenseRate", "translation": "防御率", "capacity": 15 },
-  { "original": "CritDamage", "translation": "暴伤", "capacity": 15 },
-  { "original": "CritRate", "translation": "暴击率", "capacity": 15 },
-  { "original": "DamageTaken", "translation": "承伤", "capacity": 15 },
-  { "original": "AttackSpeed", "translation": "攻速", "capacity": 15 },
-  { "original": "MoveSpeed", "translation": "移速", "capacity": 15 },
-  { "original": "target: handle 0x%X", "translation": "目标：句柄0x%X", "capacity": 23 },
-  { "original": "combat #%u", "translation": "战斗 #%u", "capacity": 15 },
-  { "original": "both sides", "translation": "双方", "capacity": 15 },
-  { "original": "SERVER ONLY - may do nothing", "translation": "仅服务器，可能无效", "capacity": 31 },
-  { "original": "could not write", "translation": "无法写入", "capacity": 15 },
-  { "original": "pick a target first", "translation": "请先选择目标", "capacity": 23 },
-  { "original": "Demoralize: this game build has no Morale stat", "translation": "士气削弱：当前游戏没有士气属性", "capacity": 47 },
-  { "original": "everyone (the game decides)", "translation": "所有人（由游戏决定）", "capacity": 31 },
-  { "original": "nothing selected", "translation": "未选择", "capacity": 23 },
-  { "original": "no catalog row for this one", "translation": "目录中没有该目标", "capacity": 31 },
-  { "original": "fire descriptor not found (game patched?)", "translation": "未找到解雇描述（游戏更新？）", "capacity": 47 },
-  { "original": "the call never ran", "translation": "调用未执行", "capacity": 23 },
-  { "original": "%.24s: the game refused to release it", "translation": "%.24s：游戏拒绝解雇", "capacity": 39 },
-  { "original": "%.24s DISMISSED - slot free (%d left)", "translation": "%.24s已解雇（剩%d空位）", "capacity": 39 },
-  { "original": "Companion", "translation": "同伴", "capacity": 15 },
-  { "original": "Make it ALLY - pick one", "translation": "设友军-请选择", "capacity": 23 },
-  { "original": "Make it ENEMY - pick one", "translation": "设为敌军 - 请选择", "capacity": 31 },
-  { "original": "Quick actions - pick one", "translation": "快捷操作 - 请选择", "capacity": 31 },
-  { "original": "Edit stats - pick one", "translation": "改属性-请选择", "capacity": 23 },
-  { "original": "%s  [%d/%d]   newest on top   5 select  0 back", "translation": "%s [%d/%d] 新生成在上 5选择 0返回", "capacity": 47 },
-  { "original": "%.30s  owner 0x%X  [%d/%d]   5 apply  0 back", "translation": "%.30s 主人0x%X [%d/%d] 5应用 0返回", "capacity": 47 },
-  { "original": "My companions - %d hired  [%d/%d]   5 enter  0 back", "translation": "我的同伴-%d名 [%d/%d] 5进入 0返回", "capacity": 55 },
-  { "original": "%.26s  #%u  %.14s   5 apply  0 back", "translation": "%.26s #%u %.14s 5应用 0返回", "capacity": 39 },
-  { "original": "Bring companion - %d hireable in %d types  [%d/%d]  5 enter  0 back", "translation": "召唤同伴-%d名/%d类 [%d/%d] 5进入 0返回", "capacity": 71 },
-  { "original": "NEO EYES / NPC  [%d/%d]   8/2 move  5 enter  0 back  7 close", "translation": "NEO EYES/NPC b站up改名_汉化 v1.3 [%d/%d]", "capacity": 63 },
-  { "original": "NEO EYES  [%d/%d]   8/2 move  5 enter  0 back  7 close", "translation": "NEO EYES [%d/%d] 8/2移 5进 0返 7关", "capacity": 55 },
-  { "original": "%s  [%d/%d]   8/2 move  5 enter  0 back  7 close", "translation": "%s [%d/%d] 8/2移 5进 0返 7关", "capacity": 55 },
-  { "original": "(gone)", "translation": "消失", "capacity": 7 },
-  { "original": "in world", "translation": "在世界中", "capacity": 15 },
-  { "original": "My companions  >", "translation": "我的同伴  >", "capacity": 23 },
-  { "original": "ON", "translation": "开", "capacity": 3 },
-  { "original": "OFF", "translation": "关", "capacity": 7 },
-  { "original": "%-22s %s   (L3+R3 opens)", "translation": "%-22s %s（L3+R3打开）", "capacity": 31 },
-  { "original": "%-22s %s   (enemies stop focusing you)", "translation": "%-22s %s（敌人停止锁定你）", "capacity": 39 },
-  { "original": "|  (empty)", "translation": "|（空）", "capacity": 11 },
-  { "original": "distance %d m", "translation": "距离%d米", "capacity": 15 },
-  { "original": "count %d", "translation": "数量%d", "capacity": 15 },
-  { "original": "your stats not found", "translation": "未找到你的属性", "capacity": 23 },
-  { "original": "NO TARGET on - they still fight each other", "translation": "无目标开启 - 彼此仍会战斗", "capacity": 47 },
-  { "original": "NO TARGET off", "translation": "无目标关闭", "capacity": 15 },
-  { "original": "controller ON - L3+R3 opens the menu", "translation": "控制器开启 - L3+R3打开菜单", "capacity": 39 },
-  { "original": "controller OFF - the game gets all pad input", "translation": "手柄关闭-游戏接收输入", "capacity": 47 },
-  { "original": "cannot read catalog: load into the world first", "translation": "无法读取目录：请先进入世界", "capacity": 47 },
-  { "original": "no actors around", "translation": "周围没有角色", "capacity": 23 },
-  { "original": "no companions hired (or not loaded into the world yet)", "translation": "未招募同伴（或尚未进入世界）", "capacity": 55 },
-  { "original": "stats not found", "translation": "未找到属性", "capacity": 15, "occurrences": 2 },
-  { "original": "that one is gone", "translation": "目标已消失", "capacity": 23 },
-  { "original": "now ALLY (both sides)", "translation": "现为友军(双方)", "capacity": 23 },
-  { "original": "now ENEMY (both sides)", "translation": "现为敌军(双方)", "capacity": 23 },
-  { "original": "only one side written", "translation": "仅写入一方", "capacity": 23 },
-  { "original": "could not write faction", "translation": "无法写入阵营", "capacity": 23 },
-  { "original": "Faction Wars  >", "translation": "阵营战  >", "capacity": 15 },
-  { "original": "Spawn a random  >", "translation": "随机生成  >", "capacity": 23 },
-  { "original": "  A fighters", "translation": "  A方战士", "capacity": 15 },
-  { "original": "  B fighters", "translation": "  B方战士", "capacity": 15 },
-  { "original": "Battles", "translation": "战斗", "capacity": 7 },
-  { "original": "Squad size", "translation": "队伍规模", "capacity": 15 },
-  { "original": "Every", "translation": "每隔", "capacity": 11 },
-  { "original": "Max fighters alive", "translation": "最大在场人数", "capacity": 23 },
-  { "original": "You are", "translation": "你是", "capacity": 7 },
-  { "original": "FIGHT NOW", "translation": "立即开战", "capacity": 15 },
-  { "original": "Clear the field", "translation": "清空战场", "capacity": 15 },
-  { "original": "Summon into the world", "translation": "召唤到世界", "capacity": 23 },
-  { "original": "Neutral (just watch)", "translation": "中立（旁观）", "capacity": 23 },
-  { "original": "With side A", "translation": "加入A方", "capacity": 15 },
-  { "original": "With side B", "translation": "加入B方", "capacity": 15 },
-  { "original": "Spawn a random one - %d at a time, %d m   5 spawn  0 back", "translation": "随机生成-%d个/次，%d米 5生成 0返回", "capacity": 63 },
-  { "original": "- RUNNING", "translation": "- 运行中", "capacity": 15 },
-  { "original": "Faction Wars %s  %.30s   5 change  0 back", "translation": "阵营战 %s %.30s 5更改 0返回", "capacity": 47 },
-  { "original": "Random %s", "translation": "随机 %s", "capacity": 11 },
-  { "original": "%-22s %d min", "translation": "%-22s %d分钟", "capacity": 15 },
-  { "original": "%-22s %d m", "translation": "%-22s %d米", "capacity": 15 },
-  { "original": "%-22s %d v %d", "translation": "%-22s %d 对 %d", "capacity": 15 },
-  { "original": "* Random *", "translation": "* 随机 *", "capacity": 15 },
-  { "original": "%-22s %d   (%d out now)", "translation": "%-22s %d（当前%d）", "capacity": 23 },
-  { "original": "%-28s (needs a body: Summon it first)", "translation": "%-28s（需先召唤实体）", "capacity": 39 },
-  { "original": "%.11s %.9s vs %.11s %.9s", "translation": "%.11s %.9s 对 %.11s %.9s", "capacity": 39 },
-  { "original": "%.18s summoned (handle 0x%X, %d parts) - cat 4 is naked", "translation": "%.18s已召唤(0x%X,%d件)，分类4无装", "capacity": 55 },
-  { "original": "%.20s: spawn sent but no actor appeared", "translation": "%.20s：已发送但角色未出现", "capacity": 39 },
-  { "original": "%d random %s spawned (last: %.24s)", "translation": "生成%d个随机%s（末：%.24s）", "capacity": 39 },
-  { "original": "cannot hire after a game update - not spawning %.20s (see log)", "translation": "游戏更新后无法招募，未生成%.20s（见日志）", "capacity": 63 },
-  { "original": "could not read the character key", "translation": "无法读取角色键", "capacity": 39 },
-  { "original": "could not summon %.24s", "translation": "无法召唤%.24s", "capacity": 23 },
-  { "original": "cannot start: %.60s", "translation": "无法开始：%.60s", "capacity": 23 },
-  { "original": "battles OFF - the ones already out stay", "translation": "战斗关闭，已出现者保留", "capacity": 39 },
-  { "original": "battles ON - first one within a minute", "translation": "战斗开启，1分钟内开始", "capacity": 39 },
-  { "original": "counter cleared - the ones out there stay", "translation": "计数已清，已出现者保留", "capacity": 47 },
-  { "original": "no body yet: use \"Summon into the world\" first", "translation": "无实体：先用“召唤到世界”", "capacity": 47 },
-  { "original": "no category-3 character has \"%s\" in its name", "translation": "分类3没有名称含“%s”的角色", "capacity": 47 },
-  { "original": "no fighters showed up", "translation": "没有战士出现", "capacity": 23 },
-  { "original": "no server context yet: walk around a few steps and try again", "translation": "尚无服务器上下文，请走动几步后重试", "capacity": 63 },
-  { "original": "no server context: walk around a few steps and try again", "translation": "无服务器上下文，请走动几步后重试", "capacity": 63 },
-  { "original": "only %d fighters showed up (%d vs %d)", "translation": "仅出现%d人（%d对%d）", "capacity": 39 },
-  { "original": "the fighters are not spawnable any more (category %d)", "translation": "战士已不可生成（分类%d）", "capacity": 55 },
-  { "original": "the game update renamed the factions: Bandit=%d Graymane=%d", "translation": "游戏更新重命名阵营：盗贼=%d 灰鬃=%d", "capacity": 63 },
-  { "original": "NEO EYES online - NUMPAD 9 opens the menu  (controller: enable it inside)", "translation": "NEO EYES - b站up 改名_汉化 - 小键盘9开菜单", "capacity": 79 }
+  {
+    "original": "Men",
+    "translation": "男",
+    "capacity": 3,
+    "occurrences": 1
+  },
+  {
+    "original": "Women",
+    "translation": "女",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "Desert (m)",
+    "translation": "沙漠男",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "Desert (f)",
+    "translation": "沙漠女",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "Desert elite",
+    "translation": "沙漠精英",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Goblins (m)",
+    "translation": "男地精",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "Goblins (f)",
+    "translation": "女地精",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "Tribal",
+    "translation": "部族",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "Trades (m)",
+    "translation": "男商人",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "Trades (f)",
+    "translation": "女商人",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "Monsters",
+    "translation": "怪物",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "Animal",
+    "translation": "动物",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "Animals",
+    "translation": "动物",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "Riding",
+    "translation": "骑乘",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "Mounts",
+    "translation": "坐骑",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "Bosses",
+    "translation": "首领",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "Mid bosses",
+    "translation": "中首领",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "Marionettes",
+    "translation": "人偶",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Creatures",
+    "translation": "生物",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "Insects",
+    "translation": "昆虫",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "Edit my stats",
+    "translation": "自身属性",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "NPC  >",
+    "translation": "NPC  >",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "Controller",
+    "translation": "控制器",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "No target",
+    "translation": "无目标",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Close menu",
+    "translation": "关闭菜单",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Bring companion",
+    "translation": "召唤同伴",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Search by name",
+    "translation": "按名称搜索",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Browse by type",
+    "translation": "按类型浏览",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Edit their stats  >",
+    "translation": "编辑属性  >",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "Make it ALLY   >",
+    "translation": "设为友军   >",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "Make it ENEMY  >",
+    "translation": "设为敌军  >",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "Quick actions  >",
+    "translation": "快捷操作  >",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "Distance",
+    "translation": "距离",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "Count",
+    "translation": "数量",
+    "capacity": 6,
+    "occurrences": 2
+  },
+  {
+    "original": "(no identity)",
+    "translation": "（无身份）",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "actor manager not found",
+    "translation": "无角色管理器",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "your character not found",
+    "translation": "未找到你的角色",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "no server context: walk around a bit",
+    "translation": "无服务器上下文，请走动一下",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "could not allocate memory",
+    "translation": "无法分配内存",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "spawn descriptor not found (game patched?)",
+    "translation": "未找到生成描述（游戏更新？）",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "spawn disabled: engine moved (see log)",
+    "translation": "生成禁用：引擎变动，见日志",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "no catalog entry for %.30s",
+    "translation": "目录中没有%.30s",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "could not spawn %.30s",
+    "translation": "无法生成%.30s",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "%.28s spawned but I cannot find it",
+    "translation": "%.28s已生成但找不到",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "engine cannot find it",
+    "translation": "引擎找不到目标",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "engine refuses to hire this one",
+    "translation": "引擎拒绝招募该目标",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "invalid mercenary category",
+    "translation": "佣兵分类无效",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "invalid mercenary data",
+    "translation": "佣兵数据无效",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "missing character data",
+    "translation": "缺少角色数据",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "error",
+    "translation": "错误",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "%.30s IS YOURS (handle 0x%X)",
+    "translation": "%.30s归你（句柄0x%X）",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "spawned x%d: %.40s",
+    "translation": "已生成x%d：%.40s",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "spawned x0: %.30s (sin motivo)",
+    "translation": "生成x0：%.30s（无原因）",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "Attack",
+    "translation": "攻击",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "Defense",
+    "translation": "防御",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "DefenseRate",
+    "translation": "防御率",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "CritDamage",
+    "translation": "暴伤",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "CritRate",
+    "translation": "暴击率",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "DamageTaken",
+    "translation": "承伤",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "AttackSpeed",
+    "translation": "攻速",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "MoveSpeed",
+    "translation": "移速",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "target: handle 0x%X",
+    "translation": "目标：句柄0x%X",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "combat #%u",
+    "translation": "战斗 #%u",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "both sides",
+    "translation": "双方",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "SERVER ONLY - may do nothing",
+    "translation": "仅服务器，可能无效",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "could not write",
+    "translation": "无法写入",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "pick a target first",
+    "translation": "请先选择目标",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "Demoralize: this game build has no Morale stat",
+    "translation": "士气削弱：当前游戏没有士气属性",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "everyone (the game decides)",
+    "translation": "所有人（由游戏决定）",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "nothing selected",
+    "translation": "未选择",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "no catalog row for this one",
+    "translation": "目录中没有该目标",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "fire descriptor not found (game patched?)",
+    "translation": "未找到解雇描述（游戏更新？）",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "the call never ran",
+    "translation": "调用未执行",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "%.24s: the game refused to release it",
+    "translation": "%.24s：游戏拒绝解雇",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "%.24s DISMISSED - slot free (%d left)",
+    "translation": "%.24s已解雇（剩%d空位）",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "Companion",
+    "translation": "同伴",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Make it ALLY - pick one",
+    "translation": "设友军-请选择",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "Make it ENEMY - pick one",
+    "translation": "设为敌军 - 请选择",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "Quick actions - pick one",
+    "translation": "快捷操作 - 请选择",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "Edit stats - pick one",
+    "translation": "改属性-请选择",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "%s  [%d/%d]   newest on top   5 select  0 back",
+    "translation": "%s [%d/%d] 新生成在上 5选择 0返回",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "%.30s  owner 0x%X  [%d/%d]   5 apply  0 back",
+    "translation": "%.30s 主人0x%X [%d/%d] 5应用 0返回",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "My companions - %d hired  [%d/%d]   5 enter  0 back",
+    "translation": "我的同伴-%d名 [%d/%d] 5进入 0返回",
+    "capacity": 55,
+    "occurrences": 1
+  },
+  {
+    "original": "%.26s  #%u  %.14s   5 apply  0 back",
+    "translation": "%.26s #%u %.14s 5应用 0返回",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "NEO EYES / NPC  [%d/%d]   8/2 move  5 enter  0 back  7 close",
+    "translation": "NEO EYES/NPC b站up改名_汉化 v1.4 [%d/%d]",
+    "capacity": 63,
+    "occurrences": 1
+  },
+  {
+    "original": "NEO EYES  [%d/%d]   8/2 move  5 enter  0 back  7 close",
+    "translation": "NEO EYES [%d/%d] 8/2移 5进 0返 7关",
+    "capacity": 55,
+    "occurrences": 1
+  },
+  {
+    "original": "%s  [%d/%d]   8/2 move  5 enter  0 back  7 close",
+    "translation": "%s [%d/%d] 8/2移 5进 0返 7关",
+    "capacity": 55,
+    "occurrences": 1
+  },
+  {
+    "original": "(gone)",
+    "translation": "消失",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "in world",
+    "translation": "在世界中",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "My companions  >",
+    "translation": "我的同伴  >",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "ON",
+    "translation": "开",
+    "capacity": 3,
+    "occurrences": 2
+  },
+  {
+    "original": "OFF",
+    "translation": "关",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "%-22s %s   (L3+R3 opens)",
+    "translation": "%-22s %s（L3+R3打开）",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "%-22s %s   (enemies stop focusing you)",
+    "translation": "%-22s %s（敌人停止锁定你）",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "|  (empty)",
+    "translation": "|（空）",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "distance %d m",
+    "translation": "距离%d米",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "count %d",
+    "translation": "数量%d",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "your stats not found",
+    "translation": "未找到你的属性",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "NO TARGET on - they still fight each other",
+    "translation": "无目标开启 - 彼此仍会战斗",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "NO TARGET off",
+    "translation": "无目标关闭",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "controller ON - L3+R3 opens the menu",
+    "translation": "控制器开启 - L3+R3打开菜单",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "controller OFF - the game gets all pad input",
+    "translation": "手柄关闭-游戏接收输入",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "cannot read catalog: load into the world first",
+    "translation": "无法读取目录：请先进入世界",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "no actors around",
+    "translation": "周围没有角色",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "no companions hired (or not loaded into the world yet)",
+    "translation": "未招募同伴（或尚未进入世界）",
+    "capacity": 55,
+    "occurrences": 1
+  },
+  {
+    "original": "that one is gone",
+    "translation": "目标已消失",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "now ALLY (both sides)",
+    "translation": "现为友军(双方)",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "now ENEMY (both sides)",
+    "translation": "现为敌军(双方)",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "only one side written",
+    "translation": "仅写入一方",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "could not write faction",
+    "translation": "无法写入阵营",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "Faction Wars  >",
+    "translation": "阵营战  >",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Spawn a random  >",
+    "translation": "随机生成  >",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "  A fighters",
+    "translation": "  A方战士",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "  B fighters",
+    "translation": "  B方战士",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Battles",
+    "translation": "战斗",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "Squad size",
+    "translation": "队伍规模",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Every",
+    "translation": "每隔",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "Max fighters alive",
+    "translation": "最大在场人数",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "You are",
+    "translation": "你是",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "FIGHT NOW",
+    "translation": "立即开战",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Clear the field",
+    "translation": "清空战场",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Summon into the world",
+    "translation": "召唤到世界",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "Neutral (just watch)",
+    "translation": "中立（旁观）",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "With side A",
+    "translation": "加入A方",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "With side B",
+    "translation": "加入B方",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Spawn a random one - %d at a time, %d m   5 spawn  0 back",
+    "translation": "随机生成-%d个/次，%d米 5生成 0返回",
+    "capacity": 63,
+    "occurrences": 1
+  },
+  {
+    "original": "- RUNNING",
+    "translation": "- 运行中",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Faction Wars %s  %.30s   5 change  0 back",
+    "translation": "阵营战 %s %.30s 5更改 0返回",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "Random %s",
+    "translation": "随机 %s",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "%-22s %d min",
+    "translation": "%-22s %d分钟",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "%-22s %d m",
+    "translation": "%-22s %d米",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "%-22s %d v %d",
+    "translation": "%-22s %d 对 %d",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "* Random *",
+    "translation": "* 随机 *",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "%-22s %d   (%d out now)",
+    "translation": "%-22s %d（当前%d）",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "%-28s (needs a body: Summon it first)",
+    "translation": "%-28s（需先召唤实体）",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "%.11s %.9s vs %.11s %.9s",
+    "translation": "%.11s %.9s 对 %.11s %.9s",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "%.20s: spawn sent but no actor appeared",
+    "translation": "%.20s：已发送但角色未出现",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "%d random %s spawned (last: %.24s)",
+    "translation": "生成%d个随机%s（末：%.24s）",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "cannot hire after a game update - not spawning %.20s (see log)",
+    "translation": "游戏更新后无法招募，未生成%.20s（见日志）",
+    "capacity": 63,
+    "occurrences": 1
+  },
+  {
+    "original": "could not read the character key",
+    "translation": "无法读取角色键",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "could not summon %.24s",
+    "translation": "无法召唤%.24s",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "cannot start: %.60s",
+    "translation": "无法开始：%.60s",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "battles OFF - the ones already out stay",
+    "translation": "战斗关闭，已出现者保留",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "battles ON - first one within a minute",
+    "translation": "战斗开启，1分钟内开始",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "counter cleared - the ones out there stay",
+    "translation": "计数已清，已出现者保留",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "no body yet: use \"Summon into the world\" first",
+    "translation": "无实体：先用“召唤到世界”",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "no category-3 character has \"%s\" in its name",
+    "translation": "分类3没有名称含“%s”的角色",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "no fighters showed up",
+    "translation": "没有战士出现",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "no server context yet: walk around a few steps and try again",
+    "translation": "尚无服务器上下文，请走动几步后重试",
+    "capacity": 63,
+    "occurrences": 1
+  },
+  {
+    "original": "no server context: walk around a few steps and try again",
+    "translation": "无服务器上下文，请走动几步后重试",
+    "capacity": 63,
+    "occurrences": 1
+  },
+  {
+    "original": "only %d fighters showed up (%d vs %d)",
+    "translation": "仅出现%d人（%d对%d）",
+    "capacity": 39,
+    "occurrences": 1
+  },
+  {
+    "original": "the fighters are not spawnable any more (category %d)",
+    "translation": "战士已不可生成（分类%d）",
+    "capacity": 55,
+    "occurrences": 1
+  },
+  {
+    "original": "the game update renamed the factions: Bandit=%d Graymane=%d",
+    "translation": "游戏更新重命名阵营：盗贼=%d 灰鬃=%d",
+    "capacity": 63,
+    "occurrences": 1
+  },
+  {
+    "original": "NEO EYES online - NUMPAD 9 opens the menu  (controller: enable it inside)",
+    "translation": "NEO EYES - b站up 改名_汉化 - 小键盘9开菜单",
+    "capacity": 79,
+    "occurrences": 1
+  },
+  {
+    "original": "Spawn as follower",
+    "translation": "召唤为随从",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "Follower equipment  >",
+    "translation": "随从装备  >",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "Equipment  >",
+    "translation": "装备  >",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Dismiss (free the slot)",
+    "translation": "解雇（释放槽）",
+    "capacity": 23
+  },
+  {
+    "original": "Edit stats",
+    "translation": "编辑属性",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Fill every slot from my bags",
+    "translation": "用背包填满全部栏位",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "Random gear from my bags",
+    "translation": "从背包随机装备",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "Random gear from the whole game",
+    "translation": "全游戏随机装备",
+    "capacity": 31,
+    "occurrences": 1
+  },
+  {
+    "original": "Apply saved preset",
+    "translation": "应用已存搭配",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "Take everything off",
+    "translation": "卸下全部",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "Take this off",
+    "translation": "卸下该件",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "Check which really fit (slow)",
+    "translation": "检查真正匹配（较慢）",
+    "capacity": 31
+  },
+  {
+    "original": "all yours (not checked)",
+    "translation": "全部（未检查）",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "(empty)",
+    "translation": "空",
+    "capacity": 7,
+    "occurrences": 2
+  },
+  {
+    "original": "working...",
+    "translation": "处理中...",
+    "capacity": 17,
+    "occurrences": 1
+  },
+  {
+    "original": "done",
+    "translation": "完成",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "COMPANION",
+    "translation": "随从",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "companion - recruit as %s (3 to change)  %d hireable  [%d/%d]  5 enter  0 back",
+    "translation": "随从-以%s招募(3切换) %d可招 [%d/%d] 5进入 0返回",
+    "capacity": 81,
+    "occurrences": 1
+  },
+  {
+    "original": "Equipment - %.18s  #%u   %d worn   [%d/%d]  %s5 enter  0 back",
+    "translation": "装备-%.18s #%u 已穿%d [%d/%d] %s5进入 0返回",
+    "capacity": 63,
+    "occurrences": 1
+  },
+  {
+    "original": "Favorites (%d)   5 spawn  1 remove  0 back",
+    "translation": "收藏(%d) 5生成 1移除 0返回",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "Slot %u %s - now: %.20s   %s   5 put on  0 back",
+    "translation": "栏位%u %s-当前:%.20s %s 5穿戴 0返回",
+    "capacity": 47,
+    "occurrences": 1
+  },
+  {
+    "original": "%d saved",
+    "translation": "%d已保存",
+    "capacity": 14,
+    "occurrences": 1
+  },
+  {
+    "original": "saved",
+    "translation": "已保存",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "party list is full (%u/%u) - unsummon someone first",
+    "translation": "队伍已满(%u/%u)-请先取消召唤",
+    "capacity": 55,
+    "occurrences": 1
+  },
+  {
+    "original": "favorites are full (%d)",
+    "translation": "收藏已满(%d)",
+    "capacity": 23,
+    "occurrences": 1
+  },
+  {
+    "original": "following you (borrowed %.14s)",
+    "translation": "跟随中(借用%.14s)",
+    "capacity": 30,
+    "occurrences": 1
+  },
+  {
+    "original": "follower is out: summon one first",
+    "translation": "随从已外出：请先召唤",
+    "capacity": 36,
+    "occurrences": 1
+  },
+  {
+    "original": "follow you",
+    "translation": "跟随你",
+    "capacity": 15,
+    "occurrences": 1
+  },
+  {
+    "original": "saved as this NPC preset",
+    "translation": "已存为此NPC搭配",
+    "capacity": 24,
+    "occurrences": 1
+  },
+  {
+    "original": "head",
+    "translation": "头",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "face",
+    "translation": "面",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "hands",
+    "translation": "手",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "feet",
+    "translation": "脚",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "torso",
+    "translation": "躯干",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "neck",
+    "translation": "颈",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "ring",
+    "translation": "戒指",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "ranged",
+    "translation": "远程",
+    "capacity": 11,
+    "occurrences": 1
+  },
+  {
+    "original": "2-hand",
+    "translation": "双手",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "1-hand",
+    "translation": "单手",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "shield",
+    "translation": "盾牌",
+    "capacity": 7,
+    "occurrences": 1
+  },
+  {
+    "original": "light",
+    "translation": "灯笼",
+    "capacity": 7,
+    "occurrences": 1
+  }
 ]

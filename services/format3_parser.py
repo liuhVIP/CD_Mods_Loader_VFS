@@ -151,8 +151,7 @@ def _parse_intents(raw_intents: object, label: str) -> tuple[Format3Intent, ...]
         else:
             entry = _require_entry(raw_intent.get("entry"), f"{label}[{index}].entry")
         field = _require_str(raw_intent.get("field"), f"{label}[{index}].field")
-        if "new" not in raw_intent:
-            raise ValueError(f"{label}[{index}] 缺少 new")
+        value = _read_intent_value(raw_intent, f"{label}[{index}]")
         raw_key = raw_intent.get("key", 0)
         if isinstance(raw_key, bool) or not isinstance(raw_key, int):
             raise ValueError(f"{label}[{index}].key 必须是整数")
@@ -165,12 +164,27 @@ def _parse_intents(raw_intents: object, label: str) -> tuple[Format3Intent, ...]
                 key=raw_key,
                 field=field,
                 op=str(raw_intent.get("op", FORMAT3_DEFAULT_OP)),
-                new=raw_intent["new"],
+                new=value,
                 old=raw_old,
                 match=match_spec,
             )
         )
     return tuple(intents)
+
+
+def _read_intent_value(raw_intent: dict[str, Any], label: str) -> Any:
+    """读取 intent 的新值。
+
+    DMM/Mod Workbench 的 Field JSON v3 导出中，`set` 用 `new` 携带整段新值，
+    `array_append` 等列表追加操作则用 `value` 携带单条待追加元素。这里把
+    `value` 作为 `new` 的别名统一到 `Format3Intent.new`，避免同一字段两种命名
+    在各 writer 里重复维护。两者都存在时以 `new` 优先。
+    """
+    if "new" in raw_intent:
+        return raw_intent["new"]
+    if "value" in raw_intent:
+        return raw_intent["value"]
+    raise ValueError(f"{label} 缺少 new/value")
 
 
 def _parse_new_record_intent(raw_intent: dict[str, Any], label: str) -> Format3Intent:

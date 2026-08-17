@@ -76,6 +76,15 @@ _ITEMINFO_CAPABILITY = Format3TableCapability(
         ),
         Format3FieldRule(
             pattern=re.compile(
+                r"^(price_list\[\d+]\."
+                r"(key|price\.(price|item_info_wrapper))|"
+                r"enchant_data_list\[\d+]\.buy_price_list\[\d+]\."
+                r"(key|price\.(price|item_info_wrapper)))$"
+            ),
+            reason_when_miss="iteminfo 当前仅支持已验证的基础价格和强化购买价格字段",
+        ),
+        Format3FieldRule(
+            pattern=re.compile(
                 "^("
                 + "|".join(
                     re.escape(field)
@@ -230,9 +239,37 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
         table_name="storeinfo",
         field_rules=(
             Format3FieldRule(
-                pattern=re.compile(r"^(stock_data_list|_exchangeItemInfoListForSell)$"),
+                pattern=re.compile(
+                    r"^(stock_data_list|_exchangeItemInfoListForSell|"
+                    r"buyable_stock_count|sellable_stock_count|exchange_item_info_for_buy|"
+                    r"stock_data_list\[\d+\]\.raw_c)$"
+                ),
                 reason_when_miss=(
-                    "storeinfo 当前仅支持 stock_data_list / _exchangeItemInfoListForSell 字段"
+                    "storeinfo 当前支持库存列表、库存计数、raw_c 与贡献购买货币字段"
+                ),
+            ),
+        ),
+        supports_whole_table=False,
+    ),
+    "dyecolorgroupinfo": Format3TableCapability(
+        table_name="dyecolorgroupinfo",
+        field_rules=(
+            Format3FieldRule(
+                pattern=re.compile(r"^dye_color_data_list$"),
+                reason_when_miss=(
+                    "dyecolorgroupinfo 当前仅支持 dye_color_data_list array_append"
+                ),
+            ),
+        ),
+        supports_whole_table=False,
+    ),
+    "npcinfo": Format3TableCapability(
+        table_name="npcinfo",
+        field_rules=(
+            Format3FieldRule(
+                pattern=re.compile(r"^dye_color_group_data_list$"),
+                reason_when_miss=(
+                    "npcinfo 当前仅支持 dye_color_group_data_list array_append"
                 ),
             ),
         ),

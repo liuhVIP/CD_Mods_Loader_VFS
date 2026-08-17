@@ -90,8 +90,9 @@ GAME_EXECUTABLE_RELATIVE_PATH = Path("bin64") / "CrimsonDesert.exe"
 # VFS 状态中保存游戏主程序最后修改时间的字段名。
 GAME_EXECUTABLE_MTIME_STATE_KEY = "game_executable_mtime_ns"
 
-# VFS 状态结构版本。v9 强制重建曾以未加密形式打包的 PAC_XML 资源。
-VFS_STATE_SCHEMA = 10
+# VFS 状态结构版本。v13 强制重建仍携带旧导出数量/价格字段的 StoreInfo
+# 产物；新商品只允许替换商店 key 与 item key。
+VFS_STATE_SCHEMA = 13
 
 # 活动快照物化模式写入状态，确保旧复制快照只冷构建一次后切换到硬链接。
 VFS_MATERIALIZATION_MODE = "hardlink"

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -29,7 +30,9 @@ CDMOD_PLAN_VALID = "VALID"
 CDMOD_PLAN_REJECTED = "REJECTED"
 
 # 构建计划schema，参与整体哈希，结构变化时必须提升。
-CDMOD_BUILD_PLAN_SCHEMA = 1
+CDMOD_BUILD_PLAN_SCHEMA = 2
+
+_STORE_STOCK_RAW_C_PATH = re.compile(r"^stock_data_list\[\d+]\.raw_c$")
 
 
 @dataclass(frozen=True)
@@ -159,7 +162,7 @@ def _merge_packages(
 ) -> tuple[list[CdmodTargetPlan], list[str], list[str]]:
     """按包顺序合并所有坐标相同的操作。"""
     merged: dict[tuple[str, str, str], CdmodPlannedOperation] = {}
-    record_paths: dict[tuple[str, str], set[str]] = {}
+    record_paths: dict[tuple[str, str], list[tuple[str, str, int, str]]] = {}
     resolutions: list[str] = []
     errors: list[str] = []
     for package in packages:
@@ -169,13 +172,33 @@ def _merge_packages(
                 errors.append(f"{package.mod_id}#{operation.index}: 选择器未解析为稳定记录")
                 continue
             record_key = (operation.target, selector_identity)
-            for existing_path in record_paths.setdefault(record_key, set()):
-                if _paths_structurally_overlap(existing_path, operation.path):
+            seen_paths = record_paths.setdefault(record_key, [])
+            for existing_path, source_id, source_index, source_op in seen_paths:
+                if (
+                    _paths_structurally_overlap(existing_path, operation.path)
+                    and not _is_ordered_store_stock_refinement(
+                        existing_path=existing_path,
+                        incoming_path=operation.path,
+                        source_id=source_id,
+                        incoming_id=package.mod_id,
+                        source_index=source_index,
+                        incoming_index=operation.index,
+                        source_op=source_op,
+                        incoming_op=operation.op,
+                    )
+                ):
                     errors.append(
                         f"{package.mod_id}#{operation.index}: {operation.target} {selector_identity} "
                         f"字段 {existing_path} 与 {operation.path} 存在父子覆盖"
                     )
-            record_paths[record_key].add(operation.path)
+            seen_paths.append(
+                (
+                    operation.path,
+                    package.mod_id,
+                    operation.index,
+                    operation.op,
+                )
+            )
             coordinate = (*record_key, operation.path)
             incoming = _planned_from_operation(package, operation)
             existing = merged.get(coordinate)
@@ -214,6 +237,19 @@ def _merge_same_coordinate(
     """按加载顺序合并同一字段坐标的操作。"""
     sources = (*existing.sources, *incoming.sources)
     coordinate = f"{existing.target} {_selector_text(existing.selector)} {existing.path}"
+    if existing.op == incoming.op == "array_append":
+        return (
+            CdmodPlannedOperation(
+                target=existing.target,
+                selector=existing.selector,
+                path=existing.path,
+                op="array_append",
+                payload=[*existing.payload, *incoming.payload],
+                sources=sources,
+            ),
+            None,
+            None,
+        )
     if existing.op == incoming.op == "list_union":
         payload = _stable_union(existing.payload, incoming.payload)
         return (
@@ -293,7 +329,7 @@ def _planned_from_operation(package: CdmodPackage, operation: CdmodOperation) ->
         selector=operation.selector,
         path=operation.path,
         op=operation.op,
-        payload=operation.payload,
+        payload=[operation.payload] if operation.op == "array_append" else operation.payload,
         sources=(package.mod_id,),
     )
 
@@ -314,6 +350,29 @@ def _paths_structurally_overlap(left: str, right: str) -> bool:
     if left == right:
         return False
     return _is_parent(left, right) or _is_parent(right, left)
+
+
+def _is_ordered_store_stock_refinement(
+    *,
+    existing_path: str,
+    incoming_path: str,
+    source_id: str,
+    incoming_id: str,
+    source_index: int,
+    incoming_index: int,
+    source_op: str,
+    incoming_op: str,
+) -> bool:
+    """Allow verified V3 stock appends followed by indexed ``raw_c`` edits."""
+    return (
+        source_id == incoming_id
+        and source_id.startswith("legacy-format3-")
+        and source_index < incoming_index
+        and source_op == "array_append"
+        and incoming_op == "set"
+        and existing_path == "stock_data_list"
+        and _STORE_STOCK_RAW_C_PATH.fullmatch(incoming_path) is not None
+    )
 
 
 def _is_parent(parent: str, child: str) -> bool:

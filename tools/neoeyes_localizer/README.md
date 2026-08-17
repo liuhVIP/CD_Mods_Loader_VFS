@@ -1,4 +1,4 @@
-# NeoEyes Simple Menu 1.2.7 运行时汉化（NeoEyesCN v1.3）
+# NeoEyes Simple Menu 1.4.0 运行时汉化（NeoEyesCN v1.4）
 
 本工程生成独立的 `NeoEyesCN.asi`，不会修改原始 `NeoEyesSimpleMenu.asi`。伴生 ASI 在运行时严格
 核对当前 1.2.7 样本的 PE 布局、代码特征和界面标记，然后替换内嵌 UTF-8 文本，并将 GDI+ 使用的
@@ -30,7 +30,7 @@ dist/neoeyes_localizer/NeoEyesCN.asi
 & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -ExecutionPolicy Bypass -File '.\tools\neoeyes_localizer\inspect_neoeyes_runtime.ps1'
 ```
 
-v1.3 会在游戏 `bin64` 目录写入 `NeoEyesCNv1.3.runtime.log`，记录 Hook 安装结果和前 300 次
+v1.4 会在游戏 `bin64` 目录写入 `NeoEyesCNv1.4.runtime.log`，记录 Hook 安装结果和前 300 次
 最终绘制文本，便于确认列表是否经过翻译入口。
 
 批量提取运行中出现但词典尚未收录的词：
@@ -42,5 +42,5 @@ v1.3 会在游戏 `bin64` 目录写入 `NeoEyesCNv1.3.runtime.log`，记录 Hook
 ```
 
 将 `NeoEyesCN.asi` 与原始 `NeoEyesSimpleMenu.asi` 一起放入游戏 ASI 加载目录。当前版本只支持
-SHA-256 为 `619FCFA0F54128227DCA152E6E36C2606C6A944DD1CBDB1567E8188CE9C17D80` 的 64 位样本；
-目标二进制变化或 UTF-8 转换特征不一致时会自动停用，不修改 NPC 生成器的功能逻辑。
+SHA-256 为 `4D179DA9A5C55B58CFD79B65AE15E2E1FF1E49D49763489269234CDBDEF6CE1E` 的 64 位样本
+（v1.4.0）；目标二进制变化或 UTF-8 转换特征不一致时会自动停用，不修改 NPC 生成器的功能逻辑。
