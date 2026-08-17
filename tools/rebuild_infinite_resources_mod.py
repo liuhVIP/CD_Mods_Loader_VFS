@@ -243,7 +243,18 @@ def _map_labeled_item_changes(
 
     # 单字段记录可能出现大量相同字节，只接受由其余记录证明、且仍在本记录内的区段平移量。
     for key in ambiguous_keys:
-        start, end, name, _name_end = bounds[key]
+        start, end, name, name_end = bounds[key]
+        original_first = bytes.fromhex(grouped[key][0]["original"])
+        anchored: list[int] = []
+        # 1.18 起 ItemInfo 在 prefab 前插入约 1256 字节，记录内位移不再统一，
+        # 全局 delta 无法证明前缀区单字节字段。但 is_blocked 固定位于
+        # name_end+1（key + name_len + name + null 后的第一个 u8，name_end 为绝对偏移），
+        # 前缀结构 1.17 -> 1.18 未变，可直接作为唯一锚点。
+        old_offset_first = int(grouped[key][0]["offset"])
+        if len(original_first) == 1 and name_end + 1 + len(original_first) <= end:
+            if current_body[name_end + 1:name_end + 1 + len(original_first)] == original_first:
+                # record_shift 语义与多字段分支一致：记录内相对位置 - 旧表绝对偏移。
+                anchored.append((name_end + 1 - start) - old_offset_first)
         valid_shifts: list[int] = []
         for global_delta in global_deltas:
             record_shift = global_delta - start
@@ -262,12 +273,13 @@ def _map_labeled_item_changes(
                     break
             if valid:
                 valid_shifts.append(record_shift)
-        if len(valid_shifts) != 1:
+        candidate_shifts = list(dict.fromkeys([*anchored, *valid_shifts]))
+        if len(candidate_shifts) != 1:
             raise RuntimeError(
                 f"ItemInfo 记录无法按已证明区段唯一定位：{name} / {key} / "
-                f"候选数={len(valid_shifts)}"
+                f"候选数={len(candidate_shifts)}"
             )
-        record_shifts[key] = valid_shifts[0]
+        record_shifts[key] = candidate_shifts[0]
 
     rebuilt: list[dict] = []
     occupied_until = -1
