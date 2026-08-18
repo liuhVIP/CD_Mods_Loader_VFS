@@ -12,7 +12,6 @@ from time import perf_counter
 from cdmm.archive.pamt import derive_pamt_dir
 from cdmm.archive.paz_crypto import decrypt, lz4_decompress
 from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
-from cdmm.cdloader_native import fixup_pabgh_offsets as native_fixup_pabgh_offsets
 from cdmm.services.pabgh_rewrite import rewrite_pabgh_offsets
 from cdmm.services.pab_table_service import parse_entry_name_end, parse_pabgh_index
 from cdmm.services.pamt_index_service import get_game_pamt_index
@@ -151,6 +150,8 @@ def build_patch_overlay_entries(
         for entry in base_entries or []
     }
     overlay_entries: list[OverlayInputEntry] = []
+    auto_companions: dict[str, OverlayInputEntry] = {}
+    companion_bodies: dict[str, bytes] = {}
     for group_key, patch_items in grouped.items():
         group_started = perf_counter()
         first_patch = patch_items[0][1]
@@ -306,6 +307,8 @@ def build_patch_overlay_entries(
             )
             if companion is not None:
                 overlay_entries.append(companion)
+                auto_companions[companion.entry_path.lower()] = companion
+                companion_bodies[companion.entry_path.lower()] = bytes(modified)
         _log_slow_json_group(
             game_file,
             perf_counter() - group_started,
@@ -314,9 +317,62 @@ def build_patch_overlay_entries(
             total_mismatched,
         )
 
+    # 同路径 PABGH 可能同时存在显式 _pabgh_companion（单模组整表重写）
+    # 与自动 companion（基于全部 body insert 生成）。两者只能保留一个：
+    # - entry 级变长补丁：自动 companion 合并了所有模组位移，是最终
+    #   权威版本；显式 companion 会因先被其他模组改写而失配或只含
+    #   单模组位移，必须让位。
+    # - 整表 replace（offset 0 覆盖整个 body）：insert 位移模型无法表达
+    #   “全部 entry 平移”，自动 companion 校验必然失败，保留显式版本。
+    # 这里用「自动 companion 的每个 offset 处是否真的对应该 key」校验，
+    # 通过则去掉同路径旧版本只留自动 companion，否则丢弃自动版本。
+    if auto_companions:
+        valid_autos: dict[str, OverlayInputEntry] = {}
+        for path, companion in auto_companions.items():
+            body = companion_bodies.get(path)
+            if body is not None and _pabgh_matches_body(companion.content, body):
+                valid_autos[path] = companion
+        auto_ids = {id(companion) for companion in auto_companions.values()}
+        # 先移除全部自动 companion；校验通过的随后重新加入并放在最后，
+        # 确保它比同路径显式 companion 后写，取得最终覆盖权。
+        kept = [
+            entry
+            for entry in overlay_entries
+            if id(entry) not in auto_ids
+        ]
+        if valid_autos:
+            valid_paths = set(valid_autos)
+            kept = [
+                entry
+                for entry in kept
+                if entry.entry_path.lower() not in valid_paths
+            ]
+        kept.extend(valid_autos.values())
+        overlay_entries = kept
+
     _log_json_mod_profile(mod_stats)
 
     return overlay_entries
+
+
+def _pabgh_matches_body(pabgh: bytes, body: bytes) -> bool:
+    """校验 PABGH 每个 entry 的 offset 处是否真的是对应 key。"""
+    count_size, count, key_size = _detect_pabgh_layout(pabgh)
+    if count_size is None:
+        return False
+    row_size = key_size + 4
+    if len(pabgh) < count_size + count * row_size:
+        return False
+    for index in range(count):
+        pos = count_size + index * row_size
+        key = struct.unpack_from("<I", pabgh, pos)[0] & ((1 << (key_size * 8)) - 1)
+        offset = struct.unpack_from("<I", pabgh, pos + key_size)[0]
+        if offset + key_size > len(body):
+            return False
+        actual = struct.unpack_from("<I", body, offset)[0] & ((1 << (key_size * 8)) - 1)
+        if actual != key:
+            return False
+    return True
 
 
 def extract_plaintext(entry: PazEntry) -> tuple[bytes, PazEntry]:
@@ -565,21 +621,13 @@ def fixup_pabgh_after_inserts(pabgh: bytes, inserts: list[tuple[int, int]]) -> b
     """PABGB 长度变化后修正 PABGH 指针表，支持正负 delta。"""
     if not inserts or len(pabgh) < 2:
         return pabgh
-    native_result = native_fixup_pabgh_offsets(pabgh, inserts)
-    if native_result is not None:
-        return native_result
+    layout = _detect_pabgh_layout(pabgh)
+    if layout is None:
+        return pabgh
+    count_size, count, key_size = layout
+    row_size = key_size + 4
     data = bytearray(pabgh)
-    ushort_count = struct.unpack_from("<H", data, 0)[0]
-    fmt2 = ushort_count > 0 and 2 + ushort_count * 8 <= len(data) and 2 + ushort_count * 8 >= len(data) - 16
-    if fmt2:
-        count = ushort_count
-        prefix = 2
-    else:
-        if len(data) < 4:
-            return pabgh
-        count = struct.unpack_from("<I", data, 0)[0]
-        prefix = 4
-    count = min(count, (len(data) - prefix) // 8)
+    count = min(count, (len(data) - count_size) // row_size)
     sorted_inserts = sorted(inserts, key=lambda item: item[0])
     insert_offsets: list[int] = []
     cumulative_deltas: list[int] = []
@@ -589,13 +637,51 @@ def fixup_pabgh_after_inserts(pabgh: bytes, inserts: list[tuple[int, int]]) -> b
         insert_offsets.append(insert_offset)
         cumulative_deltas.append(running_delta)
     for index in range(count):
-        pos = prefix + index * 8
-        pointer = struct.unpack_from("<I", data, pos + 4)[0]
+        pos = count_size + index * row_size
+        pointer = struct.unpack_from("<I", data, pos + key_size)[0]
         delta_index = bisect_right(insert_offsets, pointer) - 1
         delta = cumulative_deltas[delta_index] if delta_index >= 0 else 0
         if delta:
-            struct.pack_into("<I", data, pos + 4, pointer + delta)
+            struct.pack_into("<I", data, pos + key_size, pointer + delta)
     return bytes(data)
+
+
+def _detect_pabgh_layout(data: bytes) -> tuple[int, int, int] | None:
+    """返回 PABGH 索引布局 (count_size, count, key_size)。
+
+    同时尝试 u32/u16 count 两种头部，按 key_size = 2/4 且整除校验，
+    优先剩余字节更少的候选，避免 u32 count 表被 u16 头部误判
+    （旧启发式会把 stageinfo 这类 4+count*8 精确适配的表读成 fmt2，
+    修正指针时按错误行宽写入，导致索引 key 被覆盖损坏）。
+    """
+    n = len(data)
+    best: tuple[int, int, int, int, int] | None = None
+    for count_size in (4, 2):
+        if n < count_size:
+            continue
+        count = (
+            struct.unpack_from("<I", data, 0)[0]
+            if count_size == 4
+            else struct.unpack_from("<H", data, 0)[0]
+        )
+        if count <= 0:
+            continue
+        total_key_bytes = n - count_size - count * 4
+        if total_key_bytes <= 0 or total_key_bytes % count:
+            continue
+        key_size = total_key_bytes // count
+        if key_size not in (2, 4):
+            continue
+        expected = count_size + count * (key_size + 4)
+        slack = n - expected
+        if slack < 0:
+            continue
+        candidate = (slack, -count_size, count_size, count, key_size)
+        if best is None or candidate < best:
+            best = candidate
+    if best is None:
+        return None
+    return best[2], best[3], best[4]
 
 
 def _build_pabgh_companion(
