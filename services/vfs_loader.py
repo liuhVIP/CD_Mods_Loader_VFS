@@ -92,7 +92,9 @@ GAME_EXECUTABLE_MTIME_STATE_KEY = "game_executable_mtime_ns"
 
 # VFS 状态结构版本。v13 强制重建仍携带旧导出数量/价格字段的 StoreInfo
 # 产物；新商品只允许替换商店 key 与 item key。
-VFS_STATE_SCHEMA = 13
+# v14 强制重建 ItemInfo 价格/单记录字段拆分后的桥接产物，修复混合批次
+# 整批跳过（如 DMM_AbyssGearUnlock 的 equipable_hash 与商店价格字段混批）。
+VFS_STATE_SCHEMA = 14
 
 # 活动快照物化模式写入状态，确保旧复制快照只冷构建一次后切换到硬链接。
 VFS_MATERIALIZATION_MODE = "hardlink"

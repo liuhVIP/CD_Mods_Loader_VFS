@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any
 
 from cdmm.services.cdmod_build_plan import CDMOD_PLAN_VALID, CdmodBuildPlan
+from cdmm.services.format3_iteminfo_price_writer import is_iteminfo_price_field
+from cdmm.services.format3_iteminfo_record_writer import ITEMINFO_RECORD_DIRECT_FIELDS
 
 # 桥接文件格式版本，参与诊断但仍保持DMM Format 3兼容形态。
 CDMOD_FORMAT3_BRIDGE_VERSION = 2
@@ -125,6 +127,10 @@ def _bridge_family(
         return "iteminfo-drop-default"
     if ITEMINFO_ENCHANT_EQUIP_BUFFS_PATTERN.fullmatch(field):
         return "iteminfo-enchant-equip-buffs"
+    if is_iteminfo_price_field(field):
+        return "iteminfo-price"
+    if field in ITEMINFO_RECORD_DIRECT_FIELDS:
+        return "iteminfo-record"
     return "iteminfo-whole-fields"
 
 
@@ -133,6 +139,8 @@ def _ordered_bridge_families(batches: dict[str, list[dict[str, Any]]]) -> list[s
     preferred = (
         "default",
         "iteminfo-whole-fields",
+        "iteminfo-price",
+        "iteminfo-record",
         "iteminfo-enchant-equip-buffs",
         "iteminfo-drop-default",
         "iteminfo-prefab-whole",
