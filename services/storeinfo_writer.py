@@ -164,6 +164,17 @@ def _patch_store_entry(
                 if replayed is None:
                     rejected_records += 1
                     continue
+                if replayed.is_restore_item and any(
+                    existing.body == replayed.body for existing in output_records
+                ):
+                    logger.warning(
+                        "storeinfo writer: store %d item %d 是 RestoreItem 且本店已有该商品；"
+                        "跳过以保持跨店全局唯一",
+                        key,
+                        replayed.body,
+                    )
+                    rejected_records += 1
+                    continue
                 output_records.append(replayed)
                 template_replays += replay_kind == "item"
                 generic_replays += replay_kind == "generic"
