@@ -123,6 +123,7 @@ def _patch_store_entry(
     replace_list = False
     structural_change = False
     raw_c_changes: list[tuple[int, int]] = []
+    indexed_record_changes: list[tuple[int, StockRecord]] = []
     scalar_changes: list[tuple[str, int]] = []
     template_replays = 0
     generic_replays = 0
@@ -182,10 +183,27 @@ def _patch_store_entry(
             else:
                 raise StoreinfoWriteRefused(f"{field} 不支持 op={op!r} / value={type(value).__name__}")
             continue
-        if field in {"buyable_stock_count", "sellable_stock_count", "exchange_item_info_for_buy"}:
+        if field in {"buyable_stock_count", "sellable_stock_count", "exchange_item_info_for_buy", "reset_day", "sell_percents"}:
             if op != "set" or isinstance(value, bool) or not isinstance(value, int):
                 raise StoreinfoWriteRefused(f"{field} 必须是整数 set")
             scalar_changes.append((field, value))
+            continue
+        index = _stock_index(field)
+        if index is not None:
+            if op != "set" or not isinstance(value, dict):
+                raise StoreinfoWriteRefused(f"{field} 必须是 stock record 的 set")
+            requested = _record_from_json(value)
+            replayed, replay_kind = _replay_current_stock_template(
+                requested, key, store_templates, templates_by_item, generic_templates
+            )
+            if replayed is None:
+                rejected_records += 1
+                continue
+            if not 0 <= index < len(output_records):
+                raise StoreinfoWriteRefused(f"{field} 越界，当前记录数 {len(output_records)}")
+            indexed_record_changes.append((index, replayed))
+            template_replays += replay_kind == "item"
+            generic_replays += replay_kind == "generic"
             continue
         index = _raw_c_index(field)
         if index is not None:
@@ -201,6 +219,8 @@ def _patch_store_entry(
                 f"stock_data_list[{index}].raw_c 越界，当前记录数 {len(output_records)}"
             )
         output_records[index].raw_c = value
+    for index, record in indexed_record_changes:
+        output_records[index] = record
 
     patched = bytearray(entry)
     try:
@@ -218,13 +238,20 @@ def _patch_store_entry(
                 value = len(output_records)
         elif field == "sellable_stock_count":
             offset = count_offset - 5
+        elif field == "reset_day":
+            offset = count_offset - 13
+        elif field == "sell_percents":
+            offset = _sell_percents_offset(entry, key_size)
         else:
             offset = payload
         if offset < 0 or offset + 4 > len(entry):
             raise StoreinfoWriteRefused(f"{field} 定位越界")
         if offset >= list_end:
             offset += delta
-        struct.pack_into("<I", patched, offset, value & 0xFFFFFFFF)
+        if field == "sell_percents":
+            struct.pack_into("<Q", patched, offset, value & 0xFFFFFFFFFFFFFFFF)
+        else:
+            struct.pack_into("<I", patched, offset, value & 0xFFFFFFFF)
 
     logger.info(
         "storeinfo writer: store %d stock list %d -> %d records%s; "
@@ -360,6 +387,15 @@ def _locate_stock_list(entry: bytes, key: int) -> tuple[int, int, list[StockReco
         if len(records) == count:
             candidates.append((count_offset, list_end, records))
     unique = {(start, end): records for start, end, records in candidates}
+    if len(unique) > 1:
+        # Large 2.00.01 exports can leave a count-like u32 inside the header,
+        # producing a second valid-looking scan candidate. The real stock
+        # chain is the candidate with the greatest record count.
+        max_count = max(len(records) for records in unique.values())
+        best = [item for item in unique.items() if len(item[1]) == max_count]
+        if len(best) == 1:
+            (start, end), records = best[0]
+            return start, end, records
     if len(unique) != 1:
         raise StoreinfoWriteRefused(
             f"store entry {key}: stock list 未唯一定位，候选 {len(unique)}"
@@ -378,7 +414,7 @@ def _record_from_json(value: object) -> StockRecord:
     if not isinstance(payload, dict):
         raise StoreinfoWriteRefused("stock record.value.payload 必须是 object")
     disc = _integer(nested, "disc", 0)
-    if disc not in (0, 3):
+    if disc not in (0, 1, 3, 9):
         raise StoreinfoWriteRefused(f"新增 stock record disc={disc} 未验证")
     payload_type = payload.get("type")
     if payload_type not in (None, f"Disc{disc}"):
@@ -440,6 +476,14 @@ def _raw_c_index(field: str) -> int | None:
         return None
 
 
+def _stock_index(field: str) -> int | None:
+    prefix, suffix = "stock_data_list[", "]"
+    if not field.startswith(prefix) or not field.endswith(suffix):
+        return None
+    raw = field[len(prefix):-len(suffix)]
+    return int(raw) if raw.isdigit() else None
+
+
 def _entry_payload_offset(entry: bytes, key_size: int) -> int:
     if len(entry) < key_size + 4:
         raise StoreinfoWriteRefused("store entry header truncated")
@@ -448,6 +492,14 @@ def _entry_payload_offset(entry: bytes, key_size: int) -> int:
     if name_end > len(entry):
         raise StoreinfoWriteRefused("store entry name out of range")
     return name_end + 1 if name_end < len(entry) and entry[name_end] == 0 else name_end
+
+
+def _sell_percents_offset(entry: bytes, key_size: int) -> int:
+    payload = _entry_payload_offset(entry, key_size)
+    offset = payload + 13
+    if offset + 8 > len(entry):
+        raise StoreinfoWriteRefused("sell_percents 字段越界")
+    return offset
 
 
 def _rebuild_header(header: bytes, key_size: int, deltas: list[tuple[int, int]]) -> bytes:

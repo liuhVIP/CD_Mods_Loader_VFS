@@ -84,10 +84,10 @@ def _build_old_item_anchors(
     old_body: bytes,
     current_body: bytes,
     current_header: bytes,
-) -> tuple[list[tuple[int, int, str, int, int]], list[int]]:
+) -> tuple[list[tuple[int, int, str, int, int, int]], list[int]]:
     key_size, offsets = parse_pabgh_index(current_header, "iteminfo")
     bounds = build_entry_bounds(current_body, key_size, offsets)
-    anchors: list[tuple[int, int, str, int, int]] = []
+    anchors: list[tuple[int, int, str, int, int, int]] = []
     for key, (start, end, name, name_end) in bounds.items():
         header = current_body[start:name_end]
         old_start = old_body.find(header)
@@ -95,7 +95,7 @@ def _build_old_item_anchors(
             continue
         if old_body.find(header, old_start + 1) >= 0:
             raise RuntimeError(f"旧 ItemInfo 中记录头不唯一：{name} / {key}")
-        anchors.append((old_start, key, name, start, end))
+        anchors.append((old_start, key, name, start, end, name_end))
     anchors.sort()
     return anchors, [item[0] for item in anchors]
 
@@ -109,7 +109,7 @@ def _map_item_changes(
 ) -> list[dict]:
     anchors, starts = _build_old_item_anchors(old_body, current_body, current_header)
     grouped: dict[int, list[tuple[dict, int]]] = defaultdict(list)
-    anchor_by_key: dict[int, tuple[int, int, str, int, int]] = {}
+    anchor_by_key: dict[int, tuple[int, int, str, int, int, int]] = {}
 
     for change in changes:
         old_offset = int(change["offset"])
@@ -159,6 +159,10 @@ def _map_item_changes(
                 {
                     "type": "replace",
                     "offset": current_offset,
+                    "entry": anchor[2],
+                    "rel_offset": current_offset - anchor[5],
+                    "_dynamic_entry_offset": True,
+                    "_force_entry_offset": True,
                     "original": original.hex(),
                     "patched": change["patched"].lower(),
                     "label": f"{version} ItemInfo {anchor[2]} ({key})",
@@ -284,18 +288,82 @@ def _map_labeled_item_changes(
     rebuilt: list[dict] = []
     occupied_until = -1
     for key, items in grouped.items():
-        start, end, name, _name_end = bounds[key]
-        for change in items:
+        start, end, name, name_end = bounds[key]
+        ordered_items = sorted(items, key=lambda item: int(item["offset"]))
+
+        # 2.0.01 在部分 ItemInfo 记录中插入了字段，导致旧补丁不再共享
+        # 一个统一平移量。记录名后的首个稳定 byte（通常是 is_blocked）
+        # 可以给这类记录提供锚点；其它记录则使用已证明的全局 delta。
+        baseline_delta: int | None = None
+        first = ordered_items[0]
+        first_original = bytes.fromhex(first["original"])
+        first_relative = name_end + 1 - start
+        if (
+            len(first_original) == 1
+            and first_relative >= 0
+            and first_relative + len(first_original) <= end - start
+            and current_body[name_end + 1:name_end + 1 + len(first_original)] == first_original
+        ):
+            baseline_delta = start + first_relative - int(first["offset"])
+        elif key in record_shifts:
+            baseline_delta = start + record_shifts[key]
+        else:
+            # 由其它记录证明的 delta 只作为候选，必须在本记录内对所有
+            # 字段产生唯一的单调映射；不接受“碰巧命中”的任意重复字节。
+            candidates: list[int] = []
+            for global_delta in sorted(global_deltas):
+                valid = True
+                previous_end = 0
+                for change in ordered_items:
+                    original = bytes.fromhex(change["original"])
+                    relative = int(change["offset"]) - start + global_delta
+                    if relative < previous_end or relative < 0 or relative + len(original) > end - start:
+                        valid = False
+                        break
+                    if current_body[start + relative:start + relative + len(original)] != original:
+                        valid = False
+                        break
+                    previous_end = relative + len(original)
+                if valid:
+                    candidates.append(global_delta)
+            if len(candidates) != 1:
+                raise RuntimeError(
+                    f"ItemInfo 记录无法按已证明区段唯一定位：{name} / {key} / "
+                    f"候选 delta={len(candidates)}"
+                )
+            baseline_delta = candidates[0]
+
+        previous_end = 0
+        for change in ordered_items:
             original = bytes.fromhex(change["original"])
-            current_offset = start + int(change["offset"]) + record_shifts[key]
-            if current_offset < start or current_offset + len(original) > end:
-                raise RuntimeError(f"ItemInfo 补丁越过记录边界：{name} / {key}")
+            old_offset = int(change["offset"])
+            relative_candidates = [
+                position
+                for position in _find_all(current_body[start:end], original)
+                if position >= previous_end
+            ]
+            if not relative_candidates:
+                raise RuntimeError(f"ItemInfo 当前记录找不到有序原字节：{name} / {key}")
+            scored = sorted(
+                relative_candidates,
+                key=lambda position: abs(start + position - old_offset - baseline_delta),
+            )
+            best_score = abs(start + scored[0] - old_offset - baseline_delta)
+            best = [position for position in scored if abs(start + position - old_offset - baseline_delta) == best_score]
+            if len(best) != 1:
+                raise RuntimeError(f"ItemInfo 字段定位不唯一：{name} / {key} / +0x{old_offset:X}")
+            current_offset = start + best[0]
             if current_body[current_offset:current_offset + len(original)] != original:
                 raise RuntimeError(f"ItemInfo 最终原字节校验失败：{name} / {key}")
+            previous_end = best[0] + len(original)
             rebuilt.append(
                 {
                     "type": "replace",
                     "offset": current_offset,
+                    "entry": name,
+                    "rel_offset": current_offset - name_end,
+                    "_dynamic_entry_offset": True,
+                    "_force_entry_offset": True,
                     "original": original.hex(),
                     "patched": change["patched"].lower(),
                     "label": f"{version} ItemInfo {name} ({key})",

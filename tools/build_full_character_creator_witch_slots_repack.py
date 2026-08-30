@@ -78,7 +78,7 @@ DEFAULT_SLOT_MAPPINGS = (
     (3, "0143"),
     (4, "0141"),
     (5, "0019"),
-    (7, "0046"),
+    (6, "0046"),
 )
 
 # 五位女巫原生发型在 Human Female Hair 参数表中的已确认位置。
@@ -305,7 +305,7 @@ def build_full_character_creator_witch_slots_repack(
         "description": (
             "Rebuilds the complete Human Female standalone with Damian and Kliff "
             "meshparam face slots mapped to native witch head identities and swaps "
-            "the matching native witch hairstyles into slots 2, 3, 4, 5, and 7."
+        "the matching native witch hairstyles into slots 2, 3, 4, 5, and 7."
         ),
         "dependencies": [],
         "source": {
@@ -417,6 +417,8 @@ def _patch_meshparam_plaintext(
     plaintext: bytes,
     mappings: tuple[tuple[int, str], ...],
     hair_mappings: tuple[tuple[int, int, str, str], ...],
+    *,
+    require_equal_length: bool = True,
 ) -> tuple[bytes, tuple[HeadSlotPatch, ...], tuple[HairSlotSwapPatch, ...]]:
     """在一份 meshparam 内同步应用脸位和发型映射。"""
     patched_plaintext = plaintext
@@ -426,6 +428,7 @@ def _patch_meshparam_plaintext(
             patched_plaintext,
             xml_index=slot_index,
             new_head_id=head_id,
+            require_equal_length=require_equal_length,
         )
         patches.append(patch)
     patched_plaintext, hair_patches = patch_hair_meshset_slots_xml(

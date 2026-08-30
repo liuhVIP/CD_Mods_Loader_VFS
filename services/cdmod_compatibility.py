@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -187,6 +188,8 @@ def _compare_operations(
     if not _paths_overlap(left.path, right.path):
         return None
     if left.path != right.path:
+        if _is_storeinfo_stock_composition(left, right):
+            return None
         return _build_finding(
             RELATION_STRUCTURAL_CONFLICT,
             left_package,
@@ -225,6 +228,20 @@ def _compare_operations(
         selector_identity,
         "按唯一加载顺序决定，后一个模组优先",
     )
+
+
+def _is_storeinfo_stock_composition(
+    left: CdmodOperation,
+    right: CdmodOperation,
+) -> bool:
+    """Allow a StoreInfo stock-list operation plus indexed item refinements."""
+    if left.target.rsplit("/", 1)[-1].lower() != "storeinfo.pabgb":
+        return False
+    paths = {left.path, right.path}
+    if "stock_data_list" not in paths:
+        return False
+    other = next(iter(paths - {"stock_data_list"}), "")
+    return re.fullmatch(r"stock_data_list\[\d+\](?:\.raw_c)?", other) is not None
 
 
 def _build_finding(

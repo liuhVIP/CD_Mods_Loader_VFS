@@ -29,6 +29,8 @@ from cdmm.services.iteminfo_native_parser import (
 ITEMINFO_RECORD_DIRECT_FIELDS = frozenset(
     {
         "cooltime",
+        "is_blocked",
+        "max_endurance",
         "equipable_hash",
         "unk_post_cooltime_a",
         "unk_post_cooltime_b",
@@ -123,6 +125,24 @@ def _build_record_change(
 def _apply_record_intent(record: bytearray, intent: Format3Intent) -> tuple[bool, str | None]:
     """写入单个已支持字段，返回 `(是否改变, 跳过原因)`。"""
     field = intent.field
+    if field == "is_blocked":
+        offset = _locate_is_blocked(record)
+        packed = _pack_u8(intent.new)
+        if offset is None:
+            return False, "is_blocked 定位失败"
+        if packed is None:
+            return False, "is_blocked 的 new 值类型不合法"
+        return _replace_fixed(record, offset, 1, packed), None
+
+    if field == "max_endurance":
+        packed = _pack_u16(intent.new)
+        if packed is None:
+            return False, "max_endurance 的 new 值类型不合法"
+        offset = _locate_max_endurance(record)
+        if offset is None:
+            return False, "max_endurance 尾部布局定位失败"
+        return _replace_fixed(record, offset, 2, packed), None
+
     if field == "equipable_hash":
         offset = _locate_schema_field(record, "equipable_hash")
         packed = _pack_u32(intent.new)
@@ -517,10 +537,47 @@ def _pack_u8(value: object) -> bytes | None:
     return struct.pack("<B", value)
 
 
+def _pack_u16(value: object) -> bytes | None:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 0xFFFF:
+        return None
+    return struct.pack("<H", value)
+
+
 def _coerce_u32(value: object) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 0xFFFFFFFF:
         return None
     return value
+
+
+def _locate_is_blocked(record: bytes | bytearray) -> int | None:
+    """记录名后的首字节，ItemInfo 语义字段 ``is_blocked``。"""
+    data = bytes(record)
+    if len(data) < 8:
+        return None
+    name_len = struct.unpack_from("<I", data, 4)[0]
+    offset = 8 + name_len
+    if name_len > 500 or offset >= len(data):
+        return None
+    return offset
+
+
+def _locate_max_endurance(record: bytes | bytearray) -> int | None:
+    """定位当前 ItemInfo 尾部的 max_endurance u16。
+
+    2.00.01 在 respawn 字段与 max_endurance 之间保留 22 字节尾部布局；
+    旧布局的 8 字节候选仅作为兼容回退，并要求后续 repair count 为零，
+    避免把相邻字段中的重复 ``ffff`` 当成耐久值。
+    """
+    layout = _locate_tail_layout(record)
+    if layout is None:
+        return None
+    data = bytes(record)
+    base = layout["respawn_time_seconds"]
+    for delta in (22, 8):
+        offset = base + delta
+        if offset + 6 <= len(data) and data[offset + 2:offset + 6] == b"\x00" * 4:
+            return offset
+    return None
 
 
 def _coerce_u16(value: object) -> int | None:

@@ -242,10 +242,11 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
                 pattern=re.compile(
                     r"^(stock_data_list|_exchangeItemInfoListForSell|"
                     r"buyable_stock_count|sellable_stock_count|exchange_item_info_for_buy|"
-                    r"stock_data_list\[\d+\]\.raw_c)$"
+                    r"reset_day|sell_percents|stock_data_list\[\d+\](?:\.raw_c)?)$"
                 ),
                 reason_when_miss=(
-                    "storeinfo 当前支持库存列表、库存计数、raw_c 与贡献购买货币字段"
+                    "storeinfo 当前支持库存列表、库存项窄替换、库存计数、reset_day、"
+                    "sell_percents、raw_c 与贡献购买货币字段"
                 ),
             ),
         ),

@@ -25,3 +25,4 @@ prototype_output/
 diagnostics/
 output/
 .diagnostics/
+.work/

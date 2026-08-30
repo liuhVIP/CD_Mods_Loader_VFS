@@ -366,6 +366,16 @@ def _is_ordered_store_stock_refinement(
     """放行已验证的 V3 库存追加后按索引细化 raw_c 的同一包模式。"""
     # 不依赖 legacy-format3- 前缀：cdmod 转换器保留相同 op/path/顺序，
     # 同一包内先 array_append 整表、后 set 索引 raw_c 的窄模式同样经过 V3 实机验证。
+    # A full indexed record may precede the append operation in the exported
+    # 2.00.01 field files: it addresses an existing vanilla slot, while the
+    # later append only adds new slots.  A raw_c refinement is different: it
+    # must follow the parent list operation so that the index is unambiguous.
+    indexed_path = re.fullmatch(r"stock_data_list\[\d+\]", incoming_path)
+    reverse_indexed_path = re.fullmatch(r"stock_data_list\[\d+\]", existing_path)
+    if existing_path == "stock_data_list" and indexed_path:
+        return source_op == "array_append" and incoming_op == "set"
+    if incoming_path == "stock_data_list" and reverse_indexed_path:
+        return incoming_op == "array_append" and source_op == "set"
     return (
         source_id == incoming_id
         and source_index < incoming_index

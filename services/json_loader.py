@@ -527,6 +527,12 @@ def apply_byte_patches(
             continue
 
         if offset + old_len > len(data):
+            if dynamic_entry_offset and change.get("_force_entry_offset"):
+                # ItemInfo 等带记录身份的迁移补丁已经由当前 entry 名称锚定。
+                # 其它模组可能先改写了同一字段的原始值，此时禁止退回全表
+                # 模糊扫描（01/6400/1027 等值在表内大量重复）。
+                mismatched += 1
+                continue
             new_offset = (
                 _pattern_scan(data, original_offset, original_bytes, vanilla_data)
                 if original_bytes is not None
@@ -547,6 +553,12 @@ def apply_byte_patches(
             relocated += 1
         if original_bytes is not None and data[offset:offset + old_len] != original_bytes:
             if data[offset:offset + len(patched_bytes)] == patched_bytes:
+                applied += 1
+                continue
+            if dynamic_entry_offset and change.get("_force_entry_offset"):
+                data[offset:offset + old_len] = patched_bytes
+                writes.append((original_offset, len(patched_bytes) - old_len))
+                written_replacements[(original_offset, old_len)] = patched_bytes
                 applied += 1
                 continue
             prior_replacement = _get_prior_same_range_rewrite(

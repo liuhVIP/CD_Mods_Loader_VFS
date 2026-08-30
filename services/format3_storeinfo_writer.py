@@ -17,7 +17,8 @@ from cdmm.services.storeinfo_writer import StoreinfoWriteRefused, build_storeinf
 from cdmm.services.storeinfo_native_parser import StoreinfoParseError
 
 STOREINFO_SUPPORTED_FIELD_REASON = (
-    "storeinfo 当前支持库存列表、库存计数、raw_c 与贡献购买货币字段"
+    "storeinfo 当前支持库存列表、库存项窄替换、库存计数、reset_day、"
+    "sell_percents、raw_c 与贡献购买货币字段"
 )
 
 
