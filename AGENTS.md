@@ -1854,3 +1854,13 @@ Thank you.
 ```
 
 每次遇到新版本，先在速查表登记新行的根因与修复，保持这条链完整。禁止在未确认当前游戏版本的情况下直接套用旧 offset/schema。
+
+## 2026-08-18 ItemInfo 语义计划混合批次整批跳过（DMM_AbyssGearUnlock 失效）
+
+- 适用游戏版本：1.18.02（EXE 1.0.0.2474）。失效模组：`DMM_AbyssGearUnlock_v1.1.json`（190 条 `equipable_hash=0` 全不生效）。
+- 现象日志：`cdmod语义计划-c9efad8cedb9: Format 3 目标 iteminfo.pabgb 跳过 2317 个 intent；2317x iteminfo 仅支持 ...`。2317 条 = DMM 190 条 + Expanded Vendor iteminfo 价格字段 2127 条。
+- 根因判定：不是模组失效、不是游戏更新改表。1.18.02 原版表上 190/190 key 存在、`equipable_hash` 190/190 可定位、当前值非零（需要改成 0）。真因是 `cdmod_format3_bridge._bridge_family` 把单记录字段（`equipable_hash`）与价格字段（`price_list`/`buy_price_list`）混进同一个 `iteminfo-whole-fields` 家族，`build_iteminfo_prefab_result` 要求整批同类型才能路由，混合批次全部落到兜底路径 → 0 补丁。
+- 隐患起始：2026-07-12 `b467a91` 引入统一语义合并时 `_bridge_family` 就对 iteminfo 无脑归 `iteminfo-whole-fields`；不是最近修改引入，8-06 `3fc0d2f` 反而是修复 1.16.04+ 布局的 `equipable_hash` 定位。Expanded Vendor 加入加载顺序后触发混批，把 DMM 一起带崩。
+- 修复位置：`services/cdmod_format3_bridge.py` 新增 `iteminfo-price`（`is_iteminfo_price_field`）与 `iteminfo-record`（`ITEMINFO_RECORD_DIRECT_FIELDS`）两个家族并登记到 `_ordered_bridge_families`；`services/vfs_loader.py` `VFS_STATE_SCHEMA` 13→14 强制冷构建。
+- 验证闭环：真实 1.18.02 表派发 `iteminfo-record` 190→190/0、`iteminfo-price` 2127→73/0，其余家族不变；新增回归测试 `test/test_cdmod_format3_bridge.py::test_bridge_splits_iteminfo_price_and_record_families`；`test/` 501 passed、`ruff check .` 通过。用户实机确认深渊装备可正常插槽。
+- 注意事项：后续新增 iteminfo 字段类型必须先判断是否与现有 family 混批；价格/单记录/整表/窄字段必须拆批，禁止回退为单一 `iteminfo-whole-fields` 混批。

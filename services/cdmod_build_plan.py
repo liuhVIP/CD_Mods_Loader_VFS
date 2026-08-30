@@ -363,10 +363,11 @@ def _is_ordered_store_stock_refinement(
     source_op: str,
     incoming_op: str,
 ) -> bool:
-    """Allow verified V3 stock appends followed by indexed ``raw_c`` edits."""
+    """放行已验证的 V3 库存追加后按索引细化 raw_c 的同一包模式。"""
+    # 不依赖 legacy-format3- 前缀：cdmod 转换器保留相同 op/path/顺序，
+    # 同一包内先 array_append 整表、后 set 索引 raw_c 的窄模式同样经过 V3 实机验证。
     return (
         source_id == incoming_id
-        and source_id.startswith("legacy-format3-")
         and source_index < incoming_index
         and source_op == "array_append"
         and incoming_op == "set"

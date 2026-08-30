@@ -38,8 +38,10 @@ from cdmm.tools.vfs_launcher import (
 )
 from cdmm.utils.console_alert import (
     is_high_risk_mod_warning,
+    is_json_version_mismatch_warning,
     is_standalone_conflict,
     print_high_risk_mod_warning,
+    print_json_version_mismatch_warning,
     print_standalone_conflict,
 )
 from cdmm.utils.hash_utils import fingerprint_mods
@@ -213,6 +215,8 @@ def print_loader_messages(warnings: list[str], errors: list[str]) -> None:
         logging.warning(warning)
         if is_high_risk_mod_warning(warning):
             print_high_risk_mod_warning(warning)
+        elif is_json_version_mismatch_warning(warning):
+            print_json_version_mismatch_warning(warning)
         elif is_standalone_conflict(warning):
             print_standalone_conflict(warning)
     for error in errors:

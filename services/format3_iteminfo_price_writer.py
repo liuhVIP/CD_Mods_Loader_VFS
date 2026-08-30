@@ -42,11 +42,18 @@ def build_iteminfo_price_result(
     """Patch all requested prices inside their authoritative record bounds."""
     grouped: dict[int, list[Format3Intent]] = defaultdict(list)
     skipped: list[Format3SkippedIntent] = []
-    by_name = {bounds[2]: bounds for bounds in context.entry_bounds.values() if bounds[2]}
+    by_name: dict[str, list[tuple[int, int, str, int]]] = defaultdict(list)
+    for bounds in context.entry_bounds.values():
+        if bounds[2]:
+            by_name[bounds[2]].append(bounds)
     for intent in intents:
-        bounds = context.entry_bounds.get(intent.key)
-        if bounds is None and intent.entry:
-            bounds = by_name.get(intent.entry)
+        bounds = None
+        if intent.entry:
+            named = by_name.get(intent.entry)
+            if named is not None and len(named) == 1:
+                bounds = named[0]
+        if bounds is None:
+            bounds = context.entry_bounds.get(intent.key)
         if bounds is None:
             skipped.append(Format3SkippedIntent(intent, "ItemInfo 价格目标记录未命中"))
             continue

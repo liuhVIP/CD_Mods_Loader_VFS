@@ -173,7 +173,18 @@ def _resolve_record(
     name_to_keys: dict[str, list[int]],
     intent: Format3Intent,
 ) -> tuple[int, int, int, str, int] | None:
-    """按 key 优先、唯一名称回退解析目标记录。"""
+    """按唯一 entry 名称优先、缺失或不唯一时回退 key 解析目标记录。
+
+    游戏更新常会重排 PABGB 数字 key，但很少重命名 entry，所以 DMM
+    语义里 entry 才是记录的主身份；只有名称缺失或歧义时才信任 key。
+    """
+    if intent.entry:
+        keys = name_to_keys.get(intent.entry) or name_to_keys.get(intent.entry.lower())
+        if keys and len(set(keys)) == 1:
+            key = keys[0]
+            start, end, name, name_end = entry_bounds[key]
+            return key, start, end, name, name_end
+
     if intent.key:
         bound = entry_bounds.get(intent.key)
         if bound is None:
@@ -181,14 +192,7 @@ def _resolve_record(
         start, end, name, name_end = bound
         return intent.key, start, end, name, name_end
 
-    if not intent.entry:
-        return None
-    keys = name_to_keys.get(intent.entry) or name_to_keys.get(intent.entry.lower())
-    if not keys or len(set(keys)) != 1:
-        return None
-    key = keys[0]
-    start, end, name, name_end = entry_bounds[key]
-    return key, start, end, name, name_end
+    return None
 
 
 def _payload_start(body: bytes, name_end: int, entry_end: int) -> int:

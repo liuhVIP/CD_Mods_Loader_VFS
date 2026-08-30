@@ -58,10 +58,15 @@ def _build_change(
         return None, "statusinfo 当前仅支持 stat_level_data[N] op=set"
     if isinstance(intent.new, bool) or not isinstance(intent.new, int) or not 0 <= intent.new <= 0xFFFFFFFFFFFFFFFF:
         return None, "statusinfo stat_level_data 新值必须是u64"
-    bounds = context.entry_bounds.get(intent.key)
-    if bounds is None and intent.entry:
-        matches = [item for item in context.entry_bounds.values() if item[2] == intent.entry]
-        bounds = matches[0] if len(matches) == 1 else None
+    bounds = None
+    if intent.entry:
+        if context.entry_name_index is not None:
+            bounds = context.entry_name_index.get(intent.entry)
+        else:
+            matches = [item for item in context.entry_bounds.values() if item[2] == intent.entry]
+            bounds = matches[0] if len(matches) == 1 else None
+    if bounds is None:
+        bounds = context.entry_bounds.get(intent.key)
     if bounds is None:
         return None, "statusinfo 目标entry未唯一命中"
 

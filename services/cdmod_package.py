@@ -26,8 +26,10 @@ from cdmm.services.cdmod_converter import (
     CDMOD_STANDALONE_COMPONENT_TYPE,
 )
 
-# 第一版允许的语义操作，未知操作必须显式拒绝，不能静默跳过。
-SUPPORTED_CDMOD_OPERATIONS = frozenset({"set", "list_union"})
+# 允许的语义操作，未知操作必须显式拒绝，不能静默跳过。
+# array_append 与 Format 3 内存路径、计划合并层、桥接层和表 writer 保持一致；
+# convert_format3_to_cdmod 会原样保留该 op，不能只支持内存路径而拒绝 cdmod 文件。
+SUPPORTED_CDMOD_OPERATIONS = frozenset({"set", "list_union", "array_append"})
 
 # 同一次 scan/apply 会在目标收集、JSON、语义、资源和 standalone 阶段重复读取包。
 # 以文件状态为键缓存严格解析结果，文件变化后自然失效。
@@ -975,7 +977,7 @@ def _parse_operation(
     label: str,
     index: int,
 ) -> CdmodOperation:
-    """解析单条操作并统一 set/list_union 的 payload 字段。"""
+    """解析单条操作并统一 set/list_union/array_append 的 payload 字段。"""
     if not isinstance(raw, dict):
         raise ValueError(f"{label} 必须是对象")
     selector = raw.get("selector")

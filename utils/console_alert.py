@@ -9,8 +9,9 @@ import os
 import sys
 from typing import TextIO
 
-from cdmm.services.standalone_archive_service import STANDALONE_CONFLICT_WARNING_PREFIX
+from cdmm.services.json_loader import JSON_VERSION_MISMATCH_WARNING_PREFIX
 from cdmm.services.mod_risk_service import HIGH_RISK_MOD_WARNING_PREFIX
+from cdmm.services.standalone_archive_service import STANDALONE_CONFLICT_WARNING_PREFIX
 
 
 # CMD 告警块宽度，固定 ASCII 边框在中英文 Windows 控制台中都易于扫描。
@@ -82,6 +83,39 @@ def print_high_risk_mod_warning(message: str, stream: TextIO | None = None) -> N
     """复用 CMD 亮红色逻辑输出高风险模组告警块。"""
     output = stream or sys.stderr
     block = format_high_risk_mod_warning(message)
+    if _supports_color(output):
+        print(f"{ANSI_BRIGHT_RED}{block}{ANSI_RESET}", file=output, flush=True)
+        return
+    print(block, file=output, flush=True)
+
+
+def is_json_version_mismatch_warning(message: str) -> bool:
+    """判断消息是否为大型 JSON 模组版本错配/慢加载告警。"""
+    return message.startswith(JSON_VERSION_MISMATCH_WARNING_PREFIX)
+
+
+def format_json_version_mismatch_warning(message: str) -> str:
+    """生成带原因说明和处理建议的 JSON 版本错配块。"""
+    details = message.removeprefix(JSON_VERSION_MISMATCH_WARNING_PREFIX).strip()
+    border = "=" * CONSOLE_ALERT_WIDTH
+    separator = "-" * CONSOLE_ALERT_WIDTH
+    return "\n".join(
+        (
+            border,
+            "[!] LARGE JSON VERSION MISMATCH / 大 JSON 模组版本不匹配",
+            separator,
+            details,
+            separator,
+            "[!] 加载慢与补丁失效通常是模组目标版本与当前游戏版本不一致，不是加载器问题；请核对模组适配版本。",
+            border,
+        )
+    )
+
+
+def print_json_version_mismatch_warning(message: str, stream: TextIO | None = None) -> None:
+    """复用 CMD 亮红色逻辑输出 JSON 版本错配告警块。"""
+    output = stream or sys.stderr
+    block = format_json_version_mismatch_warning(message)
     if _supports_color(output):
         print(f"{ANSI_BRIGHT_RED}{block}{ANSI_RESET}", file=output, flush=True)
         return

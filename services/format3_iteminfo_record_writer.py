@@ -60,7 +60,11 @@ def build_iteminfo_record_result(
     grouped: dict[int, list[Format3Intent]] = {}
     skipped: list[Format3SkippedIntent] = []
     for intent in intents:
-        bounds, reason = _resolve_bounds(context.entry_bounds, intent)
+        bounds, reason = _resolve_bounds(
+            context.entry_bounds,
+            context.entry_name_index,
+            intent,
+        )
         if bounds is None:
             skipped.append(_skip(intent, reason or "目标 entry key/名称 都未命中"))
             continue
@@ -555,20 +559,36 @@ def _replace_range(record: bytearray, start: int, end: int, patched: bytes) -> b
 
 def _resolve_bounds(
     entry_bounds: dict[int, tuple[int, int, str, int]],
+    name_index: dict[str, tuple[int, int, str, int] | None] | None,
     intent: Format3Intent,
 ) -> tuple[tuple[int, int, str, int] | None, str | None]:
-    """优先按 key 命中，回退唯一 entry 名称。"""
+    """优先按唯一 entry 名称，缺失或不唯一时回退到 key。
+
+    游戏更新常会重排 PABGB 数字 key，但很少重命名 entry，所以 DMM
+    语义里 entry 才是记录的主身份；只有名称缺失或歧义时才信任 key。
+    """
+    entry_ambiguous = False
+    if intent.entry:
+        if name_index is not None:
+            bounds = name_index.get(intent.entry)
+            if bounds is not None:
+                return bounds, None
+            entry_ambiguous = intent.entry in name_index
+        else:
+            matches = [
+                bounds for bounds in entry_bounds.values() if bounds[2] == intent.entry
+            ]
+            if len(matches) == 1:
+                return matches[0], None
+            entry_ambiguous = len(matches) > 1
     bounds = entry_bounds.get(intent.key)
     if bounds is not None:
         return bounds, None
     if not intent.entry:
         return None, "目标 entry key 未命中"
-    matches = [bounds for bounds in entry_bounds.values() if bounds[2] == intent.entry]
-    if len(matches) == 1:
-        return matches[0], None
-    if not matches:
-        return None, "目标 entry key/名称 都未命中"
-    return None, "目标 entry 名称命中多个记录，存在歧义"
+    if entry_ambiguous:
+        return None, "目标 entry 名称命中多个记录，存在歧义"
+    return None, "目标 entry key/名称 都未命中"
 
 
 def _skip(intent: Format3Intent, reason: str) -> Format3SkippedIntent:

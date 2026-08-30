@@ -38,8 +38,10 @@ from cdmm.services.vfs_warmup_state_service import (
 )
 from cdmm.utils.console_alert import (
     is_high_risk_mod_warning,
+    is_json_version_mismatch_warning,
     is_standalone_conflict,
     print_high_risk_mod_warning,
+    print_json_version_mismatch_warning,
     print_standalone_conflict,
     print_status_line,
 )
@@ -529,6 +531,10 @@ def print_vfs_result(result: VfsBuildResult) -> None:
         if is_high_risk_mod_warning(warning):
             logging.warning(warning)
             print_high_risk_mod_warning(warning)
+            continue
+        if is_json_version_mismatch_warning(warning):
+            logging.warning(warning)
+            print_json_version_mismatch_warning(warning)
             continue
         if is_standalone_conflict(warning):
             logging.warning(warning)

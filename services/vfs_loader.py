@@ -330,6 +330,7 @@ def build_vfs_package(
         warnings,
         errors,
         loose_overlay_inputs,
+        progress_callback=progress_callback,
     )
     _log_vfs_stage("构建 JSON 覆盖输入", stage_started)
 

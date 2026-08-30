@@ -22,6 +22,29 @@ class Format3RuntimeContext:
     header: bytes
     key_size: int
     entry_bounds: dict[int, tuple[int, int, str, int]]
+    # entry 名称到唯一 bounds 的预建索引；歧义名称记为 None。由 loader
+    # 每表构建一次，writer 用它做 O(1) entry 优先命中，避免逐 intent 全表扫描。
+    entry_name_index: dict[str, tuple[int, int, str, int] | None] | None = None
+
+
+def build_entry_name_index(
+    entry_bounds: dict[int, tuple[int, int, str, int]],
+) -> dict[str, tuple[int, int, str, int] | None]:
+    """构建 entry 名称索引，歧义名称记为 None。
+
+    DMM 语义里 entry 名称优先于数字 key，但名称必须唯一才采用；这里把
+    “唯一命中”编译成 O(1) 查找，避免每个 intent 都全表扫描 entry_bounds。
+    """
+    index: dict[str, tuple[int, int, str, int] | None] = {}
+    for bounds in entry_bounds.values():
+        name = bounds[2]
+        if not name:
+            continue
+        if name in index:
+            index[name] = None
+        else:
+            index[name] = bounds
+    return index
 
 
 @dataclass(frozen=True)

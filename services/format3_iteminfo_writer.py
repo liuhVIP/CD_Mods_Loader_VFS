@@ -18,6 +18,7 @@ from cdmm.services.format3_runtime import (
     Format3DispatchResult,
     Format3RuntimeContext,
     Format3SkippedIntent,
+    build_entry_name_index,
 )
 from cdmm.services.format3_iteminfo_whole_writer import (
     build_iteminfo_whole_table_result,
@@ -277,11 +278,13 @@ def build_iteminfo_prefab_changes(
     """把 ItemInfo Format 3 intents 转成传统 byte patch changes。"""
     changes: list[dict] = []
     skipped = 0
+    name_index = build_entry_name_index(entry_bounds)
     for intent in intents:
         change, _reason = _build_single_change_with_reason(
             vanilla_body,
             key_size,
             entry_bounds,
+            name_index,
             intent,
         )
         if change is None:
@@ -296,13 +299,18 @@ def build_iteminfo_prefab_result(
     intents: list[Format3Intent],
 ) -> Format3DispatchResult:
     """按字段能力自动分流到窄 writer 或 whole-table writer。"""
+    name_index = (
+        context.entry_name_index
+        if context.entry_name_index is not None
+        else build_entry_name_index(context.entry_bounds)
+    )
     if intents and all(is_iteminfo_price_field(intent.field) for intent in intents):
         return build_iteminfo_price_result(context, intents)
     visual_fields = {"prefab_data_list", "gimmick_visual_prefab_data_list"}
     if intents and all(intent.field in visual_fields for intent in intents):
         if any(intent.field == "gimmick_visual_prefab_data_list" for intent in intents):
-            return _build_iteminfo_visual_lists_result(context, intents)
-        return _build_iteminfo_prefab_list_result(context, intents)
+            return _build_iteminfo_visual_lists_result(context, name_index, intents)
+        return _build_iteminfo_prefab_list_result(context, name_index, intents)
     if should_use_iteminfo_record_writer(intents):
         return build_iteminfo_record_result(context, intents)
     if should_use_iteminfo_whole_table(intents):
@@ -326,13 +334,14 @@ def build_iteminfo_prefab_result(
     if drop_default_intents:
         fallback_result = _build_drop_default_record_fallback_result(
             context,
+            name_index,
             drop_default_intents,
         )
         changes.extend(fallback_result.changes)
         skipped.extend(fallback_result.skipped)
 
     if enchant_intents:
-        enchant_result = _build_enchant_equip_buffs_result(context, enchant_intents)
+        enchant_result = _build_enchant_equip_buffs_result(context, name_index, enchant_intents)
         changes.extend(enchant_result.changes)
         skipped.extend(enchant_result.skipped)
 
@@ -341,6 +350,7 @@ def build_iteminfo_prefab_result(
             context.body,
             context.key_size,
             context.entry_bounds,
+            name_index,
             intent.to_legacy_dict(),
         )
         if change is None:
@@ -360,13 +370,18 @@ def build_iteminfo_prefab_result(
 
 def _build_enchant_equip_buffs_result(
     context: Format3RuntimeContext,
+    name_index: dict[str, tuple[int, int, str, int] | None],
     intents: list[Format3Intent],
 ) -> Format3DispatchResult:
     """窄写入现有EnchantData数组中的equip_buffs，保留live尾部u32。"""
     grouped: dict[int, tuple[tuple[int, int, str, int], list[Format3Intent]]] = {}
     skipped: list[Format3SkippedIntent] = []
     for intent in intents:
-        bounds, reason = _resolve_entry_bounds(context.entry_bounds, intent.to_legacy_dict())
+        bounds, reason = _resolve_entry_bounds(
+            context.entry_bounds,
+            name_index,
+            intent.to_legacy_dict(),
+        )
         if bounds is None:
             skipped.append(Format3SkippedIntent(intent, reason or "目标entry未命中"))
             continue
@@ -480,6 +495,7 @@ def _pack_equipment_buffs(value: object) -> bytes | None:
 
 def _build_iteminfo_prefab_list_result(
     context: Format3RuntimeContext,
+    name_index: dict[str, tuple[int, int, str, int] | None],
     intents: list[Format3Intent],
 ) -> Format3DispatchResult:
     """快速处理 DMM 扁平导出的整条 prefab_data_list intent。
@@ -494,7 +510,11 @@ def _build_iteminfo_prefab_list_result(
         if intent.op != "set":
             skipped.append(Format3SkippedIntent(intent=intent, reason="iteminfo prefab_data_list 仅支持 op=set"))
             continue
-        bounds, resolve_reason = _resolve_entry_bounds(context.entry_bounds, intent.to_legacy_dict())
+        bounds, resolve_reason = _resolve_entry_bounds(
+            context.entry_bounds,
+            name_index,
+            intent.to_legacy_dict(),
+        )
         if bounds is None:
             skipped.append(Format3SkippedIntent(intent=intent, reason=resolve_reason or "目标 entry 未命中"))
             continue
@@ -565,6 +585,7 @@ def _build_iteminfo_prefab_list_result(
 
 def _build_iteminfo_visual_lists_result(
     context: Format3RuntimeContext,
+    name_index: dict[str, tuple[int, int, str, int] | None],
     intents: list[Format3Intent],
 ) -> Format3DispatchResult:
     """按单条记录同时替换 prefab 与 gimmick visual prefab 列表。"""
@@ -574,7 +595,11 @@ def _build_iteminfo_visual_lists_result(
         if intent.op != "set":
             skipped.append(Format3SkippedIntent(intent=intent, reason="visual prefab 列表仅支持 op=set"))
             continue
-        bounds, reason = _resolve_entry_bounds(context.entry_bounds, intent.to_legacy_dict())
+        bounds, reason = _resolve_entry_bounds(
+            context.entry_bounds,
+            name_index,
+            intent.to_legacy_dict(),
+        )
         if bounds is None:
             skipped.append(Format3SkippedIntent(intent=intent, reason=reason or "目标 entry 未命中"))
             continue
@@ -1066,6 +1091,7 @@ def _build_single_change_with_reason(
     body: bytes,
     key_size: int,
     entry_bounds: dict[int, tuple[int, int, str, int]],
+    name_index: dict[str, tuple[int, int, str, int] | None],
     intent: dict[str, Any],
 ) -> tuple[dict | None, str | None]:
     """定位单条 intent，并在失败时返回明确原因。"""
@@ -1081,7 +1107,7 @@ def _build_single_change_with_reason(
     key = intent.get("key")
     if isinstance(key, bool) or not isinstance(key, int):
         return None, "key 不是整数"
-    bounds, resolve_reason = _resolve_entry_bounds(entry_bounds, intent)
+    bounds, resolve_reason = _resolve_entry_bounds(entry_bounds, name_index, intent)
     if bounds is None:
         return None, resolve_reason or "目标 entry 未命中"
 
@@ -1217,13 +1243,18 @@ def _build_drop_default_change(
 
 def _build_drop_default_record_fallback_result(
     context: Format3RuntimeContext,
+    name_index: dict[str, tuple[int, int, str, int] | None],
     intents: list[Format3Intent],
 ) -> Format3DispatchResult:
     """用单条 ItemInfo 记录 roundtrip 处理当前游戏布局下的 drop_default_data。"""
     grouped: dict[int, list[Format3Intent]] = {}
     skipped: list[Format3SkippedIntent] = []
     for intent in intents:
-        bounds, resolve_reason = _resolve_entry_bounds(context.entry_bounds, intent.to_legacy_dict())
+        bounds, resolve_reason = _resolve_entry_bounds(
+            context.entry_bounds,
+            name_index,
+            intent.to_legacy_dict(),
+        )
         if bounds is None:
             skipped.append(Format3SkippedIntent(intent=intent, reason=resolve_reason or "目标 entry 未命中"))
             continue
@@ -1386,29 +1417,43 @@ def _apply_socket_flag_value(
 
 def _resolve_entry_bounds(
     entry_bounds: dict[int, tuple[int, int, str, int]],
+    name_index: dict[str, tuple[int, int, str, int] | None] | None,
     intent: dict[str, Any],
 ) -> tuple[tuple[int, int, str, int] | None, str | None]:
-    """优先按稳定 key 命中，缺省或未命中时回退到 entry 名称。"""
+    """优先按唯一 entry 名称，缺失或不唯一时回退到 key。
+
+    游戏更新常会重排 PABGB 数字 key，但很少重命名 entry，所以 DMM
+    语义里 entry 才是记录的主身份；只有名称缺失或歧义时才信任 key。
+    """
+    entry_name = intent.get("entry")
+    entry_ambiguous = False
+    if isinstance(entry_name, str) and entry_name:
+        if name_index is not None:
+            bounds = name_index.get(entry_name)
+            if bounds is not None:
+                return bounds, None
+            entry_ambiguous = entry_name in name_index
+        else:
+            entry_matches = [
+                bounds
+                for bounds in entry_bounds.values()
+                if bounds[2] == entry_name
+            ]
+            if len(entry_matches) == 1:
+                return entry_matches[0], None
+            entry_ambiguous = len(entry_matches) > 1
+
     key = intent.get("key")
     if isinstance(key, int) and not isinstance(key, bool):
         bounds = entry_bounds.get(key)
         if bounds is not None:
             return bounds, None
 
-    entry_name = intent.get("entry")
     if not isinstance(entry_name, str) or not entry_name:
         return None, "目标 entry key 未命中"
-
-    matches = [
-        bounds
-        for bounds in entry_bounds.values()
-        if bounds[2] == entry_name
-    ]
-    if len(matches) == 1:
-        return matches[0], None
-    if not matches:
-        return None, "目标 entry key/名称 都未命中"
-    return None, "目标 entry 名称命中多个记录，存在歧义"
+    if entry_ambiguous:
+        return None, "目标 entry 名称命中多个记录，存在歧义"
+    return None, "目标 entry key/名称 都未命中"
 
 
 def _payload_offset(body: bytes, entry_off: int, key_size: int) -> int | None:

@@ -64,12 +64,16 @@ def build_skill_whole_table_result(
         if isinstance(entry, dict) and "key" in entry
     }
     by_name: dict[str, dict] = {}
+    ambiguous_names: set[str] = set()
     for entry in entries:
         if not isinstance(entry, dict):
             continue
         name = entry.get("name")
-        if isinstance(name, str) and name and name not in by_name:
-            by_name[name] = entry
+        if isinstance(name, str) and name:
+            if name in by_name:
+                ambiguous_names.add(name)
+            else:
+                by_name[name] = entry
 
     skipped: list[Format3SkippedIntent] = []
     applied = 0
@@ -80,7 +84,7 @@ def build_skill_whole_table_result(
         if intent.op != "set":
             skipped.append(_skip_intent(intent, "skill whole-table 当前仅支持 op=set"))
             continue
-        entry = _resolve_skill_entry(intent, by_key, by_name)
+        entry = _resolve_skill_entry(intent, by_key, by_name, ambiguous_names)
         if entry is None:
             skipped.append(_skip_intent(intent, "目标 entry key/名称 都未命中"))
             continue
@@ -163,14 +167,14 @@ def _resolve_skill_entry(
     intent: Format3Intent,
     by_key: dict[int, dict],
     by_name: dict[str, dict],
+    ambiguous_names: set[str],
 ) -> dict | None:
-    """优先按 key，回退到 entry 名称查找 skill 记录。"""
-    entry = by_key.get(intent.key)
-    if entry is not None:
-        return entry
-    if intent.entry:
-        return by_name.get(intent.entry)
-    return None
+    """优先按唯一 entry 名称，缺失或不唯一时回退到 key 查找 skill 记录。"""
+    if intent.entry and intent.entry not in ambiguous_names:
+        entry = by_name.get(intent.entry)
+        if entry is not None:
+            return entry
+    return by_key.get(intent.key)
 
 
 def _shape_matches(field: str, new: object) -> bool:

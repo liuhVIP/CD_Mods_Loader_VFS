@@ -239,7 +239,11 @@ def _build_character_reward_change(
     if patched is None:
         return None, reason
 
-    resolved = _resolve_bounds(context.entry_bounds, intent)
+    resolved = _resolve_bounds(
+        context.entry_bounds,
+        context.entry_name_index,
+        intent,
+    )
     if resolved is None:
         return None, "目标 entry key/名称 都未命中"
     entry_start, entry_end, entry_name, name_end = resolved
@@ -292,19 +296,29 @@ def _serialize_character_rewards(value: object) -> tuple[bytes | None, str | Non
 
 def _resolve_bounds(
     entry_bounds: dict[int, tuple[int, int, str, int]],
+    name_index: dict[str, tuple[int, int, str, int] | None] | None,
     intent: Format3Intent,
 ) -> tuple[int, int, str, int] | None:
-    """优先按 key 定位，缺省 key 时再按唯一名称定位。"""
+    """优先按唯一 entry 名称定位，缺失或不唯一时回退到 key。
+
+    游戏更新常会重排 PABGB 数字 key，但很少重命名 entry，所以 DMM
+    语义里 entry 才是记录的主身份；只有名称缺失或歧义时才信任 key。
+    """
+    if intent.entry:
+        if name_index is not None:
+            bounds = name_index.get(intent.entry)
+            if bounds is not None:
+                return bounds
+        else:
+            matches = [
+                bounds for bounds in entry_bounds.values() if bounds[2] == intent.entry
+            ]
+            if len(matches) == 1:
+                return matches[0]
     bounds = entry_bounds.get(intent.key)
     if bounds is not None:
         return bounds
-    if not intent.entry:
-        return None
-    matches = [bounds for bounds in entry_bounds.values() if bounds[2] == intent.entry]
-    if len(matches) == 1:
-        return matches[0]
     return None
-
 
 def _skip_intent(intent: Format3Intent, reason: str) -> Format3SkippedIntent:
     """构造单条 skipped 结果。"""

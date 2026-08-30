@@ -41,6 +41,7 @@ from cdmm.services.format3_runtime import (
     Format3DispatchResult,
     Format3RuntimeContext,
     Format3SkippedIntent,
+    build_entry_name_index,
     summarize_skip_reasons,
 )
 from cdmm.services.json_loader import (
@@ -448,12 +449,26 @@ def _format3_intents_to_result(
         entry_bounds,
         intents,
     )
+    clone_skipped: tuple[Format3SkippedIntent, ...] = ()
+    if any(intent.op == "clone_record" for intent in intents):
+        clone_skipped = tuple(
+            Format3SkippedIntent(
+                intent=intent,
+                reason=(
+                    "clone_record 需要向 PABGB 追加新记录并同步 PABGH，"
+                    "当前尚未实现，已安全跳过该条 intent"
+                ),
+            )
+            for intent in intents
+            if intent.op == "clone_record"
+        )
+        intents = [intent for intent in intents if intent.op != "clone_record"]
     writer = _FORMAT3_WRITERS.get(table_name)
     if writer is None:
         skipped_result = _skip_all_intents(intents, f"目标表 {table_name} 暂无 writer")
         return Format3DispatchResult(
             changes=(),
-            skipped=match_skipped + skipped_result.skipped,
+            skipped=match_skipped + clone_skipped + skipped_result.skipped,
         )
     supported_intents, capability_skipped = partition_supported_intents(table_name, intents)
     if capability_skipped:
@@ -469,12 +484,12 @@ def _format3_intents_to_result(
         )
         return Format3DispatchResult(
             changes=(),
-            skipped=match_skipped + capability_skipped + guarded_skips,
+            skipped=match_skipped + clone_skipped + capability_skipped + guarded_skips,
         )
     if not supported_intents:
         return Format3DispatchResult(
             changes=(),
-            skipped=match_skipped + capability_skipped,
+            skipped=match_skipped + clone_skipped + capability_skipped,
         )
     context = Format3RuntimeContext(
         game_file=game_file,
@@ -483,11 +498,12 @@ def _format3_intents_to_result(
         header=vanilla_header,
         key_size=key_size,
         entry_bounds=entry_bounds,
+        entry_name_index=build_entry_name_index(entry_bounds),
     )
     writer_result = writer(context, supported_intents)
     return Format3DispatchResult(
         changes=writer_result.changes,
-        skipped=match_skipped + capability_skipped + writer_result.skipped,
+        skipped=match_skipped + clone_skipped + capability_skipped + writer_result.skipped,
     )
 
 

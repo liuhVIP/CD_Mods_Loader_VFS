@@ -34,12 +34,18 @@ def build_dropsetinfo_result(
     """把 dropsetinfo intents 转成传统 byte patch changes。"""
     changes: list[dict] = []
     skipped: list[Format3SkippedIntent] = []
+    name_to_key, ambiguous_names = _build_dropset_name_to_key(context.entry_bounds)
 
     for intent in intents:
         if intent.field == FORMAT3_NEW_RECORD_FIELD:
             change, reason = _build_new_record_change(context, intent)
         else:
-            change, reason = _build_single_change(context, intent)
+            change, reason = _build_single_change(
+                context,
+                name_to_key,
+                ambiguous_names,
+                intent,
+            )
         if change is None:
             skipped.append(_skip_intent(intent, reason or "dropsetinfo writer 未生成补丁"))
             continue
@@ -51,8 +57,27 @@ def build_dropsetinfo_result(
     )
 
 
+def _build_dropset_name_to_key(
+    entry_bounds: dict[int, tuple[int, int, str, int]],
+) -> tuple[dict[str, int], set[str]]:
+    """构建 dropset entry 名称到 PABGH key 的索引，歧义名称单独记录。"""
+    name_to_key: dict[str, int] = {}
+    ambiguous_names: set[str] = set()
+    for key, bounds in entry_bounds.items():
+        name = bounds[2]
+        if not name:
+            continue
+        if name in name_to_key:
+            ambiguous_names.add(name)
+        else:
+            name_to_key[name] = key
+    return name_to_key, ambiguous_names
+
+
 def _build_single_change(
     context: Format3RuntimeContext,
+    name_to_key: dict[str, int],
+    ambiguous_names: set[str],
     intent: Format3Intent,
 ) -> tuple[dict | None, str | None]:
     """构造单条 dropsetinfo change。"""
@@ -63,7 +88,12 @@ def _build_single_change(
     if not isinstance(intent.new, list) or not all(isinstance(item, dict) for item in intent.new):
         return None, "dropsetinfo drops 新值必须是对象数组"
 
-    resolved = _resolve_entry(context.entry_bounds, intent)
+    resolved = _resolve_entry(
+        context.entry_bounds,
+        name_to_key,
+        ambiguous_names,
+        intent,
+    )
     if resolved is None:
         return None, "目标 entry key/名称 都未命中"
     key, bounds = resolved
@@ -145,23 +175,24 @@ def _append_pabgh_entry(
 
 def _resolve_entry(
     entry_bounds: dict[int, tuple[int, int, str, int]],
+    name_to_key: dict[str, int],
+    ambiguous_names: set[str],
     intent: Format3Intent,
 ) -> tuple[int, tuple[int, int, str, int]] | None:
-    """优先按 key，回退到 entry 名称解析真实 key。"""
+    """优先按唯一 entry 名称解析真实 key，缺失或不唯一时回退到 key。
+
+    游戏更新常会重排 PABGB 数字 key，但很少重命名 entry，所以 DMM
+    语义里 entry 才是记录的主身份；只有名称缺失或歧义时才信任 key。
+    """
+    if intent.entry:
+        if intent.entry not in ambiguous_names:
+            key = name_to_key.get(intent.entry)
+            if key is not None:
+                return key, entry_bounds[key]
     bounds = entry_bounds.get(intent.key)
     if bounds is not None:
         return intent.key, bounds
-    if not intent.entry:
-        return None
-    matches = [
-        (key, bounds)
-        for key, bounds in entry_bounds.items()
-        if bounds[2] == intent.entry
-    ]
-    if len(matches) == 1:
-        return matches[0]
     return None
-
 
 def _skip_intent(intent: Format3Intent, reason: str) -> Format3SkippedIntent:
     """构造单条 skipped 结果。"""

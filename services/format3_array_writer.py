@@ -36,18 +36,23 @@ def _build_array_result(
     field = "dye_color_data_list" if kind == "color" else "dye_color_group_data_list"
     grouped: dict[int, list[Format3Intent]] = defaultdict(list)
     skipped: list[Format3SkippedIntent] = []
-    by_name = {
-        bounds[2]: key
-        for key, bounds in context.entry_bounds.items()
-        if bounds[2]
-    }
+    by_name: dict[str, list[int]] = defaultdict(list)
+    for key, bounds in context.entry_bounds.items():
+        if bounds[2]:
+            by_name[bounds[2]].append(key)
     for intent in intents:
         if intent.field != field or intent.op != "array_append" or not isinstance(intent.new, dict):
             skipped.append(
                 Format3SkippedIntent(intent, f"{context.table_name} 仅支持 {field} array_append")
             )
             continue
-        key = intent.key if intent.key in context.entry_bounds else by_name.get(intent.entry)
+        key = None
+        if intent.entry:
+            named = by_name.get(intent.entry)
+            if named is not None and len(named) == 1:
+                key = named[0]
+        if key is None and intent.key in context.entry_bounds:
+            key = intent.key
         if key is None:
             skipped.append(Format3SkippedIntent(intent, "目标记录未命中"))
             continue

@@ -20,6 +20,10 @@ FORMAT3_DEFAULT_KEY = 0
 # `new_record` 没有普通字段路径，解析层使用内部常量统一交给表级 writer。
 FORMAT3_NEW_RECORD_FIELD = "__new_record__"
 
+# `clone_record` 同样没有普通字段路径；解析层先用内部常量保存源记录与
+# 待改字段，运行层负责安全跳过并提示，避免整个模组被解析层拒绝。
+FORMAT3_CLONE_RECORD_FIELD = "__clone_record__"
+
 # 先迁入参考仓库里已经被真实模组验证过的 iteminfo 字段别名，统一在解析层
 # 归一化，避免 capability / writer 重复维护多套命名。
 _ITEMINFO_FIELD_ALIASES: dict[str, str] = {
@@ -143,6 +147,9 @@ def _parse_intents(raw_intents: object, label: str) -> tuple[Format3Intent, ...]
         if raw_op == "new_record":
             intents.append(_parse_new_record_intent(raw_intent, intent_label))
             continue
+        if raw_op == "clone_record":
+            intents.append(_parse_clone_record_intent(raw_intent, intent_label))
+            continue
         match_spec = _parse_match(raw_intent.get("match"), f"{label}[{index}].match")
         if "entry" in raw_intent:
             entry = _require_entry(raw_intent.get("entry"), f"{label}[{index}].entry")
@@ -204,6 +211,36 @@ def _parse_new_record_intent(raw_intent: dict[str, Any], label: str) -> Format3I
         field=FORMAT3_NEW_RECORD_FIELD,
         op="new_record",
         new=template,
+    )
+
+
+def _parse_clone_record_intent(raw_intent: dict[str, Any], label: str) -> Format3Intent:
+    """解析 DMM `clone_record` intent。
+
+    DMM 用 `source_key + new_key + patches[]` 表达“复制源记录为新 key，
+    再逐字段修改”。当前运行层还没有“向 PABGB 追加记录字节 + 向 PABGH
+    追加条目”的通用能力，这里先解析成内部结构，运行层统一安全跳过。
+    """
+    source_key = raw_intent.get("source_key")
+    if isinstance(source_key, bool) or not isinstance(source_key, int):
+        raise ValueError(f"{label}.source_key 必须是整数")
+    new_key = raw_intent.get("new_key")
+    if isinstance(new_key, bool) or not isinstance(new_key, int):
+        raise ValueError(f"{label}.new_key 必须是整数")
+    patches = raw_intent.get("patches")
+    if not isinstance(patches, list) or not all(
+        isinstance(patch, dict)
+        and isinstance(patch.get("path"), str)
+        and patch["path"]
+        for patch in patches
+    ):
+        raise ValueError(f"{label}.patches 必须是非空 path 对象数组")
+    return Format3Intent(
+        entry="",
+        key=new_key,
+        field=FORMAT3_CLONE_RECORD_FIELD,
+        op="clone_record",
+        new={"source_key": source_key, "patches": patches},
     )
 
 

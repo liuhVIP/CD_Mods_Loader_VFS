@@ -6,6 +6,7 @@ import logging
 import os
 import struct
 from bisect import bisect_right
+from collections.abc import Callable
 from pathlib import Path
 from time import perf_counter
 
@@ -33,6 +34,16 @@ NEAR_PATTERN_RELOCATION_LIMIT = 4000
 # JSON 阶段耗时超过该阈值时写入细分日志，方便定位慢模组。
 JSON_PROFILE_LOG_THRESHOLD_SECONDS = 0.25
 
+# 大 JSON 模组实时提示阈值：单模组补丁数达到该值，处理前先提示用户避免误以为卡死。
+LARGE_JSON_CHANGE_THRESHOLD = 5000
+
+# 版本错配告警阈值：应用耗时与未匹配占比同时超过阈值才生成醒目提示。
+JSON_VERSION_WARNING_SECONDS = 5.0
+JSON_VERSION_WARNING_MISMATCH_RATIO = 0.5
+
+# 大 JSON 版本错配/慢加载告警前缀，与 standalone/high-risk 共用同一套入口路由约定。
+JSON_VERSION_MISMATCH_WARNING_PREFIX = "[JSON-VERSION-MISMATCH]"
+
 
 def build_json_overlay_entries(
     game_dir: Path,
@@ -41,6 +52,7 @@ def build_json_overlay_entries(
     warnings: list[str],
     errors: list[str],
     base_entries: list[OverlayInputEntry] | None = None,
+    progress_callback: Callable[[str], None] | None = None,
 ) -> list[OverlayInputEntry]:
     """读取所有传统 JSON 模组，生成待写入 overlay 的 entry。"""
     started = perf_counter()
@@ -62,6 +74,7 @@ def build_json_overlay_entries(
                     continue
                 patch = dict(patch)
                 patch["_allow_partial_apply"] = _allow_partial_apply(data)
+                patch["_game_version"] = _declared_game_version(data)
                 game_file = str(patch["game_file"])
                 group_key = lower_game_rel_path(game_file)
                 resolved = _find_patch_target_entry(game_file, game_dir)
@@ -87,6 +100,7 @@ def build_json_overlay_entries(
         base_entries,
         resolved_game_files,
         mod_stats=mod_stats,
+        progress_callback=progress_callback,
     )
     logger.info(
         "JSON 耗时：总计 %.2fs，读取/分组 %.2fs，目标 %d 个，overlay entry %d 个",
@@ -139,6 +153,7 @@ def build_patch_overlay_entries(
     base_entries: list[OverlayInputEntry] | None = None,
     resolved_game_files: dict[str, str] | None = None,
     mod_stats: dict[str, dict[str, float | int]] | None = None,
+    progress_callback: Callable[[str], None] | None = None,
 ) -> list[OverlayInputEntry]:
     """把已经聚合好的 byte patch block 应用到 vanilla，并生成 overlay entry。"""
     grouped, resolved_game_files = _expand_grouped_patch_items(
@@ -196,6 +211,12 @@ def build_patch_overlay_entries(
             changes = patch.get("changes", [])
             if not changes:
                 continue
+            if len(changes) >= LARGE_JSON_CHANGE_THRESHOLD:
+                _notify_json_progress(
+                    progress_callback,
+                    f"正在处理大 JSON 模组：{mod.name}（{len(changes)} 条补丁），"
+                    "需要较长时间，加载慢是模组本身规模导致的，请耐心等待",
+                )
             patch_name_offsets = name_offsets
             if _has_dynamic_entry_changes(changes):
                 current_header = _build_current_pabgh_for_body(
@@ -244,6 +265,18 @@ def build_patch_overlay_entries(
                 mismatched,
                 relocated,
             )
+            version_warning = build_slow_json_version_warning(
+                mod.name,
+                game_file,
+                len(changes),
+                applied,
+                mismatched,
+                relocated,
+                perf_counter() - patch_started,
+                patch.get("_game_version"),
+            )
+            if version_warning is not None:
+                warnings.append(version_warning)
             if applied == 0:
                 need_already_patched_check = True
             if relocated:
@@ -1039,6 +1072,55 @@ def _record_json_mod_apply_stat(
     stats["applied"] = int(stats.get("applied", 0)) + applied
     stats["mismatched"] = int(stats.get("mismatched", 0)) + mismatched
     stats["relocated"] = int(stats.get("relocated", 0)) + relocated
+
+
+def _declared_game_version(data: dict) -> str | None:
+    """读取 JSON 顶层声明的目标游戏版本，缺失时返回 None。"""
+    value = data.get("game_version")
+    return str(value).strip() if value else None
+
+
+def _notify_json_progress(
+    progress_callback: Callable[[str], None] | None,
+    message: str,
+) -> None:
+    """向控制台入口实时报告 JSON 阶段进度，旧调用方可不传回调。"""
+    if progress_callback is not None:
+        progress_callback(message)
+
+
+def build_slow_json_version_warning(
+    mod_name: str,
+    game_file: str,
+    change_count: int,
+    applied: int,
+    mismatched: int,
+    relocated: int,
+    elapsed: float,
+    declared_game_version: str | None = None,
+) -> str | None:
+    """大 JSON 模组耗时高且补丁大量未匹配时，生成版本错配/慢加载告警。
+
+    触发条件：补丁量大、应用耗时超过阈值、且未匹配占比过半。此时慢与
+    部分补丁失效通常是模组目标游戏版本与当前版本不一致，不是加载器问题。
+    """
+    total = applied + mismatched
+    if change_count < LARGE_JSON_CHANGE_THRESHOLD:
+        return None
+    if elapsed < JSON_VERSION_WARNING_SECONDS:
+        return None
+    if total <= 0 or mismatched / total < JSON_VERSION_WARNING_MISMATCH_RATIO:
+        return None
+    version_note = f"，模组声明目标版本 {declared_game_version}" if declared_game_version else ""
+    relocated_note = f"，其中 {relocated} 条靠偏移重定位补上" if relocated else ""
+    ratio = mismatched / total
+    return (
+        f"{JSON_VERSION_MISMATCH_WARNING_PREFIX}{mod_name}: 这是大型 JSON 补丁模组"
+        f"（{change_count} 条补丁），本次应用耗时 {elapsed:.1f}s。其中 {mismatched}/{total}"
+        f"（{ratio:.0%}）条补丁在当前游戏表上未匹配{version_note}，通常是模组目标游戏版本"
+        f"与当前版本不一致导致{relocated_note}；加载慢与部分补丁失效不是加载器问题，"
+        "请核对模组适配版本或等待作者更新。"
+    )
 
 
 def _log_slow_json_patch(

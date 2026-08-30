@@ -133,12 +133,16 @@ def build_iteminfo_whole_table_result(
 
     by_key = {item["key"]: item for item in items if isinstance(item, dict) and "key" in item}
     by_name: dict[str, dict] = {}
+    ambiguous_names: set[str] = set()
     for item in items:
         if not isinstance(item, dict):
             continue
         string_key = item.get("string_key")
-        if isinstance(string_key, str) and string_key and string_key not in by_name:
-            by_name[string_key] = item
+        if isinstance(string_key, str) and string_key:
+            if string_key in by_name:
+                ambiguous_names.add(string_key)
+            else:
+                by_name[string_key] = item
 
     skipped: list[Format3SkippedIntent] = []
     applied = 0
@@ -149,7 +153,7 @@ def build_iteminfo_whole_table_result(
         if intent.op != "set":
             skipped.append(_skip_intent(intent, "iteminfo whole-table 当前仅支持 op=set"))
             continue
-        item = _resolve_item_record(intent, by_key, by_name)
+        item = _resolve_item_record(intent, by_key, by_name, ambiguous_names)
         if item is None:
             skipped.append(_skip_intent(intent, "目标 entry key/名称 都未命中"))
             continue
@@ -264,14 +268,14 @@ def _resolve_item_record(
     intent: Format3Intent,
     by_key: dict[int, dict],
     by_name: dict[str, dict],
+    ambiguous_names: set[str],
 ) -> dict | None:
-    """优先按 key，回退到 entry 名称查找 whole-table 记录。"""
-    item = by_key.get(intent.key)
-    if item is not None:
-        return item
-    if intent.entry:
-        return by_name.get(intent.entry)
-    return None
+    """优先按唯一 entry 名称，缺失或不唯一时回退到 key 查找 whole-table 记录。"""
+    if intent.entry and intent.entry not in ambiguous_names:
+        item = by_name.get(intent.entry)
+        if item is not None:
+            return item
+    return by_key.get(intent.key)
 
 
 def _elements_match_kind(values: list, kind: type) -> bool:

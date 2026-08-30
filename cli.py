@@ -41,8 +41,10 @@ from cdmm.services.scanner import (
 from cdmm.storage.state_store import load_state
 from cdmm.utils.console_alert import (
     is_high_risk_mod_warning,
+    is_json_version_mismatch_warning,
     is_standalone_conflict,
     print_high_risk_mod_warning,
+    print_json_version_mismatch_warning,
     print_standalone_conflict,
 )
 
@@ -493,6 +495,9 @@ def print_result(command: str, result: LoaderResult, elapsed_seconds: float, lan
     for warning in result.warnings:
         if is_high_risk_mod_warning(warning):
             print_high_risk_mod_warning(warning)
+            continue
+        if is_json_version_mismatch_warning(warning):
+            print_json_version_mismatch_warning(warning)
             continue
         if is_standalone_conflict(warning):
             print_standalone_conflict(warning)
