@@ -1,1427 +1,4340 @@
 [
   {
+    "original": "Unpacked Trade Goods",
+    "translation": "未包装贸易品",
+    "capacity": 24,
+    "rva": 1056768
+  },
+  {
+    "original": "Packed Trade Goods",
+    "translation": "包装贸易品",
+    "capacity": 24,
+    "rva": 1056792
+  },
+  {
+    "original": "Animal Items",
+    "translation": "动物物品",
+    "capacity": 16,
+    "rva": 1056816
+  },
+  {
+    "original": "Trade Goods",
+    "translation": "贸易品",
+    "capacity": 16,
+    "rva": 1056832
+  },
+  {
+    "original": "One-Handed Weapons",
+    "translation": "单手武器",
+    "capacity": 24,
+    "rva": 1056848
+  },
+  {
+    "original": "Shields",
+    "translation": "盾牌",
+    "capacity": 8,
+    "rva": 1056872
+  },
+  {
+    "original": "Two-Handed Weapons",
+    "translation": "双手武器",
+    "capacity": 24,
+    "rva": 1056880
+  },
+  {
+    "original": "Ranged Weapons",
+    "translation": "远程武器",
+    "capacity": 16,
+    "rva": 1056904
+  },
+  {
+    "original": "Daggers",
+    "translation": "匕首",
+    "capacity": 8,
+    "rva": 1056920
+  },
+  {
+    "original": "Helmets",
+    "translation": "头盔",
+    "capacity": 8,
+    "rva": 1056928
+  },
+  {
+    "original": "Armor",
+    "translation": "防具",
+    "capacity": 8,
+    "rva": 1056936
+  },
+  {
+    "original": "Cloaks",
+    "translation": "披风",
+    "capacity": 8,
+    "rva": 1056944
+  },
+  {
+    "original": "Gloves",
+    "translation": "手套",
+    "capacity": 8,
+    "rva": 1056952
+  },
+  {
+    "original": "Boots",
+    "translation": "鞋子",
+    "capacity": 8,
+    "rva": 1056960
+  },
+  {
+    "original": "Necklaces",
+    "translation": "项链",
+    "capacity": 12,
+    "rva": 1056968
+  },
+  {
+    "original": "Rings",
+    "translation": "戒指",
+    "capacity": 12,
+    "rva": 1056980
+  },
+  {
+    "original": "Glasses",
+    "translation": "眼镜",
+    "capacity": 8,
+    "rva": 1056992
+  },
+  {
+    "original": "Masks",
+    "translation": "面罩",
+    "capacity": 8,
+    "rva": 1057000
+  },
+  {
+    "original": "Backpacks",
+    "translation": "背囊",
+    "capacity": 16,
+    "rva": 1057008
+  },
+  {
+    "original": "Riding Gear",
+    "translation": "坐骑装备",
+    "capacity": 16,
+    "rva": 1057024
+  },
+  {
+    "original": "Pet Armor",
+    "translation": "宠物装备",
+    "capacity": 16,
+    "rva": 1057040
+  },
+  {
+    "original": "Special Vehicles",
+    "translation": "特殊载具",
+    "capacity": 24,
+    "rva": 1057056
+  },
+  {
+    "original": "Korean Food",
+    "translation": "韩国料理",
+    "capacity": 16,
+    "rva": 1057080
+  },
+  {
+    "original": "Potions",
+    "translation": "药剂",
+    "capacity": 8,
+    "rva": 1057096
+  },
+  {
+    "original": "Horse Food",
+    "translation": "马匹饲料",
+    "capacity": 16,
+    "rva": 1057104
+  },
+  {
+    "original": "Food Materials",
+    "translation": "食材",
+    "capacity": 16,
+    "rva": 1057120
+  },
+  {
+    "original": "Books",
+    "translation": "书籍",
+    "capacity": 8,
+    "rva": 1057136
+  },
+  {
+    "original": "Recipe Books",
+    "translation": "配方书",
+    "capacity": 16,
+    "rva": 1057144
+  },
+  {
+    "original": "Crafting Recipes",
+    "translation": "制作配方",
+    "capacity": 24,
+    "rva": 1057160
+  },
+  {
+    "original": "Treasure Maps",
+    "translation": "藏宝图",
+    "capacity": 16,
+    "rva": 1057184
+  },
+  {
+    "original": "Documents",
+    "translation": "文件",
+    "capacity": 16,
+    "rva": 1057200
+  },
+  {
+    "original": "Wall Documents",
+    "translation": "墙面文件",
+    "capacity": 16,
+    "rva": 1057216
+  },
+  {
+    "original": "Wanted Posters",
+    "translation": "通缉令",
+    "capacity": 16,
+    "rva": 1057232
+  },
+  {
+    "original": "Tools",
+    "translation": "工具",
+    "capacity": 8,
+    "rva": 1057248
+  },
+  {
+    "original": "Money",
+    "translation": "钱币",
+    "capacity": 8,
+    "rva": 1057256
+  },
+  {
+    "original": "Currency",
+    "translation": "货币",
+    "capacity": 16,
+    "rva": 1057264
+  },
+  {
+    "original": "Quest Memories",
+    "translation": "任务记忆",
+    "capacity": 16,
+    "rva": 1057280
+  },
+  {
+    "original": "Special Boss Quest Equipment",
+    "translation": "首领任务特殊装备",
+    "capacity": 32,
+    "rva": 1057296
+  },
+  {
+    "original": "Keys",
+    "translation": "钥匙",
+    "capacity": 8,
+    "rva": 1057328
+  },
+  {
+    "original": "Sealed Artifacts",
+    "translation": "封印神器",
+    "capacity": 24,
+    "rva": 1057336
+  },
+  {
+    "original": "Controls",
+    "translation": "控制器",
+    "capacity": 16,
+    "rva": 1057360
+  },
+  {
+    "original": "Abyss Gear",
+    "translation": "深渊装备",
+    "capacity": 12,
+    "rva": 1057376
+  },
+  {
+    "original": "Quest",
+    "translation": "任务",
+    "capacity": 12,
+    "rva": 1057388
+  },
+  {
+    "original": "Collection",
+    "translation": "收藏品",
+    "capacity": 16,
+    "rva": 1057400
+  },
+  {
+    "original": "Housing",
+    "translation": "家园",
+    "capacity": 8,
+    "rva": 1059112
+  },
+  {
+    "original": "Equip Accessory Earring",
+    "translation": "装备耳环",
+    "capacity": 24,
+    "rva": 1057416
+  },
+  {
+    "original": "Metarial Medical",
+    "translation": "药用材料",
+    "capacity": 24,
+    "rva": 1057440
+  },
+  {
+    "original": "Metarial Object",
+    "translation": "物品材料",
+    "capacity": 16,
+    "rva": 1057464
+  },
+  {
     "original": "PLAYER",
     "translation": "角色",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "TRAVEL",
     "translation": "旅行",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "INVENTORY",
     "translation": "物品",
-    "capacity": 11
+    "capacity": 12
   },
   {
     "original": "WORLD",
     "translation": "世界",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "SYSTEM",
     "translation": "系统",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Select",
     "translation": "选择",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Toggle",
     "translation": "切换",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Adjust",
     "translation": "调整",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "pick",
     "translation": "选择",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Reset",
     "translation": "重置",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Open",
     "translation": "打开",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Type",
     "translation": "输入",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Clear",
     "translation": "清空",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Done",
     "translation": "完成",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Erase",
     "translation": "删除",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Apply",
     "translation": "应用",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Amount",
     "translation": "数量",
-    "capacity": 7
+    "capacity": 10
   },
   {
     "original": "Remove",
     "translation": "移除",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Add",
     "translation": "加",
-    "capacity": 3
+    "capacity": 10
   },
   {
     "original": "Pick",
     "translation": "选择",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Rebind",
     "translation": "绑定",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Close",
     "translation": "关闭",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Back",
     "translation": "返回",
-    "capacity": 7
+    "capacity": 9
   },
   {
     "original": "Tab",
     "translation": "页签",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Search",
     "translation": "搜索",
-    "capacity": 11
+    "capacity": 8
   },
   {
     "original": "A to type",
     "translation": "按A输入",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Enter to type",
     "translation": "回车输入",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Uncategorised",
     "translation": "未分类",
-    "capacity": 15
+    "capacity": 16,
+    "rva": 1059424
   },
   {
     "original": "Recolor your equipped gear.",
     "translation": "b站up 改名_汉化",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Recolor your equipped gear. Load into the world first.",
     "translation": "给装备染色，请先进入游戏世界。",
-    "capacity": 55
+    "capacity": 56
   },
   {
     "original": "Dye Equipment",
     "translation": "装备染色",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Refine your gear and socket abyss gears into it.",
     "translation": "精炼装备并镶嵌深渊装备。",
-    "capacity": 55
+    "capacity": 56
   },
   {
     "original": "Refine and socket your gear. Load into the world first.",
     "translation": "精炼并镶嵌装备，请先进入游戏世界。",
-    "capacity": 55
+    "capacity": 56
   },
   {
     "original": "Edit Equipment",
     "translation": "装备编辑",
-    "capacity": 15
-  },
-  {
-    "original": "Keeps your health full.",
-    "translation": "保持生命全满。",
-    "capacity": 23
+    "capacity": 16
   },
   {
     "original": "Keeps your health full. Load into the game world first.",
     "translation": "保持生命值全满，请先进入游戏。",
-    "capacity": 55
+    "capacity": 56
   },
   {
     "original": "God Mode",
     "translation": "无敌",
-    "capacity": 15
-  },
-  {
-    "original": "Keeps your stamina full.",
-    "translation": "保持耐力全满。",
-    "capacity": 31
-  },
-  {
-    "original": "Infinite Stamina",
-    "translation": "无限耐力",
-    "capacity": 31
-  },
-  {
-    "original": "Keeps your spirit full.",
-    "translation": "保持精神全满。",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Infinite Spirit",
     "translation": "无限精神",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Move faster than normal.",
     "translation": "提高移动速度。",
-    "capacity": 27
+    "capacity": 32
   },
   {
     "original": "Super Run",
     "translation": "疾跑",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Jump higher than normal.",
     "translation": "提高跳跃高度。",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Super Jump",
     "translation": "高跳",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "While airborne, hold Caps Lock / RB to rise or Ctrl / Right Trigger to sink. Let go and normal physics resume - jumps and aerial attacks are untouched.",
     "translation": "在空中按住大写锁定键或RB上升，按住Ctrl或右扳机下降；松开后恢复正常物理，不影响跳跃和空中攻击。",
-    "capacity": 151
+    "capacity": 152
   },
   {
     "original": "Free Flight",
     "translation": "自由飞行",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Gifting NPCs or feeding animals builds trust faster.",
     "translation": "送礼或喂食时更快提升信赖度。",
-    "capacity": 63
+    "capacity": 64
   },
   {
     "original": "Gifting NPCs or feeding animals builds trust faster. Unavailable right now.",
     "translation": "送礼或喂食时更快提升信赖度，当前不可用。",
-    "capacity": 79
+    "capacity": 80
   },
   {
     "original": "Trust Multiplier",
     "translation": "信赖倍率",
-    "capacity": 23
-  },
-  {
-    "original": "Adjusts how much damage you deal.",
-    "translation": "调整造成的伤害。",
-    "capacity": 39
+    "capacity": 24
   },
   {
     "original": "Outgoing Damage",
     "translation": "输出伤害",
-    "capacity": 15
-  },
-  {
-    "original": "Adjusts how much damage you take.",
-    "translation": "调整受到的伤害。",
-    "capacity": 39
+    "capacity": 16
   },
   {
     "original": "Incoming Damage",
     "translation": "承受伤害",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Dye applied",
     "translation": "已染色",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Could not dye that - see the log",
     "translation": "染色失败，请查看日志",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Applying dye...",
     "translation": "正在染色…",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Load into the world - if this persists, change any equipment piece once so the mod can see your gear.",
     "translation": "请进入游戏；若仍无效，请更换一次装备。",
-    "capacity": 103
+    "capacity": 104
   },
   {
     "original": "Waiting for your equipment...",
     "translation": "正在等待装备数据…",
-    "capacity": 31
-  },
-  {
-    "original": "%s - %s  (%u dyed)",
-    "translation": "%s-%s（已染%u处）",
-    "capacity": 23
+    "capacity": 40
   },
   {
     "original": "Recolor this piece.",
     "translation": "此装备染色。",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Equip some gear first.",
     "translation": "请先装备物品。",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Nothing equipped",
     "translation": "没有装备",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "None of these pieces can be dyed.",
     "translation": "这些装备均不可染色。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Nothing dyeable equipped",
     "translation": "未装备可染色物品",
-    "capacity": 27
+    "capacity": 32
   },
   {
     "original": "Can't be dyed: %d piece%s",
     "translation": "不可染色：%d件%s",
-    "capacity": 39
+    "capacity": 32
   },
   {
     "original": "All zones",
     "translation": "全区域",
-    "capacity": 11
+    "capacity": 12
   },
   {
     "original": "Zone 1",
     "translation": "区1",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Zone 2",
     "translation": "区2",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Zone 3",
     "translation": "区3",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Zone 4",
     "translation": "区4",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Zone 5",
     "translation": "区5",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Zone 6",
     "translation": "区6",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Zone 7",
     "translation": "区7",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Zone 8",
     "translation": "区8",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Zone 9",
     "translation": "区9",
-    "capacity": 11
+    "capacity": 12
   },
   {
     "original": "Zone 10",
     "translation": "区10",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Zone 11",
     "translation": "区11",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Zone 12",
     "translation": "区12",
-    "capacity": 15
-  },
-  {
-    "original": "Which part of the item to color. Most gear only uses the first few.",
-    "translation": "选择染色部位，多数装备只使用前几个区域。",
-    "capacity": 71
+    "capacity": 8
   },
   {
     "original": "Dye Zone",
     "translation": "区域",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Pick a color family to browse its shades below.",
     "translation": "选择色系并浏览下方色调。",
-    "capacity": 47
+    "capacity": 48
   },
   {
     "original": "Color Family",
     "translation": "色系",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Pick a tone, or the first swatch to remove the dye.",
     "translation": "选择色调；首个色块可移除染色。",
-    "capacity": 55
+    "capacity": 56
   },
   {
     "original": "Pick a color to dye it right away.",
     "translation": "选择颜色并立即染色。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Removing dye...",
     "translation": "移除染色…",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Mix your own color instead of a preset.",
     "translation": "自定义颜色，不使用预设。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Custom Color",
     "translation": "自定义色",
-    "capacity": 15
+    "capacity": 24
   },
   {
     "original": "Swap the fabric or metal look. 0 keeps it natural.",
     "translation": "调整布料或金属质感，0为自然。",
-    "capacity": 55
+    "capacity": 64
   },
   {
     "original": "Material",
     "translation": "材质",
-    "capacity": 10
+    "capacity": 16
   },
   {
     "original": "How worn the piece looks. 100 is pristine, 0 is battle-scarred.",
     "translation": "调整磨损程度，100崭新，0严重磨损。",
-    "capacity": 63
+    "capacity": 64
   },
   {
     "original": "Condition %",
     "translation": "成色 %",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Red 0-255.",
     "translation": "红 0-255",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Green 0-255.",
     "translation": "绿 0-255",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Blue 0-255.",
     "translation": "蓝 0-255",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Dye it with this exact color.",
     "translation": "使用此颜色染色。",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Apply This Color",
     "translation": "应用此颜色",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Load the zone's current color.",
     "translation": "读取此区域当前颜色。",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Load Current",
     "translation": "读取当前",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Loaded zone %d",
     "translation": "区域%d已读",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "That zone has no dye yet",
     "translation": "该区域尚未染色",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Load into the world first.",
     "translation": "请先进入世界。",
-    "capacity": 26
+    "capacity": 32
   },
   {
     "original": "Refine this piece and edit its abyss-gear sockets.",
     "translation": "精炼此装备并编辑深渊插槽。",
-    "capacity": 55
+    "capacity": 56
   },
   {
     "original": "This piece is no longer equipped.",
     "translation": "该物品已不在装备中。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Not equipped",
     "translation": "未装备",
-    "capacity": 23
-  },
-  {
-    "original": "Opens every socket on this piece (up to 5), then socket gears into them.",
-    "translation": "解锁全部插槽（最多5个）并镶嵌装备。",
-    "capacity": 79
+    "capacity": 16
   },
   {
     "original": "Unlock all sockets",
     "translation": "解锁全部插槽",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "All sockets unlocked",
     "translation": "插槽全解锁",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Could not unlock - see the log",
     "translation": "解锁失败，请查看日志",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Removes every abyss gear from this piece, leaving the sockets open.",
     "translation": "移除该物品全部深渊装备并保留插槽。",
-    "capacity": 71
+    "capacity": 72
   },
   {
     "original": "Clear all sockets",
     "translation": "清空插槽",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "All sockets cleared",
     "translation": "插槽已全清空",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Could not clear - see the log",
     "translation": "清空失败，请看日志",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Refine this piece from 0 to 10.",
     "translation": "设置精炼等级0-10。",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Refinement",
     "translation": "精炼等级",
-    "capacity": 15
+    "capacity": 12
   },
   {
     "original": "Could not set refinement - see the log",
     "translation": "精炼失败，请查看日志",
-    "capacity": 39
-  },
-  {
-    "original": "Unlock sockets above to add abyss gears.",
-    "translation": "先解锁插槽再添加装备。",
-    "capacity": 47
-  },
-  {
-    "original": "No sockets yet",
-    "translation": "尚无插槽",
-    "capacity": 15
+    "capacity": 40
   },
   {
     "original": "Your save is still loading - gear edits apply visually but revert on reload until this clears.",
     "translation": "存档仍在加载；当前修改重载后可能还原。",
-    "capacity": 95
+    "capacity": 96
   },
   {
     "original": "Note: not saving yet",
     "translation": "注意：未保存",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Empty",
     "translation": "空",
-    "capacity": 7
+    "capacity": 12
   },
   {
     "original": "Change or remove this abyss gear.",
     "translation": "更换或移除此深渊装备。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Add an abyss gear to this socket.",
     "translation": "向此插槽添加深渊装备。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "%s - Socket %d",
     "translation": "%s - 插槽%d",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Remove whatever gear is in this socket.",
     "translation": "移除此插槽中的装备。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "- Empty this socket -",
     "translation": "- 清空此插槽 -",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Socket cleared",
     "translation": "插槽清空",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Socket cleared (this session)",
     "translation": "本次会话已清空插槽",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "The game's Abyss Gear catalog did not resolve.",
     "translation": "无法读取游戏的深渊装备目录。",
-    "capacity": 47
+    "capacity": 48
   },
   {
     "original": "No abyss gears found",
     "translation": "无深渊装备",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Find an abyss gear by name.",
     "translation": "按名称查找装备。",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Socket this abyss gear.",
     "translation": "镶嵌此装备。",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Socketed %s",
     "translation": "已装%s",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Socketed %s (this session)",
     "translation": "本次已镶嵌 %s",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Could not socket that - see the log",
     "translation": "镶嵌失败，请查看日志",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "No abyss gear is called that.",
     "translation": "无此深渊装备。",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "No matches",
     "translation": "无匹配",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Only the first 200 are listed - keep typing to narrow it down.",
     "translation": "仅显示前200项，请继续输入以缩小范围。",
-    "capacity": 63
+    "capacity": 64
   },
   {
     "original": "More matches...",
     "translation": "更多结果…",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Speeds up or slows down the game.",
     "translation": "加快或减慢游戏速度。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Speeds up or slows down the game. Unavailable right now.",
     "translation": "加快或减慢游戏速度，当前不可用。",
-    "capacity": 63
+    "capacity": 64
   },
   {
     "original": "Game Speed",
     "translation": "倍速",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Holds the clock at the current time; the world keeps running normally.",
     "translation": "将时钟冻结在当前时间，游戏世界仍会正常运行。",
-    "capacity": 71
+    "capacity": 72
   },
   {
     "original": "Holds the clock in place. Unavailable right now.",
     "translation": "冻结时钟，当前不可用。",
-    "capacity": 55
+    "capacity": 56
   },
   {
     "original": "Freeze Time of Day",
     "translation": "冻结时间",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Skips the clock forward by this many hours; time keeps flowing after.",
     "translation": "将时钟向前推进指定小时，之后时间继续流动。",
-    "capacity": 71
+    "capacity": 72
   },
   {
     "original": "Skips the clock forward. Unavailable right now.",
     "translation": "推进时钟，当前不可用。",
-    "capacity": 47
+    "capacity": 48
   },
   {
     "original": "Copy these coordinates to the clipboard.",
     "translation": "复制坐标到剪贴板。",
-    "capacity": 47
+    "capacity": 48
   },
   {
     "original": "Coordinates copied to clipboard",
     "translation": "坐标已复制",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Load into the world and take a step first.",
     "translation": "请先进入游戏并移动一步。",
-    "capacity": 47
+    "capacity": 48
   },
   {
     "original": "No position yet",
     "translation": "尚无位置",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Warp to any location on the map.",
     "translation": "传送到地图任意地点。",
-    "capacity": 35
+    "capacity": 36
   },
   {
     "original": "Fast Travel",
     "translation": "传送",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Abyss Nexus (Land)",
     "translation": "深渊枢纽(陆地)",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Abyss Nexus (Abyss)",
     "translation": "深渊枢纽(深渊)",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Abyss Gate",
     "translation": "深渊之门",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Abyss Cresset",
     "translation": "深渊火盆",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Sealed Artifact",
     "translation": "封印遗物",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Bells",
     "translation": "钟楼",
-    "capacity": 11
+    "capacity": 12
   },
   {
     "original": "Boss Rematch",
     "translation": "首领重战",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Vision Memories",
     "translation": "幻视记忆",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Treasure Box",
     "translation": "宝箱",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "A.T.A.G. Repair Shop",
     "translation": "A.T.A.G.修理店",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Teleportation Gate",
     "translation": "传送门",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Shop",
     "translation": "商店",
-    "capacity": 7
+    "capacity": 9
   },
   {
     "original": "Azurite Mine",
     "translation": "蓝铜矿",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Copper Mine",
     "translation": "铜矿",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Diamond Mine",
     "translation": "钻石矿",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Epidote Mine",
     "translation": "绿帘石矿",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Iron Mine",
     "translation": "铁矿",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Bloodstone Mine",
     "translation": "血石矿",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Garnet Mine",
     "translation": "石榴石矿",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Scolecite Mine",
     "translation": "钙沸石矿",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Bismuth Mine",
     "translation": "铋矿",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Sulfur Mine",
     "translation": "硫磺矿",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Mercury",
     "translation": "水银",
-    "capacity": 7
+    "capacity": 14
   },
   {
     "original": "Rubber",
     "translation": "橡胶",
-    "capacity": 7
+    "capacity": 14
   },
   {
     "original": "Palmar Leaf",
     "translation": "棕榈叶",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Prickly Pear",
     "translation": "仙人果",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Chaya",
     "translation": "茶树",
-    "capacity": 7
+    "capacity": 12
   },
   {
     "original": "Enset",
     "translation": "芭蕉",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Green Algae",
     "translation": "绿藻",
-    "capacity": 11
+    "capacity": 12
   },
   {
     "original": "Red Seaweed",
     "translation": "红海藻",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Amaranth",
     "translation": "苋菜",
-    "capacity": 11
+    "capacity": 12
   },
   {
     "original": "Taro",
     "translation": "芋头",
-    "capacity": 11
+    "capacity": 12
   },
   {
     "original": "Gold Mine",
     "translation": "金矿",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Silver Mine",
     "translation": "银矿",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Loading - if this persists, load into the world first.",
     "translation": "正在加载；若持续如此，请先进入游戏。",
-    "capacity": 55
+    "capacity": 56
   },
   {
     "original": "Building destination list...",
     "translation": "生成目的地列表…",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Browse and warp to this category's locations.",
     "translation": "浏览并传送到此分类地点。",
-    "capacity": 47
+    "capacity": 48
   },
   {
     "original": "Fast travel to %s at %.0f, %.0f, %.0f.",
     "translation": "传送至%s：%.0f, %.0f, %.0f",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Warping to %s",
     "translation": "传送至%s",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Nothing to warp to in this category.",
     "translation": "此分类没有可传送地点。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "No locations",
     "translation": "没有地点",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "No locations match this search.",
     "translation": "没有符合搜索的地点。",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Search this list by name.",
     "translation": "按名称搜索。",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Editing is locked until your save finishes loading.",
     "translation": "存档加载完成前无法编辑。",
-    "capacity": 55
+    "capacity": 56
   },
   {
     "original": "%s, in %s.",
     "translation": "%s在%s",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Change how many you have, or remove it.",
     "translation": "修改持有数量或移除。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Removed %s",
     "translation": "移除%s",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Add any item in the game to your inventory.",
     "translation": "向背包添加任意游戏物品。",
-    "capacity": 43
+    "capacity": 44
   },
   {
     "original": "Add Item",
     "translation": "添加",
-    "capacity": 15
+    "capacity": 24
   },
   {
     "original": "Browse and edit what you're carrying.",
     "translation": "浏览并编辑携带的物品。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Item Editor",
     "translation": "物品",
-    "capacity": 15
-  },
-  {
-    "original": "Sets every storage's slot count to this number.",
-    "translation": "将所有仓库格数设为此值。",
-    "capacity": 47
+    "capacity": 24
   },
   {
     "original": "Slot Size",
     "translation": "格数",
-    "capacity": 15
-  },
-  {
-    "original": "Sets every item's max stack size to this number.",
-    "translation": "将全部物品堆叠上限设为此值。",
-    "capacity": 55
+    "capacity": 24
   },
   {
     "original": "Max Stack Size",
     "translation": "堆叠上限",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Reading your items - if this persists, open your in-game inventory once and come back here.",
     "translation": "正在读取物品；若持续如此，请打开一次游戏背包。",
-    "capacity": 95
+    "capacity": 96
   },
   {
     "original": "Loading inventory...",
     "translation": "加载背包…",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Browse and edit what is kept in this storage.",
     "translation": "浏览并编辑此仓库中的物品。",
-    "capacity": 47
+    "capacity": 48
   },
   {
     "original": "Reloads your inventory from the game.",
     "translation": "从游戏重新读取背包。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Refresh",
     "translation": "刷新",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Inventory refreshed",
     "translation": "背包已刷新",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Nothing in this storage right now.",
     "translation": "此仓库当前为空。",
-    "capacity": 47
+    "capacity": 48
   },
   {
     "original": "Find an item anywhere in this storage, whatever category it is in.",
     "translation": "在此仓库全部分类中查找物品。",
-    "capacity": 71
+    "capacity": 72
   },
   {
     "original": "Browse and edit items in this category.",
     "translation": "浏览并编辑此分类物品。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Nothing in this storage is called that.",
     "translation": "仓库中没有该名称的物品。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Nothing here to set.",
     "translation": "无可设置项。",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Set All",
     "translation": "全设",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Nothing in this category right now.",
     "translation": "此分类当前为空。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Narrow this category down by name.",
     "translation": "按名称筛选此分类。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Nothing in this category is called that.",
     "translation": "此分类中没有该名称的物品。",
-    "capacity": 47
+    "capacity": 48
   },
   {
     "original": "Item added",
     "translation": "已添加",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Could not add that item - see the log",
     "translation": "添加失败，请查看日志",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Adding is locked until your save finishes loading.",
     "translation": "存档加载完成前无法添加。",
-    "capacity": 55
+    "capacity": 56
   },
   {
     "original": "Set how many, then add it.",
     "translation": "设置数量后添加。",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Adding %lld x %s...",
     "translation": "添加%lldx%s…",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Could not add %s",
     "translation": "无法添加%s",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "The game's item table did not resolve, so there is nothing to add from.",
     "translation": "无法读取游戏物品表，暂时无法添加。",
-    "capacity": 71
+    "capacity": 72
   },
   {
     "original": "Catalog unavailable",
     "translation": "目录不可用",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Find any item in the game by name, whatever category it is in.",
     "translation": "按名称查找游戏中的任意物品。",
-    "capacity": 63
+    "capacity": 64
   },
   {
     "original": "Add any item from this category.",
     "translation": "添加此分类任意物品。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "No item in the game is called that.",
     "translation": "游戏中无该物品。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Nothing here to add.",
     "translation": "无可添加物品",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Add All",
     "translation": "全加",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Still adding the last batch - let it finish first",
     "translation": "上一批仍在添加，请等待完成。",
-    "capacity": 55
+    "capacity": 56
   },
   {
     "original": "Nothing in this category.",
     "translation": "此分类为空。",
-    "capacity": 39
+    "capacity": 32
   },
   {
     "original": "Insert",
     "translation": "插入",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Delete",
     "translation": "删除",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Home",
     "translation": "起始",
-    "capacity": 7
+    "capacity": 11
   },
   {
     "original": "Page Up",
     "translation": "上页",
-    "capacity": 7
+    "capacity": 8
   },
   {
     "original": "Page Down",
     "translation": "下翻页",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Up Arrow",
     "translation": "上方向键",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Down Arrow",
     "translation": "下方向键",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Left Arrow",
     "translation": "左方向键",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Right Arrow",
     "translation": "右方向键",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Num Lock",
     "translation": "数字锁定",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Print Screen",
     "translation": "截屏键",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "D-Pad Up",
     "translation": "十字键上",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "D-Pad Down",
     "translation": "十字键下",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "D-Pad Left",
     "translation": "十字键左",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "D-Pad Right",
     "translation": "十字右",
-    "capacity": 11
+    "capacity": 12
   },
   {
     "original": "Start",
     "translation": "开始",
-    "capacity": 7
+    "capacity": 9
   },
   {
     "original": "press a key...",
     "translation": "请按键…",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "press a button...",
     "translation": "请按按钮…",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Press the key you want to bind, or Esc to cancel.",
     "translation": "按下要绑定的键，或按Esc取消。",
-    "capacity": 55
+    "capacity": 56
   },
   {
     "original": "Press the button or combo you want to bind, or Esc to cancel.",
     "translation": "按下要绑定的按钮或组合键，或按Esc取消。",
-    "capacity": 63
+    "capacity": 64
   },
   {
     "original": "%s keyboard bind reset to %s",
     "translation": "%s键盘绑定重置为%s",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "%s controller bind reset to %s",
     "translation": "%s手柄绑定重置为%s",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Menu key",
     "translation": "菜单键",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Menu button",
     "translation": "菜单按钮",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Fly Up key",
     "translation": "上升键",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Fly Up button",
     "translation": "上升按钮",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Fly Down key",
     "translation": "下降键",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Fly Down button",
     "translation": "下降按钮",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "%s set to %s",
     "translation": "%s设为%s",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Opens and closes this menu.",
     "translation": "打开或关闭此菜单。",
-    "capacity": 31
+    "capacity": 32
   },
   {
     "original": "Open Menu",
     "translation": "打开菜单",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "While Free Flight is on and you're airborne, hold this to rise.",
     "translation": "启用自由飞行并处于空中时，按住此键上升。",
-    "capacity": 63
+    "capacity": 64
   },
   {
     "original": "Fly Up",
     "translation": "上升",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "While Free Flight is on and you're airborne, hold this to sink.",
     "translation": "启用自由飞行并处于空中时，按住此键下降。",
-    "capacity": 63
+    "capacity": 64
   },
   {
     "original": "Fly Down",
     "translation": "下降",
-    "capacity": 15
+    "capacity": 16
   },
   {
     "original": "Resets every keyboard and controller bind on this page to its default.",
     "translation": "将本页全部键盘和手柄绑定恢复默认。",
-    "capacity": 71
+    "capacity": 72
   },
   {
     "original": "Reset All Keybinds",
     "translation": "重置全部按键",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Keybinds reset to defaults",
     "translation": "按键绑定已恢复默认",
-    "capacity": 31
+    "capacity": 28
   },
   {
     "original": "Set the keyboard and controller binds for opening the menu and Free Flight.",
     "translation": "设置打开菜单和自由飞行使用的键盘及手柄按键。",
-    "capacity": 79
+    "capacity": 80
   },
   {
     "original": "Keybinds",
     "translation": "按键绑定",
-    "capacity": 13
+    "capacity": 16
   },
   {
     "original": "Shows your FPS in the corner of the screen.",
     "translation": "在屏幕角落显示帧率。",
-    "capacity": 47
+    "capacity": 48
   },
   {
     "original": "Show FPS Counter",
     "translation": "显示帧率",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Saves your settings automatically and restores them next time.",
     "translation": "自动保存设置并在下次恢复。",
-    "capacity": 63
+    "capacity": 64
   },
   {
     "original": "Auto Save Features",
     "translation": "自动保存功能",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "Resets every feature to its default.",
     "translation": "将全部功能恢复默认值。",
-    "capacity": 39
+    "capacity": 40
   },
   {
     "original": "Reset All to Default",
     "translation": "全部恢复默认",
-    "capacity": 23
+    "capacity": 24
   },
   {
     "original": "All features reset to defaults",
     "translation": "全部功能已恢复默认",
-    "capacity": 33
+    "capacity": 35
+  },
+  {
+    "original": "Natural",
+    "translation": "自然",
+    "capacity": 8
+  },
+  {
+    "original": "Velvet",
+    "translation": "绒面",
+    "capacity": 8
+  },
+  {
+    "original": "Brass",
+    "translation": "黄铜",
+    "capacity": 8
+  },
+  {
+    "original": "Enamel",
+    "translation": "珐琅",
+    "capacity": 8
+  },
+  {
+    "original": "A select",
+    "translation": "A 选择",
+    "capacity": 16
+  },
+  {
+    "original": "A toggle",
+    "translation": "A 切换",
+    "capacity": 16
+  },
+  {
+    "original": "A toggle   < > adjust   X reset",
+    "translation": "A 切换  < > 调整  X 重置",
+    "capacity": 32
+  },
+  {
+    "original": "< > adjust   X reset",
+    "translation": "< > 调整  X 重置",
+    "capacity": 21
+  },
+  {
+    "original": "< > pick",
+    "translation": "< > 选择",
+    "capacity": 12
+  },
+  {
+    "original": "A open",
+    "translation": "A 打开",
+    "capacity": 12
+  },
+  {
+    "original": "A type   X clear",
+    "translation": "A 输入  X 清除",
+    "capacity": 24
+  },
+  {
+    "original": "A done   B erase",
+    "translation": "A 完成  B 删除",
+    "capacity": 24
+  },
+  {
+    "original": "A apply   B erase",
+    "translation": "A 应用  B 删除",
+    "capacity": 24
+  },
+  {
+    "original": "< > amount   X remove",
+    "translation": "< > 数量  X 移除",
+    "capacity": 24
+  },
+  {
+    "original": "< > amount   A add",
+    "translation": "< > 数量  A 添加",
+    "capacity": 24
+  },
+  {
+    "original": "< > amount   A apply   X reset",
+    "translation": "< > 数量  A 应用  X 重置",
+    "capacity": 32
+  },
+  {
+    "original": "< > pick   A rebind   X reset",
+    "translation": "< > 选择  A 重绑  X 重置",
+    "capacity": 32
+  },
+  {
+    "original": "Enter select",
+    "translation": "Enter 选择",
+    "capacity": 16
+  },
+  {
+    "original": "Enter toggle",
+    "translation": "Enter 切换",
+    "capacity": 16
+  },
+  {
+    "original": "Enter toggle   < > adjust   Del reset",
+    "translation": "Enter 切换  < > 调整  Del 重置",
+    "capacity": 40
+  },
+  {
+    "original": "< > adjust   Enter type   Del reset",
+    "translation": "< > 调整  Enter 输入  Del 重置",
+    "capacity": 40
+  },
+  {
+    "original": "Enter open",
+    "translation": "Enter 打开",
+    "capacity": 16
+  },
+  {
+    "original": "Enter type   Del clear",
+    "translation": "Enter 输入  Del 清除",
+    "capacity": 24
+  },
+  {
+    "original": "Enter done   Bksp erase",
+    "translation": "Enter 完成 Bksp 删",
+    "capacity": 24
+  },
+  {
+    "original": "Enter apply   Bksp erase",
+    "translation": "Enter 应用  Bksp 删除",
+    "capacity": 32
+  },
+  {
+    "original": "< > amount   Enter type   Del remove",
+    "translation": "< > 数量  Enter 输入  Del 移除",
+    "capacity": 40
+  },
+  {
+    "original": "< > amount   Enter add",
+    "translation": "< > 数量  Enter 添加",
+    "capacity": 24
+  },
+  {
+    "original": "< > amount   Enter type   Del reset",
+    "translation": "< > 数量  Enter 输入  Del 重置",
+    "capacity": 40
+  },
+  {
+    "original": "< > pick   Enter rebind   Del reset",
+    "translation": "< > 选择  Enter 重绑  Del 重置",
+    "capacity": 48
+  },
+  {
+    "original": "B close   LB/RB tab",
+    "translation": "B 关闭  LB/RB 标签",
+    "capacity": 24
+  },
+  {
+    "original": "B back   LB/RB tab",
+    "translation": "B 返回  LB/RB 标签",
+    "capacity": 24
+  },
+  {
+    "original": "Bksp close   Q/E tab",
+    "translation": "Bksp 关闭  Q/E 标签",
+    "capacity": 24
+  },
+  {
+    "original": "Bksp back   Q/E tab",
+    "translation": "Bksp 返回  Q/E 标签",
+    "capacity": 24
+  },
+  {
+    "original": "HEX: #%02X%02X%02X",
+    "translation": "HEX #%02X%02X%02X",
+    "capacity": 24
+  },
+  {
+    "original": "RGB: (%d, %d, %d)",
+    "translation": "RGB：(%d, %d, %d)",
+    "capacity": 20
+  },
+  {
+    "original": "Custom",
+    "translation": "自定义",
+    "capacity": 12
+  },
+  {
+    "original": "Mat: %s (%d%%)",
+    "translation": "材质:%s(%d%%)",
+    "capacity": 16
+  },
+  {
+    "original": "Outfit Zone Palette (1-12)",
+    "translation": "区域调色板（1-12）",
+    "capacity": 28
+  },
+  {
+    "original": "Instant Live Dye Preview",
+    "translation": "即时染色预览",
+    "capacity": 32
+  },
+  {
+    "original": "Socket Stat Effect",
+    "translation": "孔位属性效果",
+    "capacity": 20
+  },
+  {
+    "original": "Attack",
+    "translation": "攻击",
+    "capacity": 8
+  },
+  {
+    "original": "Defense",
+    "translation": "防御",
+    "capacity": 8
+  },
+  {
+    "original": "Durability %d%%",
+    "translation": "耐久度 %d%%",
+    "capacity": 16
+  },
+  {
+    "original": "Reinforcement  %d/100",
+    "translation": "强化  %d/100",
+    "capacity": 24
+  },
+  {
+    "original": "Reinforcement: Attack +%d",
+    "translation": "强化：攻击 +%d",
+    "capacity": 32
+  },
+  {
+    "original": "Reinforcement: Defense +%d",
+    "translation": "强化：防御 +%d",
+    "capacity": 32
+  },
+  {
+    "original": "%d / %d Sockets",
+    "translation": "%d/%d孔位",
+    "capacity": 16
+  },
+  {
+    "original": "Refine +%d",
+    "translation": "精炼 +%d",
+    "capacity": 16
+  },
+  {
+    "original": "Refine +0",
+    "translation": "精炼 +0",
+    "capacity": 16
+  },
+  {
+    "original": "Sockets: %d / %d used",
+    "translation": "孔位：%d / %d 已用",
+    "capacity": 24
+  },
+  {
+    "original": "No Sockets",
+    "translation": "无孔位",
+    "capacity": 12
+  },
+  {
+    "original": "%d Abyss Socket%s",
+    "translation": "%d 个深渊孔位%s",
+    "capacity": 24
+  },
+  {
+    "original": "Abyss Gears",
+    "translation": "深渊装备",
+    "capacity": 12
+  },
+  {
+    "original": "%d. %s",
+    "translation": "%d、%s",
+    "capacity": 12
+  },
+  {
+    "original": "Damage Reduction",
+    "translation": "伤害减免",
+    "capacity": 24
+  },
+  {
+    "original": "Abyss Damage",
+    "translation": "深渊伤害",
+    "capacity": 16
+  },
+  {
+    "original": "Critical",
+    "translation": "暴击",
+    "capacity": 12
+  },
+  {
+    "original": "Speed",
+    "translation": "速度",
+    "capacity": 12
+  },
+  {
+    "original": "%d. (Empty Socket)",
+    "translation": "%d、（空孔位）",
+    "capacity": 24
+  },
+  {
+    "original": "%d. (Locked)",
+    "translation": "%d.（锁定）",
+    "capacity": 18
+  },
+  {
+    "original": "%s  [Effect: %s]",
+    "translation": "%s  [效果：%s]",
+    "capacity": 20
+  },
+  {
+    "original": "A to edit",
+    "translation": "A 编辑",
+    "capacity": 16
+  },
+  {
+    "original": "Enter to edit",
+    "translation": "Enter 编辑",
+    "capacity": 16
+  },
+  {
+    "original": "Remove %s for good? This cannot be undone - press %s again to confirm, or move away to keep it.",
+    "translation": "永久移除 %s？此操作无法撤销；再次按 %s 确认，移开则保留。",
+    "capacity": 96
+  },
+  {
+    "original": "Remove?",
+    "translation": "移除?",
+    "capacity": 8
+  },
+  {
+    "original": "Keyboard",
+    "translation": "键盘",
+    "capacity": 12
+  },
+  {
+    "original": "Mount & Horse Options",
+    "translation": "坐骑与马匹选项",
+    "capacity": 24
+  },
+  {
+    "original": "Recolor and customize equipment on your active horse or mount.",
+    "translation": "为当前马匹或坐骑装备重新染色和定制。",
+    "capacity": 64
+  },
+  {
+    "original": "Mount Equipment Dye",
+    "translation": "坐骑装备染色",
+    "capacity": 24
+  },
+  {
+    "original": "Combat & Gameplay Options",
+    "translation": "战斗与玩法选项",
+    "capacity": 40
+  },
+  {
+    "original": "Instantly eliminates any enemy or boss with a single strike (1,000x damage multiplier).",
+    "translation": "一击消灭任意敌人或首领（1000 倍伤害）。",
+    "capacity": 88
+  },
+  {
+    "original": "One-Hit Kill",
+    "translation": "一击必杀",
+    "capacity": 16
+  },
+  {
+    "original": "Keeps your health full constantly.",
+    "translation": "持续保持生命值全满。",
+    "capacity": 40
+  },
+  {
+    "original": "Equipped weapons, shields, and armor never degrade (permanently locked at 100% max durability).",
+    "translation": "武器、盾牌和防具永不损耗（耐久度永久锁定为 100%）。",
+    "capacity": 96
+  },
+  {
+    "original": "Infinite Item Durability",
+    "translation": "无限物品耐久",
+    "capacity": 32
+  },
+  {
+    "original": "Completely negates fall damage from high drops, cliffs, and Sky Arrival teleport.",
+    "translation": "完全免疫高空、悬崖坠落和天空降落传送的伤害。",
+    "capacity": 88
+  },
+  {
+    "original": "No Fall Damage",
+    "translation": "免疫坠落伤害",
+    "capacity": 24
+  },
+  {
+    "original": "Sprint, dodge, climb, and gallop on horses/mounts with unlimited stamina.",
+    "translation": "冲刺、闪避、攀爬及骑乘时体力无限。",
+    "capacity": 80
+  },
+  {
+    "original": "Infinite Stamina & Mount",
+    "translation": "无限体力与坐骑",
+    "capacity": 32
+  },
+  {
+    "original": "Keeps your spirit / special ability gauge full.",
+    "translation": "持续保持精神力／特殊能力槽全满。",
+    "capacity": 48
+  },
+  {
+    "original": "Adjusts how much damage you deal to enemies.",
+    "translation": "调整对敌人造成的伤害。",
+    "capacity": 48
+  },
+  {
+    "original": "Adjusts how much damage you take from attacks.",
+    "translation": "调整受到攻击时的伤害。",
+    "capacity": 48
+  },
+  {
+    "original": "One-Hit Kill, God Mode, Durability, and damage multipliers.",
+    "translation": "一击必杀、无敌、耐久和伤害倍率。",
+    "capacity": 64
+  },
+  {
+    "original": "Stamina, gear customization, and summon options for mounts and horses.",
+    "translation": "坐骑与马匹的体力、装备定制和召唤选项。",
+    "capacity": 72
+  },
+  {
+    "original": "Dye applied to %s",
+    "translation": "已为 %s 染色",
+    "capacity": 24
+  },
+  {
+    "original": "Dye Preview",
+    "translation": "染色预览",
+    "capacity": 19
+  },
+  {
+    "original": "  All Zones",
+    "translation": "  全部区域",
+    "capacity": 17
+  },
+  {
+    "original": "  Zone %d",
+    "translation": "  区域 %d",
+    "capacity": 17
+  },
+  {
+    "original": "Active Mount",
+    "translation": "当前坐骑",
+    "capacity": 16
+  },
+  {
+    "original": "Mount 2",
+    "translation": "坐骑 2",
+    "capacity": 8
+  },
+  {
+    "original": "Mount 3",
+    "translation": "坐骑 3",
+    "capacity": 8
+  },
+  {
+    "original": "Mount 4",
+    "translation": "坐骑 4",
+    "capacity": 8
+  },
+  {
+    "original": "Select active horse or mount to dye.",
+    "translation": "选择当前坐骑染色",
+    "capacity": 40
+  },
+  {
+    "original": "Target Mount",
+    "translation": "目标坐骑",
+    "capacity": 16
+  },
+  {
+    "original": "Select which character's armor to dye.",
+    "translation": "选择要染色的角色装备。",
+    "capacity": 48
+  },
+  {
+    "original": "This mount is not currently spawned or present in the game world.",
+    "translation": "该坐骑当前未在游戏世界中生成。",
+    "capacity": 72
+  },
+  {
+    "original": "Mount Not Detected in World",
+    "translation": "世界中未检测到坐骑",
+    "capacity": 32
+  },
+  {
+    "original": "Please summon or mount a horse in the game world first.",
+    "translation": "请先在游戏世界召唤或骑上马匹。",
+    "capacity": 56
+  },
+  {
+    "original": "No Active Mount Detected",
+    "translation": "未检测到当前坐骑",
+    "capacity": 32
+  },
+  {
+    "original": "This companion is not currently loaded in memory.",
+    "translation": "该同伴当前未加载到内存。",
+    "capacity": 56
+  },
+  {
+    "original": "Character not loaded",
+    "translation": "角色尚未加载",
+    "capacity": 24
+  },
+  {
+    "original": "Persist all current dye colors directly into the active save data so they remain intact even without mods.",
+    "translation": "将当前染色直接写入存档，移除模组后仍会保留。",
+    "capacity": 112
+  },
+  {
+    "original": "Inject All Dyes to Save Data",
+    "translation": "将全部染色写入存档",
+    "capacity": 32
+  },
+  {
+    "original": "All dyes injected into save data",
+    "translation": "全部染色已写入存档",
+    "capacity": 40
+  },
+  {
+    "original": "Dye save injection completed",
+    "translation": "染色存档写入完成",
+    "capacity": 32
+  },
+  {
+    "original": "zones dyed",
+    "translation": "区域已染色",
+    "capacity": 16
+  },
+  {
+    "original": "zones",
+    "translation": "个区域",
+    "capacity": 12
+  },
+  {
+    "original": "Which zone of the item to color (Supports Zones 1-12).",
+    "translation": "选择染色区域（1-12）",
+    "capacity": 56
+  },
+  {
+    "original": "Clears all dye from this piece back to its natural default color.",
+    "translation": "清除该部件的全部染色并恢复默认颜色。",
+    "capacity": 72
+  },
+  {
+    "original": "Remove All Dye (Reset)",
+    "translation": "清除全部染色",
+    "capacity": 24
+  },
+  {
+    "original": "All dye removed",
+    "translation": "已清除染色",
+    "capacity": 16
+  },
+  {
+    "original": "Select which character's equipment to view and edit.",
+    "translation": "选择要查看和编辑装备的角色。",
+    "capacity": 56
+  },
+  {
+    "original": "Restores durability to 100% on all equipped weapons and armor.",
+    "translation": "将所有已装备武器和防具的耐久恢复至 100%。",
+    "capacity": 64
+  },
+  {
+    "original": "Repair All Gear",
+    "translation": "修装备",
+    "capacity": 16
+  },
+  {
+    "original": "Repaired %d equipped piece%s",
+    "translation": "已修复 %d 件装备%s",
+    "capacity": 32
+  },
+  {
+    "original": "No equipped gear to repair",
+    "translation": "没有可修复的装备",
+    "capacity": 32
+  },
+  {
+    "original": "Sets all equipped gear to refinement level +10.",
+    "translation": "将所有已装备物品强化至 +10。",
+    "capacity": 48
+  },
+  {
+    "original": "Max Refine All (+10)",
+    "translation": "全部强化至 +10",
+    "capacity": 24
+  },
+  {
+    "original": "Refined %d piece%s to +10",
+    "translation": "已强化%d件%s至+10",
+    "capacity": 32
+  },
+  {
+    "original": "No equipped gear to refine",
+    "translation": "没有可强化的装备",
+    "capacity": 32
+  },
+  {
+    "original": "Opens all 5 abyss sockets on all equipped weapons and armor.",
+    "translation": "解锁所有已装备武器和防具的 5 个深渊孔位。",
+    "capacity": 64
+  },
+  {
+    "original": "Unlock All Sockets",
+    "translation": "解锁全部孔位",
+    "capacity": 24
+  },
+  {
+    "original": "Unlocked sockets on %d piece%s",
+    "translation": "已解锁%d件%s孔位",
+    "capacity": 32
+  },
+  {
+    "original": "No equipped gear found",
+    "translation": "未找到已装备物品",
+    "capacity": 24
+  },
+  {
+    "original": "sockets used",
+    "translation": "已用孔位",
+    "capacity": 16
+  },
+  {
+    "original": "no sockets",
+    "translation": "无孔位",
+    "capacity": 16
+  },
+  {
+    "original": "Opens every socket on this piece",
+    "translation": "解锁该装备的全部孔位",
+    "capacity": 40
+  },
+  {
+    "original": "%s (%d).",
+    "translation": "%s（%d）。",
+    "capacity": 16
+  },
+  {
+    "original": "Refinement set",
+    "translation": "已设强化",
+    "capacity": 16
+  },
+  {
+    "original": "Refinement set (this session)",
+    "translation": "本次会话已设强化",
+    "capacity": 32
+  },
+  {
+    "original": "Directly replace and equip any weapon, shield, or armor to this slot.",
+    "translation": "直接替换并装备武器、盾牌或防具到此槽位。",
+    "capacity": 72
+  },
+  {
+    "original": "Change Equipment (Bypass Story / Quest Lock)",
+    "translation": "更换装备（绕过剧情／任务锁）",
+    "capacity": 48
+  },
+  {
+    "original": "This equipment type does not support abyss sockets.",
+    "translation": "此装备类型不支持深渊孔位。",
+    "capacity": 56
+  },
+  {
+    "original": "No sockets",
+    "translation": "无孔位",
+    "capacity": 16
+  },
+  {
+    "original": "Locked",
+    "translation": "锁定",
+    "capacity": 8
+  },
+  {
+    "original": "Socket",
+    "translation": "孔位",
+    "capacity": 8
+  },
+  {
+    "original": "%s %d: %s",
+    "translation": "%s %d：%s",
+    "capacity": 24
+  },
+  {
+    "original": "This socket is locked. Click to unlock all sockets on this piece.",
+    "translation": "此孔位已锁定。点击即可解锁该装备的全部孔位。",
+    "capacity": 72
+  },
+  {
+    "original": "Sockets unlocked!",
+    "translation": "孔位已解锁！",
+    "capacity": 20
+  },
+  {
+    "original": "All Characters",
+    "translation": "全部角色",
+    "capacity": 16
+  },
+  {
+    "original": "Current Character Only",
+    "translation": "仅当前角色",
+    "capacity": 24
+  },
+  {
+    "original": "Kliff Only",
+    "translation": "仅克里夫",
+    "capacity": 16
+  },
+  {
+    "original": "Damiane Only",
+    "translation": "仅戴米安",
+    "capacity": 16
+  },
+  {
+    "original": "Oongka Only",
+    "translation": "仅翁卡",
+    "capacity": 16
+  },
+  {
+    "original": "All Categories",
+    "translation": "全部分类",
+    "capacity": 16
+  },
+  {
+    "original": "Matching Slot Only",
+    "translation": "仅匹配槽位",
+    "capacity": 24
+  },
+  {
+    "original": "Weapons",
+    "translation": "武器",
+    "capacity": 13
+  },
+  {
+    "original": "Shields & Off-Hand",
+    "translation": "盾牌与副手",
+    "capacity": 24
+  },
+  {
+    "original": "Accessories",
+    "translation": "饰品",
+    "capacity": 16
+  },
+  {
+    "original": "Equip Item",
+    "translation": "装备物品",
+    "capacity": 16
+  },
+  {
+    "original": "Filter equipment suitable for this character or show all items.",
+    "translation": "筛选适合此角色的装备，或显示全部物品。",
+    "capacity": 64
+  },
+  {
+    "original": "Character Filter",
+    "translation": "角色筛选",
+    "capacity": 24
+  },
+  {
+    "original": "Filter items by weapon, armor, shield, or slot compatibility.",
+    "translation": "按武器、防具、盾牌或槽位兼容性筛选。",
+    "capacity": 64
+  },
+  {
+    "original": "Category Filter",
+    "translation": "分类筛选",
+    "capacity": 16
+  },
+  {
+    "original": "Find any weapon, shield, or armor to equip.",
+    "translation": "查找可装备的武器、盾牌或防具。",
+    "capacity": 48
+  },
+  {
+    "original": "Equip to active slot - bypasses quest & class lock",
+    "translation": "装备到当前槽位（绕过任务与职业限制）",
+    "capacity": 56
+  },
+  {
+    "original": "Could not equip item",
+    "translation": "无法装备物品",
+    "capacity": 24
+  },
+  {
+    "original": "No equipment found with current character/category filter.",
+    "translation": "当前角色／分类筛选下没有装备。",
+    "capacity": 64
+  },
+  {
+    "original": "Showing first 200 items - use Search to narrow down.",
+    "translation": "显示前200件，用搜索筛选",
+    "capacity": 56
+  },
+  {
+    "original": "Current Time",
+    "translation": "当前时间",
+    "capacity": 16
+  },
+  {
+    "original": "%s: %s %d, %02d:%02d",
+    "translation": "%s：%s %d，%02d:%02d",
+    "capacity": 24
+  },
+  {
+    "original": "Current in-game world time.",
+    "translation": "当前游戏世界时间。",
+    "capacity": 32
+  },
+  {
+    "original": "Set clock and sun to 06:00 AM (Sunrise).",
+    "translation": "将时间和太阳设为 06:00（日出）。",
+    "capacity": 48
+  },
+  {
+    "original": "Unavailable right now.",
+    "translation": "当前不可用。",
+    "capacity": 27
+  },
+  {
+    "original": "Dawn / Morning (06:00)",
+    "translation": "清晨 06:00",
+    "capacity": 24
+  },
+  {
+    "original": "Set time to 06:00 (Dawn)",
+    "translation": "设为 06:00（黎明）",
+    "capacity": 32
+  },
+  {
+    "original": "Set clock and sun to 12:00 PM (Full Daylight).",
+    "translation": "将时间和太阳设为 12:00（白昼）。",
+    "capacity": 48
+  },
+  {
+    "original": "Midday / Noon (12:00)",
+    "translation": "正午 12:00",
+    "capacity": 24
+  },
+  {
+    "original": "Set time to 12:00 (Noon)",
+    "translation": "设为 12:00（正午）",
+    "capacity": 24
+  },
+  {
+    "original": "Set clock and sun to 06:00 PM (Dusk).",
+    "translation": "将时间设为18:00（日落）",
+    "capacity": 40
+  },
+  {
+    "original": "Sunset / Golden Hour (18:00)",
+    "translation": "日落／黄金时刻（18:00）",
+    "capacity": 32
+  },
+  {
+    "original": "Set time to 18:00 (Sunset)",
+    "translation": "设为 18:00（日落）",
+    "capacity": 32
+  },
+  {
+    "original": "Set clock and sun to 12:00 AM (Deep Night).",
+    "translation": "将时间和太阳设为 00:00（深夜）。",
+    "capacity": 48
+  },
+  {
+    "original": "Midnight / Night (00:00)",
+    "translation": "午夜／深夜（00:00）",
+    "capacity": 32
+  },
+  {
+    "original": "Set time to 00:00 (Midnight)",
+    "translation": "设为 00:00（午夜）",
+    "capacity": 32
+  },
+  {
+    "original": "Set clock directly to this exact hour (0..23).",
+    "translation": "将时间直接设为指定小时（0..23）。",
+    "capacity": 48
+  },
+  {
+    "original": "Set Exact Hour",
+    "translation": "设精确小时",
+    "capacity": 16
+  },
+  {
+    "original": "Set time to %02d:00",
+    "translation": "设为 %02d:00",
+    "capacity": 24
+  },
+  {
+    "original": "Dynamic (Game Default)",
+    "translation": "动态（游戏默认）",
+    "capacity": 24
+  },
+  {
+    "original": "Clear Sky (Sunny)",
+    "translation": "晴空（晴天）",
+    "capacity": 24
+  },
+  {
+    "original": "Overcast (Cloudy)",
+    "translation": "阴天（多云）",
+    "capacity": 24
+  },
+  {
+    "original": "Rainy (Light Rain)",
+    "translation": "降雨（小雨）",
+    "capacity": 24
+  },
+  {
+    "original": "Thunderstorm (Storm)",
+    "translation": "雷暴（风暴）",
+    "capacity": 24
+  },
+  {
+    "original": "Dense Fog / Mist",
+    "translation": "浓雾／薄雾",
+    "capacity": 24
+  },
+  {
+    "original": "Select and lock active weather atmosphere.",
+    "translation": "选择并锁定当前天气环境。",
+    "capacity": 48
+  },
+  {
+    "original": "Weather Preset",
+    "translation": "天气预设",
+    "capacity": 16
+  },
+  {
+    "original": "Weather set to %s",
+    "translation": "天气已设为 %s",
+    "capacity": 32
+  },
+  {
+    "original": "Reduces thick distant fog blur for enhanced scenery and visibility.",
+    "translation": "减弱远处浓雾，提升景物清晰度和可见性。",
+    "capacity": 72
+  },
+  {
+    "original": "Clear Distant Fog",
+    "translation": "消除远处浓雾",
+    "capacity": 24
+  },
+  {
+    "original": "Forces constant clear sky with minimal cloud cover.",
+    "translation": "强制保持晴空，云层降至最低。",
+    "capacity": 56
+  },
+  {
+    "original": "Force Clear Sky",
+    "translation": "强制晴空",
+    "capacity": 16
+  },
+  {
+    "original": "Immediately disperses rain, storms, and heavy fog.",
+    "translation": "立即驱散降雨、风暴和浓雾。",
+    "capacity": 56
+  },
+  {
+    "original": "Instant Clear Weather",
+    "translation": "立即放晴",
+    "capacity": 24
+  },
+  {
+    "original": "Atmosphere cleared",
+    "translation": "天气环境已清除",
+    "capacity": 24
+  },
+  {
+    "original": "Adjust rainfall density and storm clouds.",
+    "translation": "调整降雨密度和风暴云层。",
+    "capacity": 44
+  },
+  {
+    "original": "Rain Intensity",
+    "translation": "降雨强度",
+    "capacity": 16
+  },
+  {
+    "original": "Adjust snowfall and winter blizzard intensity.",
+    "translation": "调整降雪和暴风雪强度。",
+    "capacity": 48
+  },
+  {
+    "original": "Snow Intensity",
+    "translation": "降雪强度",
+    "capacity": 16
+  },
+  {
+    "original": "Adjust desert dust and sandstorm particles.",
+    "translation": "调整沙尘和沙尘暴粒子。",
+    "capacity": 48
+  },
+  {
+    "original": "Dust / Sandstorm",
+    "translation": "沙尘／沙尘暴",
+    "capacity": 24
+  },
+  {
+    "original": "Controls cloud volume density and sky coverage.",
+    "translation": "控制云层密度和天空覆盖率。",
+    "capacity": 48
+  },
+  {
+    "original": "Cloud Thickness",
+    "translation": "云层厚度",
+    "capacity": 16
+  },
+  {
+    "original": "Adjusts top elevation ceiling of cloud formations.",
+    "translation": "调整云层顶部高度。",
+    "capacity": 56
+  },
+  {
+    "original": "Cloud Top Altitude",
+    "translation": "云顶高度",
+    "capacity": 24
+  },
+  {
+    "original": "Adjusts lower boundary elevation of cloud bottoms.",
+    "translation": "调整云层底部高度。",
+    "capacity": 56
+  },
+  {
+    "original": "Cloud Base Altitude",
+    "translation": "云底高度",
+    "capacity": 24
+  },
+  {
+    "original": "Scales motion speed of cloud layer drifting across the sky.",
+    "translation": "调整云层漂移速度。",
+    "capacity": 64
+  },
+  {
+    "original": "Cloud Drift Speed",
+    "translation": "云层漂移速度",
+    "capacity": 24
+  },
+  {
+    "original": "Adjusts foreground fog density and light scattering.",
+    "translation": "调整前景雾气密度和光线散射。",
+    "capacity": 56
+  },
+  {
+    "original": "Fog Scattering (A)",
+    "translation": "雾气散射（A）",
+    "capacity": 24
+  },
+  {
+    "original": "Adjusts distant horizon fog and mountain mist blend.",
+    "translation": "调整远处地平线雾气与山雾融合。",
+    "capacity": 56
+  },
+  {
+    "original": "Fog Horizon Blend (B)",
+    "translation": "地平线雾融合(B)",
+    "capacity": 24
+  },
+  {
+    "original": "Scales ambient wind force and environmental breeze.",
+    "translation": "调整环境风力和微风强度。",
+    "capacity": 56
+  },
+  {
+    "original": "Wind Speed Multiplier",
+    "translation": "风速倍率",
+    "capacity": 24
+  },
+  {
+    "original": "Controls frequency and intensity of random wind gusts.",
+    "translation": "控制随机阵风的频率和强度。",
+    "capacity": 56
+  },
+  {
+    "original": "Wind Gust Strength",
+    "translation": "阵风强度",
+    "capacity": 24
+  },
+  {
+    "original": "Controls vertical air currents and particle lift.",
+    "translation": "控制垂直气流和粒子升力。",
+    "capacity": 56
+  },
+  {
+    "original": "Turbulence Lift",
+    "translation": "乱流升力",
+    "capacity": 16
+  },
+  {
+    "original": "Calms all environmental wind and dust to complete stillness.",
+    "translation": "平息环境风力和沙尘，使其完全静止。",
+    "capacity": 64
+  },
+  {
+    "original": "No Wind",
+    "translation": "无风",
+    "capacity": 8
+  },
+  {
+    "original": "Advance Time (+)",
+    "translation": "推进时间（+）",
+    "capacity": 24
+  },
+  {
+    "original": "Advanced %d hours",
+    "translation": "已推进 %d 小时",
+    "capacity": 32
+  },
+  {
+    "original": "Rewinds the clock backward by this many hours; time keeps flowing after.",
+    "translation": "将时间倒退指定小时，之后时间继续流动。",
+    "capacity": 80
+  },
+  {
+    "original": "Rewinds the clock backward. Unavailable right now.",
+    "translation": "倒退时间。当前不可用。",
+    "capacity": 56
+  },
+  {
+    "original": "Rewind Time (-)",
+    "translation": "倒退时间",
+    "capacity": 16
+  },
+  {
+    "original": "Rewound %d hours",
+    "translation": "已倒退 %d 小时",
+    "capacity": 24
+  },
+  {
+    "original": "Set exact time to Morning, Noon, Sunset, or Midnight.",
+    "translation": "将时间设为清晨、正午、日落或午夜。",
+    "capacity": 56
+  },
+  {
+    "original": "Time of Day Presets",
+    "translation": "时间预设",
+    "capacity": 24
+  },
+  {
+    "original": "Control weather, sky condition, and remove distance fog.",
+    "translation": "控制天气、天空状态并消除远处浓雾。",
+    "capacity": 64
+  },
+  {
+    "original": "Weather & Atmosphere",
+    "translation": "天气与环境",
+    "capacity": 24
+  },
+  {
+    "original": "X %.2f  Y %.2f  Z %.2f",
+    "translation": "X %.2f  Y %.2f  Z %.2f",
+    "capacity": 24
+  },
+  {
+    "original": "Teleport to Destination",
+    "translation": "传送至目的地",
+    "capacity": 24
+  },
+  {
+    "original": "%s: X %.0f  Y (%s)  Z %.0f",
+    "translation": "%s：X %.0f  Y（%s） Z %.0f",
+    "capacity": 32
+  },
+  {
+    "original": "%s: X %.0f  Y %.0f  Z %.0f",
+    "translation": "%s：X %.0f  Y %.0f  Z %.0f",
+    "capacity": 28
+  },
+  {
+    "original": "Hotkey",
+    "translation": "快捷键",
+    "capacity": 12
+  },
+  {
+    "original": "Teleport to active map destination",
+    "translation": "传送至当前地图目的地",
+    "capacity": 40
+  },
+  {
+    "original": "%s (%s: %s).",
+    "translation": "%s(%s:%s)",
+    "capacity": 16
+  },
+  {
+    "original": "None",
+    "translation": "无",
+    "capacity": 8
+  },
+  {
+    "original": "%s: %s",
+    "translation": "%s：%s",
+    "capacity": 8
+  },
+  {
+    "original": "Set a destination/waypoint on the world map first.",
+    "translation": "请先在世界地图设置目的地或航点。",
+    "capacity": 56
+  },
+  {
+    "original": "Altitude to teleport to when destination marker does not specify height.",
+    "translation": "目的地未指定高度时使用的传送高度。",
+    "capacity": 80
+  },
+  {
+    "original": "Sky Arrival Altitude",
+    "translation": "天空降落高度",
+    "capacity": 24
+  },
+  {
+    "original": "Save and teleport to custom bookmarked coordinates.",
+    "translation": "保存并传送至自定义书签坐标。",
+    "capacity": 56
+  },
+  {
+    "original": "%s  (%zu)",
+    "translation": "%s（%zu）",
+    "capacity": 16
+  },
+  {
+    "original": "Location",
+    "translation": "位置",
+    "capacity": 16
+  },
+  {
+    "original": "%s #%zu",
+    "translation": "%s #%zu",
+    "capacity": 8
+  },
+  {
+    "original": "Location #%d",
+    "translation": "位置 #%d",
+    "capacity": 16
+  },
+  {
+    "original": "%s #%d",
+    "translation": "%s #%d",
+    "capacity": 12
+  },
+  {
+    "original": "Saved Location",
+    "translation": "已保存位置",
+    "capacity": 16
+  },
+  {
+    "original": "Saves your active player coordinates as a new custom bookmark.",
+    "translation": "将当前玩家坐标保存为新的自定义书签。",
+    "capacity": 64
+  },
+  {
+    "original": "+ Save Current Location",
+    "translation": "+ 保存当前位置",
+    "capacity": 24
+  },
+  {
+    "original": "Location #%zu",
+    "translation": "位置 #%zu",
+    "capacity": 16
+  },
+  {
+    "original": "Saved '%s' (X %.0f, Y %.0f, Z %.0f)",
+    "translation": "已存 %s X%.0f Y%.0f Z%.0f",
+    "capacity": 40
+  },
+  {
+    "original": "Player position not ready",
+    "translation": "玩家位置未就绪",
+    "capacity": 32
+  },
+  {
+    "original": "Click '+ Save Current Location' above to bookmark any spot.",
+    "translation": "点击上方“+ 保存当前位置”即可添加书签。",
+    "capacity": 64
+  },
+  {
+    "original": "No saved locations",
+    "translation": "暂无已保存位置",
+    "capacity": 24
+  },
+  {
+    "original": "%zu. %s  (X %.0f  Y %.0f  Z %.0f)",
+    "translation": "%zu、%s（X %.0f  Y %.0f  Z %.0f）",
+    "capacity": 40
+  },
+  {
+    "original": "Enter/A: Open details  |  Del/X: Delete location",
+    "translation": "Enter/A：查看详情  |  Del/X：删除位置",
+    "capacity": 56
+  },
+  {
+    "original": "Deleted '%s'",
+    "translation": "已删 %s",
+    "capacity": 16
+  },
+  {
+    "original": "Deletes all custom bookmarked locations.",
+    "translation": "删除全部自定义书签位置。",
+    "capacity": 48
+  },
+  {
+    "original": "Clear All Saved Locations",
+    "translation": "清除全部已保存位置",
+    "capacity": 32
+  },
+  {
+    "original": "All saved locations cleared",
+    "translation": "已清除全部保存位置",
+    "capacity": 32
+  },
+  {
+    "original": "This saved location no longer exists.",
+    "translation": "该保存位置已不存在。",
+    "capacity": 40
+  },
+  {
+    "original": "Location not found",
+    "translation": "未找到位置",
+    "capacity": 24
+  },
+  {
+    "original": "Teleport Here",
+    "translation": "传送到这里",
+    "capacity": 16
+  },
+  {
+    "original": "%s (X %.0f  Y %.0f  Z %.0f)",
+    "translation": "%s（X %.0f  Y %.0f  Z %.0f）",
+    "capacity": 32
+  },
+  {
+    "original": "Instantly warp your player to these coordinates.",
+    "translation": "立即将玩家传送到这些坐标。",
+    "capacity": 56
+  },
+  {
+    "original": "Teleported to %s",
+    "translation": "已传送至 %s",
+    "capacity": 24
+  },
+  {
+    "original": "Teleport failed",
+    "translation": "传送失败",
+    "capacity": 16
+  },
+  {
+    "original": "Press Enter/A to rename this location on your keyboard.",
+    "translation": "按 Enter/A 可在键盘上重命名此位置。",
+    "capacity": 56
+  },
+  {
+    "original": "Overwrites the saved coordinates with your current position.",
+    "translation": "用当前位置覆盖已保存坐标。",
+    "capacity": 64
+  },
+  {
+    "original": "Update to Current Position",
+    "translation": "更新为当前位置",
+    "capacity": 32
+  },
+  {
+    "original": "Updated '%s' to X %.0f, Y %.0f, Z %.0f",
+    "translation": "已更新 %s X%.0f Y%.0f Z%.0f",
+    "capacity": 40
+  },
+  {
+    "original": "Removes this location from your bookmarks.",
+    "translation": "从书签中移除此位置。",
+    "capacity": 48
+  },
+  {
+    "original": "Delete This Location",
+    "translation": "删除此位置",
+    "capacity": 24
+  },
+  {
+    "original": "Location deleted",
+    "translation": "位置已删除",
+    "capacity": 24
+  },
+  {
+    "original": "Directly add money, pouches, chests, or custom currency.",
+    "translation": "直接添加金钱、钱袋、宝箱或自定义货币。",
+    "capacity": 64
+  },
+  {
+    "original": "Money & Currency",
+    "translation": "货币与金钱",
+    "capacity": 24
+  },
+  {
+    "original": "Quickly spawn Abyss Artifacts, Sealed Artifacts, Seeds, and Cells.",
+    "translation": "快速生成深渊文物、封印文物、种子和细胞。",
+    "capacity": 72
+  },
+  {
+    "original": "Abyss Items & Artifacts",
+    "translation": "深渊物品与文物",
+    "capacity": 24
+  },
+  {
+    "original": "Recover sold, discarded, or missing documents, wanted notices, collectibles & unique quest items.",
+    "translation": "找回售出、丢弃或缺失的文档、通缉令、收藏品和任务物品。",
+    "capacity": 104
+  },
+  {
+    "original": "Restore Items",
+    "translation": "恢复物品",
+    "capacity": 16
+  },
+  {
+    "original": "Sets every storage's slot count up to 700 safely directly in RAM.",
+    "translation": "在内存中安全地将各储存空间扩展至最多 700 格。",
+    "capacity": 72
+  },
+  {
+    "original": "Enables universal stack limits and automatically merges all duplicate items into 1 slot.",
+    "translation": "启用统一堆叠上限，并将重复物品自动合并到一个槽位。",
+    "capacity": 96
+  },
+  {
+    "original": "Enter custom max stack size using keyboard or arrow keys (Press ENTER to type).",
+    "translation": "使用键盘或方向键输入自定义堆叠上限（按 ENTER 输入）。",
+    "capacity": 80
+  },
+  {
+    "original": "Set Max Stack Value",
+    "translation": "设置最大堆叠数",
+    "capacity": 24
+  },
+  {
+    "original": "%s  (%d)",
+    "translation": "%s（%d）",
+    "capacity": 12
+  },
+  {
+    "original": "Sets matching items below to this amount.",
+    "translation": "将下方匹配的物品设为此数量。",
+    "capacity": 48
+  },
+  {
+    "original": "Sets every item in this category to this amount.",
+    "translation": "将此分类中的每件物品设为此数量。",
+    "capacity": 56
+  },
+  {
+    "original": "Set %d items to x%d",
+    "translation": "设%d件为x%d",
+    "capacity": 24
+  },
+  {
+    "original": "Added %d items",
+    "translation": "已加%d件",
+    "capacity": 16
+  },
+  {
+    "original": "Added %d items, some failed",
+    "translation": "已加%d件，部分失败",
+    "capacity": 32
+  },
+  {
+    "original": "Adds this many of each matching item below.",
+    "translation": "为下方每件匹配物品添加指定数量。",
+    "capacity": 48
+  },
+  {
+    "original": "Adds this many of every item in this category.",
+    "translation": "为本分类每件添加指定数量。",
+    "capacity": 48
+  },
+  {
+    "original": "Adding %d of each - %d items...",
+    "translation": "每件%d个，共%d件……",
+    "capacity": 32
+  },
+  {
+    "original": "Optional",
+    "translation": "可选",
+    "capacity": 24
+  },
+  {
+    "original": "Wipes all fake/bugged silver coins from your bag so you can fix the 0-Wallet desync.",
+    "translation": "清除背包中的伪造银币，修复钱包为 0 的不同步问题。",
+    "capacity": 88
+  },
+  {
+    "original": ">> Clear Bugged/Fake Wallet Coins <<",
+    "translation": ">> 清除异常／伪造钱包硬币 <<",
+    "capacity": 40
+  },
+  {
+    "original": "Fake coins cleared! Now sell 1 item to the merchant, then try Set Money.",
+    "translation": "异常硬币已清除！先向商人出售1件物品，再设置金钱。",
+    "capacity": 80
+  },
+  {
+    "original": "Merges all scattered silver slots into 1 single master slot in your bag.",
+    "translation": "将背包中分散的银币槽合并为一个主槽位。",
+    "capacity": 80
+  },
+  {
+    "original": "Consolidate All Money Stacks",
+    "translation": "合并全部金钱堆叠",
+    "capacity": 32
+  },
+  {
+    "original": "Consolidated money into 1 stack (cleaned %d duplicate slots).",
+    "translation": "已合并为 1 个金钱堆叠（清理 %d 个重复槽位）。",
+    "capacity": 64
+  },
+  {
+    "original": "Specify the amount of Silver coins to add or set directly into your wallet (max 20,000,000). Set to 0 to clear bugged coins.",
+    "translation": "输入要添加或设为钱包余额的银币数量（最多 20,000,000）。设为 0 可清除异常硬币。",
+    "capacity": 128
+  },
+  {
+    "original": "Direct Silver Amount",
+    "translation": "直接设置银币数量",
+    "capacity": 24
+  },
+  {
+    "original": "Sets your Silver balance to the exact value specified above.",
+    "translation": "将银币余额设为上方指定的准确数值。",
+    "capacity": 64
+  },
+  {
+    "original": ">> Set Wallet to Exact Amount <<",
+    "translation": ">> 将钱包设为指定金额 <<",
+    "capacity": 40
+  },
+  {
+    "original": "Wallet set to %d Silver!",
+    "translation": "钱包已设为 %d 银币！",
+    "capacity": 32
+  },
+  {
+    "original": "ENGINE BLOCK: Wallet is empty or too low (0 Silver).",
+    "translation": "引擎阻止：钱包为空或余额过低（0 银币）。",
+    "capacity": 64
+  },
+  {
+    "original": "Please sell 1 junk item to any merchant to get at least 2 Silver first, then try again!",
+    "translation": "请先向商人出售 1 件物品，获得至少 2 银币后再试！",
+    "capacity": 96
+  },
+  {
+    "original": "Adds the specified silver amount on top of your current wallet balance.",
+    "translation": "在当前钱包余额上增加指定数量的银币。",
+    "capacity": 72
+  },
+  {
+    "original": ">> Add Amount to Existing Wallet <<",
+    "translation": ">> 向现有钱包增加金额 <<",
+    "capacity": 40
+  },
+  {
+    "original": "Added +%d Silver to wallet!",
+    "translation": "已向钱包增加 +%d 银币！",
+    "capacity": 32
+  },
+  {
+    "original": "Silver added to bag!",
+    "translation": "银币已入包！",
+    "capacity": 24
+  },
+  {
+    "original": "Instantly sets wallet to 1,000,000 Silver.",
+    "translation": "立即将钱包设为 1,000,000 银币。",
+    "capacity": 48
+  },
+  {
+    "original": "Set to 1,000,000 Silver (1 Million)",
+    "translation": "设为 1,000,000 银币（100 万）",
+    "capacity": 40
+  },
+  {
+    "original": "Wallet set to 1,000,000 Silver!",
+    "translation": "钱包已设为100万银币！",
+    "capacity": 32
+  },
+  {
+    "original": "Instantly sets wallet to 10,000,000 Silver.",
+    "translation": "立即将钱包设为 10,000,000 银币。",
+    "capacity": 48
+  },
+  {
+    "original": "Set to 10,000,000 Silver (10 Million)",
+    "translation": "设为 10,000,000 银币（1000 万）",
+    "capacity": 40
+  },
+  {
+    "original": "Wallet set to 10,000,000 Silver!",
+    "translation": "钱包已设为 10,000,000 银币！",
+    "capacity": 40
+  },
+  {
+    "original": "Instantly sets wallet to 20,000,000 Silver (Safe Cap).",
+    "translation": "钱包设为2000万银币（上限）。",
+    "capacity": 56
+  },
+  {
+    "original": "Set to 20,000,000 Silver (20 Million)",
+    "translation": "设为 20,000,000 银币（2000 万）",
+    "capacity": 40
+  },
+  {
+    "original": "Wallet set to 20,000,000 Silver!",
+    "translation": "钱包已设为 20,000,000 银币！",
+    "capacity": 48
+  },
+  {
+    "original": "Quantity of Full Silver Pouches to inject into your bag (10,000 Silver each).",
+    "translation": "要注入背包的满额银币袋数量（每袋 10,000 银币）。",
+    "capacity": 80
+  },
+  {
+    "original": "Full Silver Pouches (Count)",
+    "translation": "满额银币袋（数量）",
+    "capacity": 32
+  },
+  {
+    "original": "Spawns the specified count of Full Silver Pouches into your bag.",
+    "translation": "向背包生成指定数量的满额银币袋。",
+    "capacity": 72
+  },
+  {
+    "original": ">> Spawn Full Silver Pouches <<",
+    "translation": ">> 生成满额银币袋 <<",
+    "capacity": 32
+  },
+  {
+    "original": "Spawned %d Full Silver Pouches!",
+    "translation": "已生成%d个银币袋！",
+    "capacity": 32
+  },
+  {
+    "original": "Failed to spawn pouches.",
+    "translation": "生成银币袋失败。",
+    "capacity": 40
+  },
+  {
+    "original": "Converts all Full Silver Pouches in your bag into spendable Silver coins and frees pouch slots.",
+    "translation": "将背包中的满额银币袋兑换为可用银币并释放袋子槽位。",
+    "capacity": 96
+  },
+  {
+    "original": ">> Cash In All Pouches (Instant Liquidate) <<",
+    "translation": ">> 兑现全部银币袋（立即清算） <<",
+    "capacity": 48
+  },
+  {
+    "original": "Liquidated pouches for +%lld Silver!",
+    "translation": "兑现 +%lld 银币！",
+    "capacity": 40
+  },
+  {
+    "original": "No Full Silver Pouches found in bag.",
+    "translation": "背包中没有满额银币袋。",
+    "capacity": 40
+  },
+  {
+    "original": "Tools for bugged wallets and stack consolidation.",
+    "translation": "修复异常钱包并整理金钱堆叠的工具。",
+    "capacity": 56
+  },
+  {
+    "original": "Sealed Artifacts Collected",
+    "translation": "已收集封印文物",
+    "capacity": 32
+  },
+  {
+    "original": "%s: %d / %d (%d Missing)",
+    "translation": "%s：%d / %d（缺少 %d）",
+    "capacity": 40
+  },
+  {
+    "original": "Scans your inventory for unique Sealed Abyss Artifact IDs (0001 to 0150).",
+    "translation": "扫描背包中的封印深渊文物编号（0001 至 0150）。",
+    "capacity": 80
+  },
+  {
+    "original": "Slider to set target collection amount (1 to 150). Adds only missing numbers.",
+    "translation": "滑块设置目标收集数量（1 至 150），只添加缺失编号。",
+    "capacity": 80
+  },
+  {
+    "original": "Target Total Sealed Artifacts",
+    "translation": "目标封印文物总数",
+    "capacity": 32
+  },
+  {
+    "original": "Skips numbers you already have so you get only unique ones!",
+    "translation": "跳过已拥有编号，只获取未收集的文物！",
+    "capacity": 64
+  },
+  {
+    "original": "Injects missing Sealed Abyss Artifacts into bag",
+    "translation": "将缺失的封印深渊文物加入背包",
+    "capacity": 48
+  },
+  {
+    "original": "%s (target: %d). %s",
+    "translation": "%s（目标：%d）。%s",
+    "capacity": 24
+  },
+  {
+    "original": ">> Add Missing Sealed Artifacts to Target <<",
+    "translation": ">> 补齐缺失文物至目标 <<",
+    "capacity": 48
+  },
+  {
+    "original": "Added %d missing Sealed Artifacts",
+    "translation": "已添加 %d 个缺失封印文物",
+    "capacity": 40
+  },
+  {
+    "original": "Already have all artifacts up to target %d",
+    "translation": "目标 %d 以内的文物已全部拥有",
+    "capacity": 48
+  },
+  {
+    "original": "Adds all missing unique Sealed Artifact numbers to reach 150/150 complete collection.",
+    "translation": "添加所有缺失编号，完成 150/150 封印文物收集。",
+    "capacity": 88
+  },
+  {
+    "original": ">> Add ALL Missing Sealed Artifacts (1 to 150) <<",
+    "translation": ">> 添加全部缺失封印文物（1 至 150） <<",
+    "capacity": 56
+  },
+  {
+    "original": "Collection already complete (150/150)!",
+    "translation": "收集已完成（150/150）！",
+    "capacity": 48
+  },
+  {
+    "original": "Removes duplicate copies of the same sealed artifact number, leaving exactly 1 of each.",
+    "translation": "移除同编号重复文物，每种仅保留 1 个。",
+    "capacity": 88
+  },
+  {
+    "original": "Clean Duplicate Sealed Artifacts",
+    "translation": "清理重复封印文物",
+    "capacity": 40
+  },
+  {
+    "original": "Cleaned %d duplicate Sealed Artifacts",
+    "translation": "已清理 %d 个重复封印文物",
+    "capacity": 40
+  },
+  {
+    "original": "No duplicate Sealed Artifacts found",
+    "translation": "未找到重复封印文物",
+    "capacity": 40
+  },
+  {
+    "original": "Quantity of Abyss Artifacts (ready material for skill upgrade & blacksmith).",
+    "translation": "深渊文物数量（用于技能升级和铁匠强化）。",
+    "capacity": 80
+  },
+  {
+    "original": "Abyss Artifacts (Count)",
+    "translation": "深渊文物（数量）",
+    "capacity": 32
+  },
+  {
+    "original": "Press Enter / Space / Click to inject Abyss Artifacts into your bag.",
+    "translation": "按 Enter／空格／点击将深渊文物加入背包。",
+    "capacity": 72
+  },
+  {
+    "original": ">> Spawn Abyss Artifacts (Usable Material) <<",
+    "translation": ">> 生成深渊文物（可用材料） <<",
+    "capacity": 48
+  },
+  {
+    "original": "Added %d Abyss Artifacts",
+    "translation": "已添加 %d 个深渊文物",
+    "capacity": 32
+  },
+  {
+    "original": "Failed to add Abyss Artifacts",
+    "translation": "添加深渊文物失败",
+    "capacity": 32
+  },
+  {
+    "original": "Adds 100x Abyss Artifacts for gear refinement & skills.",
+    "translation": "添加100个深渊文物用于强化。",
+    "capacity": 56
+  },
+  {
+    "original": "Add 100x Abyss Artifacts",
+    "translation": "添加 100 个深渊文物",
+    "capacity": 32
+  },
+  {
+    "original": "Added 100x Abyss Artifacts",
+    "translation": "已添加 100 个深渊文物",
+    "capacity": 32
+  },
+  {
+    "original": "Adds 500x Abyss Artifacts for gear refinement & skills.",
+    "translation": "添加500个深渊文物用于强化。",
+    "capacity": 56
+  },
+  {
+    "original": "Add 500x Abyss Artifacts",
+    "translation": "添加 500 个深渊文物",
+    "capacity": 32
+  },
+  {
+    "original": "Added 500x Abyss Artifacts",
+    "translation": "已添加 500 个深渊文物",
+    "capacity": 32
+  },
+  {
+    "original": "Spawns 50x Blessing of the Immortal to boost skills.",
+    "translation": "生成 50 个不朽者祝福以提升技能。",
+    "capacity": 56
+  },
+  {
+    "original": "Add 50x Blessing of the Immortal (Skill Points)",
+    "translation": "添加 50 个不朽者祝福（技能点）",
+    "capacity": 48
+  },
+  {
+    "original": "Added 50x Blessing of the Immortal",
+    "translation": "已添加 50 个不朽者祝福",
+    "capacity": 40
+  },
+  {
+    "original": "Spawns 50x Advanced Skill Manuals (SkillPoint_Book_02).",
+    "translation": "生成50本高级技能手册（SkillPoint_Book_02）。",
+    "capacity": 56
+  },
+  {
+    "original": "Add 50x Advanced Skill Manuals",
+    "translation": "添加 50 本高级技能手册",
+    "capacity": 32
+  },
+  {
+    "original": "Added 50x Advanced Skill Manuals",
+    "translation": "已添加 50 本高级技能手册",
+    "capacity": 40
+  },
+  {
+    "original": "Spawns 50x Abyssal Seeds (AbyssStone_Seed).",
+    "translation": "生成50个深渊种子（AbyssStone_Seed）。",
+    "capacity": 48
+  },
+  {
+    "original": "Add 50x Abyssal Seeds",
+    "translation": "添加50个种子",
+    "capacity": 24
+  },
+  {
+    "original": "Added 50x Abyssal Seeds",
+    "translation": "已添加50个种子",
+    "capacity": 24
+  },
+  {
+    "original": "Spawns 50x Abyss Cells (AbyssRuinsCreatureCore).",
+    "translation": "生成 50 个深渊细胞（AbyssRuinsCreatureCore）。",
+    "capacity": 56
+  },
+  {
+    "original": "Add 50x Abyss Cells",
+    "translation": "添加50个细胞",
+    "capacity": 24
+  },
+  {
+    "original": "Added 50x Abyss Cells",
+    "translation": "已添加50个细胞",
+    "capacity": 24
+  },
+  {
+    "original": "Spawns permanent Abyss HP stat items.",
+    "translation": "生成永久加生命的深渊物品。",
+    "capacity": 40
+  },
+  {
+    "original": "Add 10x Vitality of the Abyss (+30 HP)",
+    "translation": "添加10个深渊活力（+30HP）",
+    "capacity": 40
+  },
+  {
+    "original": "Added 10x Vitality of the Abyss",
+    "translation": "已添加 10 个深渊活力",
+    "capacity": 32
+  },
+  {
+    "original": "Spawns permanent Abyss MP stat items.",
+    "translation": "生成永久加法力的深渊物品。",
+    "capacity": 40
+  },
+  {
+    "original": "Add 10x Spirit of the Abyss (+2 MP)",
+    "translation": "添加 10 个深渊精神（+2 法力）",
+    "capacity": 40
+  },
+  {
+    "original": "Added 10x Spirit of the Abyss",
+    "translation": "已添加 10 个深渊精神",
+    "capacity": 32
+  },
+  {
+    "original": "Spawns permanent Abyss SP stat items.",
+    "translation": "生成永久加耐力的深渊物品。",
+    "capacity": 40
+  },
+  {
+    "original": "Add 10x Breath of the Abyss (+3 SP)",
+    "translation": "添加 10 个深渊气息（+3 耐力）",
+    "capacity": 40
+  },
+  {
+    "original": "Added 10x Breath of the Abyss",
+    "translation": "已添加 10 个深渊气息",
+    "capacity": 32
+  },
+  {
+    "original": "Missing",
+    "translation": "缺少",
+    "capacity": 8
+  },
+  {
+    "original": "Collection Status",
+    "translation": "收集状态",
+    "capacity": 24
+  },
+  {
+    "original": "%s: %d / %d (%d %s)",
+    "translation": "%s：%d / %d（%d %s）",
+    "capacity": 32
+  },
+  {
+    "original": "Current ownership status across your inventory, bags, and storages.",
+    "translation": "背包、钱袋和储存空间中的当前拥有情况。",
+    "capacity": 68
+  },
+  {
+    "original": "items",
+    "translation": "物品",
+    "capacity": 7
+  },
+  {
+    "original": "Automatically adds all missing items in this category to your inventory",
+    "translation": "自动将此分类中缺少的物品加入背包",
+    "capacity": 72
+  },
+  {
+    "original": "%s (%d %s).",
+    "translation": "%s（%d %s）。",
+    "capacity": 16
+  },
+  {
+    "original": ">> Restore All Missing in Category <<",
+    "translation": ">> 恢复分类中全部缺失物品 <<",
+    "capacity": 40
+  },
+  {
+    "original": "All items in this category are already owned!",
+    "translation": "此分类中的物品已全部拥有！",
+    "capacity": 48
+  },
+  {
+    "original": "Restoring %d missing items...",
+    "translation": "恢复中 %d 件……",
+    "capacity": 32
+  },
+  {
+    "original": "Failed to restore items or bulk add busy",
+    "translation": "恢复失败或批量添加正在执行",
+    "capacity": 48
+  },
+  {
+    "original": "Search items in this category by name or internal key.",
+    "translation": "按名称或内部键搜索此分类物品。",
+    "capacity": 56
+  },
+  {
+    "original": "IN BAG",
+    "translation": "背包",
+    "capacity": 8
+  },
+  {
+    "original": "CATALOG",
+    "translation": "目录",
+    "capacity": 8
+  },
+  {
+    "original": "[%s]  %s",
+    "translation": "[%s]  %s",
+    "capacity": 16
+  },
+  {
+    "original": "Press to add 1 copy to inventory.",
+    "translation": "按键添加 1 个到背包。",
+    "capacity": 40
+  },
+  {
+    "original": "In Inventory",
+    "translation": "背包中",
+    "capacity": 16
+  },
+  {
+    "original": "Not in Bag",
+    "translation": "不在背包",
+    "capacity": 12
+  },
+  {
+    "original": "Status",
+    "translation": "状态",
+    "capacity": 13
+  },
+  {
+    "original": "%s: %s | %s: %s. %s",
+    "translation": "%s：%s | %s：%s。%s",
+    "capacity": 24
+  },
+  {
+    "original": "Catalog Item",
+    "translation": "目录物品",
+    "capacity": 16
+  },
+  {
+    "original": "Added 1x %s",
+    "translation": "已加1个%s",
+    "capacity": 16
+  },
+  {
+    "original": "Nothing in this category matches your search.",
+    "translation": "此分类中没有匹配搜索的物品。",
+    "capacity": 48
+  },
+  {
+    "original": "Bounty Notices (Wanted Posters)",
+    "translation": "悬赏通告（通缉令）",
+    "capacity": 32
+  },
+  {
+    "original": "Documents & Lore Books",
+    "translation": "文档与知识书籍",
+    "capacity": 24
+  },
+  {
+    "original": "Recipes & Crafting Manuals",
+    "translation": "配方与制作手册",
+    "capacity": 32
+  },
+  {
+    "original": "Quest Keys, Passes & Memories",
+    "translation": "任务钥匙/通行证/记忆",
+    "capacity": 32
+  },
+  {
+    "original": "Collectibles & Collector's Chest",
+    "translation": "收藏品与收藏家宝箱",
+    "capacity": 40
+  },
+  {
+    "original": "Unique Quest Weapons & Boss Gear",
+    "translation": "任务专属武器与首领装备",
+    "capacity": 40
+  },
+  {
+    "original": "Mount, Mecha & Vehicle Gear",
+    "translation": "坐骑、机甲与载具装备",
+    "capacity": 32
+  },
+  {
+    "original": "Rare Medals, Tokens & Artifacts",
+    "translation": "稀有勋章、代币与文物",
+    "capacity": 32
+  },
+  {
+    "original": "Quest & Special Item Catalog Archive",
+    "translation": "任务与特殊物品目录",
+    "capacity": 40
+  },
+  {
+    "original": "Browse all 50+ Bounty Notices and Wanted Posters (Simon, Ulzok, Haldin, etc.).",
+    "translation": "浏览50多份悬赏通告和通缉令（西蒙等）。",
+    "capacity": 80
+  },
+  {
+    "original": "1. Bounty Notices (Wanted Posters)",
+    "translation": "1. 悬赏通告（通缉令）",
+    "capacity": 40
+  },
+  {
+    "original": "Browse Skull Collector's Journal, archive records, voyager logs & historical notes.",
+    "translation": "浏览骷髅收集者日志、档案记录、航海日志和历史笔记。",
+    "capacity": 88
+  },
+  {
+    "original": "2. Documents & Lore Books",
+    "translation": "2. 文档与知识书籍",
+    "capacity": 40
+  },
+  {
+    "original": "Browse cooking recipe books, armor/weapon blueprints, and skill manuals.",
+    "translation": "浏览烹饪配方、武器防具蓝图和技能手册。",
+    "capacity": 80
+  },
+  {
+    "original": "3. Recipes & Crafting Manuals",
+    "translation": "3. 配方与制作手册",
+    "capacity": 40
+  },
+  {
+    "original": "Browse quest dungeon keys, gate keys, vault keys, and quest memories.",
+    "translation": "浏览任务地牢钥匙、大门钥匙、宝库钥匙和任务记忆。",
+    "capacity": 72
+  },
+  {
+    "original": "4. Quest Keys, Passes & Memories",
+    "translation": "4. 任务钥匙、通行证与记忆",
+    "capacity": 40
+  },
+  {
+    "original": "Browse Collectibles Chest, private storage items, and ceramic relics.",
+    "translation": "浏览收藏家宝箱、私人储物品和陶瓷遗物。",
+    "capacity": 72
+  },
+  {
+    "original": "5. Collectibles & Collector's Chest",
+    "translation": "5. 收藏品与收藏家宝箱",
+    "capacity": 48
+  },
+  {
+    "original": "Browse one-time quest reward armor sets, faceless cloth gear, and boss drops.",
+    "translation": "浏览一次性任务奖励套装、无面布甲和首领掉落。",
+    "capacity": 80
+  },
+  {
+    "original": "6. Unique Quest Weapons & Boss Gear",
+    "translation": "6. 任务专属武器与首领装备",
+    "capacity": 48
+  },
+  {
+    "original": "Browse Sotdae of Bond, Marni's Mecha power packs, cores, and specialized mount gear.",
+    "translation": "浏览羁绊苏台、马尼机甲动力包、核心和专用坐骑装备。",
+    "capacity": 88
+  },
+  {
+    "original": "7. Mount, Mecha & Vehicle Gear",
+    "translation": "7. 坐骑装备",
+    "capacity": 32
+  },
+  {
+    "original": "Browse Beighen refinement tokens, shadow contracts, super skill blessings & power cores.",
+    "translation": "浏览贝根强化代币、暗影契约、技能祝福和能量核心。",
+    "capacity": 96
+  },
+  {
+    "original": "8. Rare Medals, Tokens & Artifacts",
+    "translation": "8. 稀有文物",
+    "capacity": 40
+  },
+  {
+    "original": "Restore Lost & Sold Items (Buyback)",
+    "translation": "恢复丢失与售出物品（回购）",
+    "capacity": 48
+  },
+  {
+    "original": "Items you sell to merchants, discard, or delete will automatically appear here for instant recovery.",
+    "translation": "出售、丢弃或删除的物品会自动出现在这里，可立即恢复。",
+    "capacity": 104
+  },
+  {
+    "original": "No Lost / Sold Items Recorded",
+    "translation": "无丢失或售出记录",
+    "capacity": 32
+  },
+  {
+    "original": "recorded in history",
+    "translation": "条历史记录",
+    "capacity": 24
+  },
+  {
+    "original": "Lost & Sold Items",
+    "translation": "丢失与售出物品",
+    "capacity": 24
+  },
+  {
+    "original": "%s: %d %s",
+    "translation": "%s：%d %s",
+    "capacity": 24
+  },
+  {
+    "original": "Items you sold, discarded, or deleted. Select any item to buyback and restore.",
+    "translation": "已出售、丢弃或删除的物品。选择物品即可回购并恢复。",
+    "capacity": 80
+  },
+  {
+    "original": "Restores every single lost, sold, or deleted item listed below back into your inventory.",
+    "translation": "将下方所有丢失、售出或删除的物品恢复到背包。",
+    "capacity": 96
+  },
+  {
+    "original": ">> Restore All Lost & Sold Items <<",
+    "translation": ">> 恢复全部丢失与售出物品 <<",
+    "capacity": 40
+  },
+  {
+    "original": "Restored %d lost items!",
+    "translation": "已恢复%d件！",
+    "capacity": 24
+  },
+  {
+    "original": "Clears the history log without adding items.",
+    "translation": "清除历史记录，不添加物品。",
+    "capacity": 48
+  },
+  {
+    "original": "Clear Lost & Sold History",
+    "translation": "清除丢失与售出历史",
+    "capacity": 32
+  },
+  {
+    "original": "Lost items history cleared",
+    "translation": "已清除丢失物品历史",
+    "capacity": 32
+  },
+  {
+    "original": "Filter lost items by name or key...",
+    "translation": "按名称或键筛选丢失物品……",
+    "capacity": 40
+  },
+  {
+    "original": "RESTORE",
+    "translation": "恢复",
+    "capacity": 8
+  },
+  {
+    "original": "[%s]  %lldx  %s",
+    "translation": "[%s]  %lldx  %s",
+    "capacity": 16
+  },
+  {
+    "original": "Press to restore into inventory.",
+    "translation": "按键恢复到背包。",
+    "capacity": 36
+  },
+  {
+    "original": "Time",
+    "translation": "时间",
+    "capacity": 8
+  },
+  {
+    "original": "Source",
+    "translation": "来源",
+    "capacity": 9
+  },
+  {
+    "original": "%s: %s | %s: %s | %s: %s. %s",
+    "translation": "%s：%s | %s：%s | %s：%s。%s",
+    "capacity": 32
+  },
+  {
+    "original": "Lost & Sold",
+    "translation": "丢失与售出",
+    "capacity": 16
+  },
+  {
+    "original": "Restored %lldx %s",
+    "translation": "已恢复 %lldx %s",
+    "capacity": 24
+  },
+  {
+    "original": "Failed to restore item",
+    "translation": "恢复物品失败",
+    "capacity": 24
+  },
+  {
+    "original": "No lost items match your search filter.",
+    "translation": "没有匹配筛选条件的丢失物品。",
+    "capacity": 48
+  },
+  {
+    "original": "Browse the full database of quest items, wanted notices, recipes, and rare relics.",
+    "translation": "浏览任务物品、通缉令、配方和稀有遗物的完整目录。",
+    "capacity": 88
+  },
+  {
+    "original": "Num /",
+    "translation": "数字 /",
+    "capacity": 8
+  },
+  {
+    "original": "Key 0x%02X",
+    "translation": "按键 0x%02X",
+    "capacity": 17
+  },
+  {
+    "original": "Marker Teleport key",
+    "translation": "标记点传送键",
+    "capacity": 24
+  },
+  {
+    "original": "Marker Teleport button",
+    "translation": "标记点传送按钮",
+    "capacity": 24
+  },
+  {
+    "original": "Teleport directly to the map marker / custom waypoint placed on the map.",
+    "translation": "直接传送至地图上的标记点或自定义航点。",
+    "capacity": 80
+  },
+  {
+    "original": "Marker Teleport",
+    "translation": "标记点传送",
+    "capacity": 16
+  },
+  {
+    "original": "Segoe UI (Default)",
+    "translation": "Segoe UI（默认）",
+    "capacity": 24
+  },
+  {
+    "original": "Impact (Rampage)",
+    "translation": "Impact（狂暴）",
+    "capacity": 24
+  },
+  {
+    "original": "Georgia Bold",
+    "translation": "Georgia 粗体",
+    "capacity": 16
+  },
+  {
+    "original": "Select the built-in Windows font to use if no custom font is enabled.",
+    "translation": "未启用自定义字体时选择 Windows 内置字体。",
+    "capacity": 72
+  },
+  {
+    "original": "Built-In Fallback",
+    "translation": "内置备用字体",
+    "capacity": 24
+  },
+  {
+    "original": "Use a custom .ttf/.otf font from the game folder instead of built-in fonts.",
+    "translation": "使用游戏目录中的 .ttf/.otf 字体替代内置字体。",
+    "capacity": 80
+  },
+  {
+    "original": "Enable Custom Font",
+    "translation": "启用自定义字体",
+    "capacity": 24
+  },
+  {
+    "original": "Place a .ttf or .otf file in the game directory.",
+    "translation": "将 .ttf 或 .otf 文件放入游戏目录。",
+    "capacity": 56
+  },
+  {
+    "original": "No Fonts Found",
+    "translation": "未找到字体",
+    "capacity": 16
+  },
+  {
+    "original": "Select the custom font to load.",
+    "translation": "选择自定义字体。",
+    "capacity": 32
+  },
+  {
+    "original": "Select Custom Font",
+    "translation": "选择自定义字体",
+    "capacity": 24
+  },
+  {
+    "original": "Increases or decreases the size of the entire mod menu.",
+    "translation": "放大或缩小整个修改器菜单。",
+    "capacity": 56
+  },
+  {
+    "original": "Menu Scale",
+    "translation": "菜单缩放",
+    "capacity": 16
+  },
+  {
+    "original": "Displays an enlarged icon and name when selecting items.",
+    "translation": "选择物品时显示放大的图标和名称。",
+    "capacity": 64
+  },
+  {
+    "original": "Show Item Tooltip",
+    "translation": "显示物品提示",
+    "capacity": 24
+  },
+  {
+    "original": "Adjusts the preview image and panel size for item tooltips.",
+    "translation": "调整物品提示的预览图和面板大小。",
+    "capacity": 64
+  },
+  {
+    "original": "Tooltip Image Size",
+    "translation": "提示图像大小",
+    "capacity": 32
+  },
+  {
+    "original": "Customize the mod menu's size and item previews.",
+    "translation": "自定义修改器菜单大小和物品预览。",
+    "capacity": 56
+  },
+  {
+    "original": "Menu UI Settings",
+    "translation": "菜单界面设置",
+    "capacity": 24
+  },
+  {
+    "original": "Crimson Red",
+    "translation": "绯红",
+    "capacity": 16
+  },
+  {
+    "original": "Cyber Cyan",
+    "translation": "赛博青",
+    "capacity": 16
+  },
+  {
+    "original": "Neon Purple",
+    "translation": "霓虹紫",
+    "capacity": 16
+  },
+  {
+    "original": "Matrix Emerald",
+    "translation": "矩阵翠绿",
+    "capacity": 16
+  },
+  {
+    "original": "Royal Gold",
+    "translation": "皇家金",
+    "capacity": 16
+  },
+  {
+    "original": "Sunset Orange",
+    "translation": "落日橙",
+    "capacity": 16
+  },
+  {
+    "original": "Customize the mod menu accent and header colors.",
+    "translation": "自定义修改器菜单强调色和标题颜色。",
+    "capacity": 56
+  },
+  {
+    "original": "Theme Color",
+    "translation": "主题颜色",
+    "capacity": 16
+  },
+  {
+    "original": "Use PlayStation controller icons (Cross, Circle, etc) instead of Xbox buttons.",
+    "translation": "使用 PlayStation 手柄图标（叉、圆等）替代 Xbox 按键。",
+    "capacity": 80
+  },
+  {
+    "original": "PlayStation Icons",
+    "translation": "PlayStation 图标",
+    "capacity": 24
+  },
+  {
+    "original": "Select mod menu display language.",
+    "translation": "选择修改器菜单显示语言。",
+    "capacity": 40
+  },
+  {
+    "original": "Customize the header font (requires game restart).",
+    "translation": "自定义标题字体（需要重启游戏）。",
+    "capacity": 56
+  },
+  {
+    "original": "Title Font",
+    "translation": "标题字体",
+    "capacity": 16
+  },
+  {
+    "original": "Show Console Window",
+    "translation": "显示控制台窗口",
+    "capacity": 24
+  },
+  {
+    "original": "Shows the debug console window. (Instantly toggles)",
+    "translation": "显示调试控制台窗口（即时切换）。",
+    "capacity": 56
+  },
+  {
+    "original": "Game version automatically detected by Trinity engine.",
+    "translation": "Trinity 检测到的游戏版本",
+    "capacity": 56
+  },
+  {
+    "original": "No Bounty",
+    "translation": "无赏金",
+    "capacity": 16
+  },
+  {
+    "original": "Crimes stop adding to your bounty or alerting faction guards (session-only, safe for save files).",
+    "translation": "犯罪行为不会增加通缉赏金或引来阵营守卫（仅限当前会话，不影响存档）。",
+    "capacity": 104,
+    "rva": 1660848
+  },
+  {
+    "original": "Character",
+    "translation": "角色",
+    "capacity": 16,
+    "rva": 1059440
+  },
+  {
+    "original": "Sky",
+    "translation": "空中",
+    "capacity": 6,
+    "rva": 1039858
+  },
+  {
+    "original": "Teleported to destination",
+    "translation": "已传送到目的地",
+    "capacity": 32,
+    "rva": 1532824
+  },
+  {
+    "original": "No destination found on map",
+    "translation": "地图上未找到标记点",
+    "capacity": 32,
+    "rva": 1532856
+  },
+  {
+    "original": "Player not ready",
+    "translation": "玩家状态未就绪",
+    "capacity": 24,
+    "rva": 1532888
+  },
+  {
+    "original": "Invalid destination coordinates",
+    "translation": "目的地坐标无效",
+    "capacity": 32,
+    "rva": 1532912
+  },
+  {
+    "original": "Unsafe destination context",
+    "translation": "目的地环境不安全",
+    "capacity": 32,
+    "rva": 1532944
+  },
+  {
+    "original": "Destination teleport failed",
+    "translation": "目的地传送失败",
+    "capacity": 32,
+    "rva": 1532976
+  },
+  {
+    "original": "Saved Locations",
+    "translation": "保存位置",
+    "capacity": 22,
+    "rva": 1671618
+  },
+  {
+    "original": "Saved Spot",
+    "translation": "已存坐标",
+    "capacity": 16,
+    "rva": 1041672
+  },
+  {
+    "original": "Inventory",
+    "translation": "背包",
+    "capacity": 16,
+    "rva": 1055216
+  },
+  {
+    "original": "Quest Items",
+    "translation": "任务道具",
+    "capacity": 12,
+    "rva": 1059456
+  },
+  {
+    "original": "Camp",
+    "translation": "营地",
+    "capacity": 8,
+    "rva": 1059552
+  },
+  {
+    "original": "Wardrobe",
+    "translation": "衣柜",
+    "capacity": 16,
+    "rva": 1461064
+  },
+  {
+    "original": "Private Storage",
+    "translation": "个人仓库",
+    "capacity": 16,
+    "rva": 1464048
+  },
+  {
+    "original": "Bank",
+    "translation": "银行",
+    "capacity": 8,
+    "rva": 1059544
+  },
+  {
+    "original": "Medical Materials",
+    "translation": "药材",
+    "capacity": 24,
+    "rva": 1062904
+  },
+  {
+    "original": "Objects",
+    "translation": "杂物",
+    "capacity": 8,
+    "rva": 1062944
+  },
+  {
+    "original": "Kuku Pot (All)",
+    "translation": "库库罐(全)",
+    "capacity": 16,
+    "rva": 1056728
+  },
+  {
+    "original": "Kuku Pot",
+    "translation": "库库罐",
+    "capacity": 12,
+    "rva": 1056744
+  },
+  {
+    "original": "Lures",
+    "translation": "诱饵",
+    "capacity": 12,
+    "rva": 1056756
+  },
+  {
+    "original": "Day",
+    "translation": "第",
+    "capacity": 10,
+    "rva": 1481910
+  },
+  {
+    "original": "Language",
+    "translation": "语言",
+    "capacity": 16,
+    "rva": 1042720
+  },
+  {
+    "original": "Equipped %s!",
+    "translation": "已装备 %s！",
+    "capacity": 16,
+    "rva": 1666520
+  },
+  {
+    "original": "Key",
+    "translation": "按键",
+    "capacity": 9,
+    "rva": 1058975
+  },
+  {
+    "original": "Blue",
+    "translation": "蓝色",
+    "capacity": 12,
+    "rva": 1659660
+  },
+  {
+    "original": "Green",
+    "translation": "绿色",
+    "capacity": 12,
+    "rva": 1659564
+  },
+  {
+    "original": "Red",
+    "translation": "红色",
+    "capacity": 8,
+    "rva": 1659440
+  },
+  {
+    "original": "Easy Parry (Just Guard)",
+    "translation": "简易格挡（完美弹刀）",
+    "capacity": 32
+  },
+  {
+    "original": "Natively triggers Perfect Parry and deflect counters whenever you guard against enemy attacks.",
+    "translation": "防御敌人攻击时自动触发完美格挡与弹反还击。",
+    "capacity": 96
+  },
+  {
+    "original": "Easy Evade (Just Evade)",
+    "translation": "简易闪避(完美)",
+    "capacity": 24
+  },
+  {
+    "original": "Natively triggers Perfect Dodge slow-motion counters whenever you dodge in combat.",
+    "translation": "战斗中闪避时自动触发完美闪避慢动作与反击。",
+    "capacity": 88
   }
 ]

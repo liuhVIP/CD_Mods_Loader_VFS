@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(TrinityCN VERSION 0.5.3 LANGUAGES CXX)
+project(TrinityCN VERSION 0.7.3 LANGUAGES CXX)
 
 add_library(TrinityCN SHARED
     src/trinity_localizer.cpp

@@ -3,7 +3,7 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [string]$TrinitySample = 'G:\NppMODdown\crimsondesert\Trinity V1.2.3 VTweak (1.18.01) 3289 1.2.3 2026-08-17T04-36Z UHbidxlDB\Trinity.asi',
+    [string]$TrinitySample = 'G:\NppMODdown\crimsondesert\Trinity V1.3.2 VTweak (2.00.01) 3289 1.3.2 2026-08-31T06-32Z lwFT830Co\Trinity.asi',
     [string]$GameDir = 'G:\SteamLibrary\steamapps\common\Crimson Desert'
 )
 
@@ -22,9 +22,9 @@ $sourceAsi = Join-Path $buildDirectory "$Configuration\TrinityCN.asi"
 $releaseAsi = Join-Path $releaseDirectory 'TrinityCN.asi'
 $projectPython = Join-Path $projectRoot '.venv\Scripts\python.exe'
 
-# Trinity V1.2.3 VTweak 的开发样本仅用于构建时核对英文条目，不会进入发布目录。
-$expectedTrinityVersion = 'v1.2.3 (vTweak by Lian)'
-$expectedTrinitySha256 = '81BB3AE40481004FF710530184BF57886E424BA4F12C3C1904A51FFAED913CE8'
+# Trinity V1.3.2 VTweak 的开发样本仅用于构建时核对英文条目，不会进入发布目录。
+$expectedTrinityVersion = 'v1.3.2 (vTweak by Lian)'
+$expectedTrinitySha256 = '87E0D9322866F5D399B11E1CC240BA42A97F76E46B729EC86D1D4FB26483F266'
 
 function ConvertTo-CppByteLiteral {
     param([Parameter(Mandatory)][string]$Value)
@@ -34,7 +34,8 @@ function ConvertTo-CppByteLiteral {
 
 function Get-FormatTokens {
     param([Parameter(Mandatory)][string]$Value)
-    return [regex]::Matches($Value, '%(?:[-+ #0]*|\d+|\.|\*)*(?:hh|h|ll|l|j|z|t|L)?[A-Za-z%]') |
+    # 只识别真正的 printf 转换；说明文本中的普通百分号（如“100% max”）不是占位符。
+    return [regex]::Matches($Value, '%(?:%|[-+0#]*(?:\d+|\*)?(?:\.(?:\d+|\*))?(?:hh|h|ll|l|j|z|t|L)?[A-Za-z])') |
         ForEach-Object { $_.Value }
 }
 
@@ -57,7 +58,7 @@ function Test-PatchableTranslationSlot {
         if ($matchOffset -lt 0) {
             return $false
         }
-        $slotEnd = $matchOffset + $Capacity
+        $slotEnd = $matchOffset + $Capacity - 1
         if ($slotEnd -lt $SampleBytes.Length) {
             $slotIsEmpty = $true
             for ($index = $matchOffset + $originalLength; $index -le $slotEnd; $index++) {
@@ -73,6 +74,29 @@ function Test-PatchableTranslationSlot {
         $searchOffset = $matchOffset + 1
     }
     return $false
+}
+
+function Convert-RvaToFileOffset {
+    param(
+        [Parameter(Mandatory)][byte[]]$SampleBytes,
+        [Parameter(Mandatory)][uint32]$Rva
+    )
+    $peOffset = [BitConverter]::ToInt32($SampleBytes, 0x3C)
+    $sectionCount = [BitConverter]::ToUInt16($SampleBytes, $peOffset + 6)
+    $optionalHeaderSize = [BitConverter]::ToUInt16($SampleBytes, $peOffset + 20)
+    $sectionOffset = $peOffset + 24 + $optionalHeaderSize
+    for ($index = 0; $index -lt $sectionCount; $index++) {
+        $current = $sectionOffset + ($index * 40)
+        $virtualSize = [BitConverter]::ToUInt32($SampleBytes, $current + 8)
+        $virtualAddress = [BitConverter]::ToUInt32($SampleBytes, $current + 12)
+        $rawSize = [BitConverter]::ToUInt32($SampleBytes, $current + 16)
+        $rawAddress = [BitConverter]::ToUInt32($SampleBytes, $current + 20)
+        $mappedSize = [Math]::Max($virtualSize, $rawSize)
+        if ($Rva -ge $virtualAddress -and $Rva -lt ($virtualAddress + $mappedSize)) {
+            return [int]($rawAddress + ($Rva - $virtualAddress))
+        }
+    }
+    throw ('RVA 0x{0:X} 不属于任何 PE section。' -f $Rva)
 }
 
 if (-not (Test-Path -LiteralPath $translationPath -PathType Leaf)) {
@@ -132,14 +156,28 @@ foreach ($entry in $translations) {
         throw "格式占位符不一致：$original"
     }
     if ($null -ne $sampleAscii -and -not $sampleAscii.Contains("$original`0", [System.StringComparison]::Ordinal)) {
-        throw "Trinity V1.2.3 VTweak 样本中不存在英文条目：$original"
+        throw "Trinity V1.3.2 VTweak 样本中不存在英文条目：$original"
     }
-    if ($null -ne $sampleBytes -and -not (Test-PatchableTranslationSlot `
+    $rva = if ($null -ne $entry.rva) { [uint32]$entry.rva } else { [uint32]0 }
+    if ($null -ne $sampleBytes -and $rva -ne 0) {
+        $fileOffset = Convert-RvaToFileOffset -SampleBytes $sampleBytes -Rva $rva
+        $originalBytes = [System.Text.Encoding]::UTF8.GetBytes($original)
+        for ($index = 0; $index -lt $originalBytes.Length; $index++) {
+            if ($sampleBytes[$fileOffset + $index] -ne $originalBytes[$index]) {
+                throw ('定点翻译原文不匹配：{0} @ RVA 0x{1:X}' -f $original, $rva)
+            }
+        }
+        for ($index = $originalBytes.Length; $index -lt $capacity; $index++) {
+            if ($sampleBytes[$fileOffset + $index] -ne 0) {
+                throw ('定点翻译槽位容量不足：{0} @ RVA 0x{1:X}' -f $original, $rva)
+            }
+        }
+    } elseif ($null -ne $sampleBytes -and -not (Test-PatchableTranslationSlot `
             -SampleBytes $sampleBytes `
             -SampleAscii $sampleAscii `
             -Original $original `
             -Capacity $capacity)) {
-        throw "Trinity V1.2.3 VTweak 样本中的字符串槽容量不足：$original ($capacity)"
+        throw "Trinity V1.3.2 VTweak 样本中的字符串槽容量不足：$original ($capacity)"
     }
     foreach ($rune in $translation.EnumerateRunes()) {
         if ($rune.Value -gt 0xFFFF) {
@@ -195,12 +233,13 @@ $headerLines.Add('#pragma once')
 $headerLines.Add('#include <cstddef>')
 $headerLines.Add('#include <cstdint>')
 $headerLines.Add('namespace trinity_cn::generated {')
-$headerLines.Add('struct TranslationEntry { const char* original; const char* translation; std::size_t capacity; };')
+$headerLines.Add('struct TranslationEntry { const char* original; const char* translation; std::size_t capacity; std::uintptr_t rva; };')
 $headerLines.Add('inline constexpr TranslationEntry kTranslations[] = {')
 foreach ($entry in $translations) {
     $originalLength = [System.Text.Encoding]::UTF8.GetByteCount([string]$entry.original)
     $capacity = if ($null -ne $entry.capacity) { [int]$entry.capacity } else { $originalLength }
-    $headerLines.Add("    { $(ConvertTo-CppByteLiteral ([string]$entry.original)), $(ConvertTo-CppByteLiteral ([string]$entry.translation)), $capacity },")
+    $rva = if ($null -ne $entry.rva) { [uint32]$entry.rva } else { [uint32]0 }
+    $headerLines.Add("    { $(ConvertTo-CppByteLiteral ([string]$entry.original)), $(ConvertTo-CppByteLiteral ([string]$entry.translation)), $capacity, 0x$($rva.ToString('X')) },")
 }
 $headerLines.Add('};')
 $headerLines.Add('inline constexpr std::uint16_t kGlyphRanges[] = {')

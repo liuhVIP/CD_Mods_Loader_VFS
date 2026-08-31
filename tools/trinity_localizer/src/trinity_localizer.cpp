@@ -1,4 +1,4 @@
-// Trinity 0.13.2 中文伴生 ASI：运行时内嵌翻译映射与 ImGui 中文字体注入。
+// Trinity V1.3.2 VTweak 中文伴生 ASI：运行时内嵌翻译映射与 ImGui 中文字体注入。
 #include <Windows.h>
 
 #include <algorithm>
@@ -20,65 +20,65 @@
 
 namespace trinity_cn {
 
-// 当前适配对象为 Trinity V1.2.3 VTweak（ReXooGen/Lian fork）；版本变化时必须重新确认函数入口和序言。
+// 当前适配对象为 Trinity V1.3.2 VTweak（2.00.01 / Lian fork）；版本变化时必须重新确认函数入口和序言。
 constexpr wchar_t kTargetModuleName[] = L"Trinity.asi";
 constexpr wchar_t kTargetProcessName[] = L"CrimsonDesert.exe";
-constexpr char kTargetVersion[] = "v1.2.3 (vTweak by Lian)";
-constexpr char kVersionLabel[] = "b站up 改名_汉化 v1.2.3";
-constexpr char kCompanionVersion[] = "0.5.3.0";
-constexpr std::uintptr_t kAddFontFromFileTtfRva = 0x79BD0;
-constexpr std::uintptr_t kVersionTextLeaRva = 0x358D4;
-constexpr std::uintptr_t kCatalogLocStringRva = 0x22250;
-constexpr std::uintptr_t kItemTableGlobalRva = 0x179B00;
-constexpr std::uintptr_t kGroupTableGlobalRva = 0x179B08;
-constexpr std::uintptr_t kInventoryTableGlobalRva = 0x179B18;
-constexpr std::uintptr_t kCatalogNamesHolderRva = 0x179B20;
-constexpr std::uintptr_t kItemTableLoadRva = 0x1F50A;
-constexpr std::uintptr_t kGroupTableLoadRva = 0x1F994;
-constexpr std::uintptr_t kStringInfoTableLoadRva = 0x21396;
-constexpr std::uintptr_t kDefinitionArrayLoadRva = 0x206D1;
+constexpr char kTargetVersion[] = "v1.3.2 (vTweak by Lian)";
+constexpr char kVersionLabel[] = "b站up 改名_汉化 v1.3.2";
+constexpr char kCompanionVersion[] = "0.7.3.0";
+constexpr std::uintptr_t kAddFontFromFileTtfRva = 0xA1C90;
+constexpr std::uintptr_t kVersionTextLeaRva = 0x55990;
+constexpr std::uintptr_t kCatalogLocStringRva = 0x34240;
+constexpr std::uintptr_t kItemTableGlobalRva = 0x1CE200;
+constexpr std::uintptr_t kGroupTableGlobalRva = 0x1CE208;
+constexpr std::uintptr_t kInventoryTableGlobalRva = 0x1CE218;
+constexpr std::uintptr_t kCatalogNamesHolderRva = 0x1CE220;
+constexpr std::uintptr_t kItemTableLoadRva = 0x24667;
+constexpr std::uintptr_t kGroupTableLoadRva = 0x25A34;
+constexpr std::uintptr_t kStringInfoTableLoadRva = 0x354E9;
+constexpr std::uintptr_t kDefinitionArrayLoadRva = 0x2DCFF;
 constexpr std::uintptr_t kTableCountOffset = 0x08;
 constexpr std::uintptr_t kTableDefinitionsOffset = 0x58;
 constexpr std::uintptr_t kItemNameFieldOffset = 0x20;
 constexpr std::uintptr_t kGroupNameFieldOffset = 0x18;
 constexpr std::uintptr_t kInventoryNameFieldOffset = 0x70;
 constexpr std::size_t kHookOverwriteSize = 17;
-constexpr std::size_t kCatalogHookOverwriteSize = 19;
+constexpr std::size_t kCatalogHookOverwriteSize = 23;
 constexpr DWORD kModuleWaitMilliseconds = 60'000;
 constexpr DWORD kModuleWaitHeartbeatMilliseconds = 3'000;
 constexpr DWORD kModulePollMilliseconds = 10;
 
-// Trinity V1.2.3 VTweak 的 AddFontFromFileTTF 前 17 字节（与 0.13.2 一致）；不一致时拒绝安装 Hook。
+// Trinity V1.3.2 VTweak 的 AddFontFromFileTTF 前 17 字节；不一致时拒绝安装 Hook。
 constexpr std::array<std::uint8_t, kHookOverwriteSize> kExpectedFontFunctionPrologue{
     0x40, 0x55, 0x53, 0x56, 0x57, 0x41, 0x56, 0x41, 0x57,
     0x48, 0x8D, 0xAC, 0x24, 0x38, 0xFF, 0xFF, 0xFF,
 };
 
-// 唯一版本文本引用：lea rsi, [rip + v1.2.3 (vTweak by Lian)]。
+// 唯一版本文本引用：lea rdi, [rip + v1.3.2 (vTweak by Lian)]。
 constexpr std::array<std::uint8_t, 7> kExpectedVersionTextLea{
-    0x48, 0x8D, 0x35, 0xF5, 0x00, 0x11, 0x00,
+    0x48, 0x8D, 0x3D, 0x39, 0x16, 0x12, 0x00,
 };
 
-// Trinity V1.2.3 VTweak 的名称 getter（0x22250）前 19 字节：栈保存指令加上
-// 检查名称池全局（0x179B20）是否就绪的 cmp。覆盖长度必须结束在指令边界，
+// Trinity V1.3.2 VTweak 的名称 getter（0x34240）前 23 字节：栈保存指令加上
+// 检查目录全局（0x1CE220）是否就绪的 cmp。覆盖长度必须结束在指令边界，
 // 且跳板需要重定位其中的 RIP 相对操作数。
 constexpr std::array<std::uint8_t, kCatalogHookOverwriteSize> kExpectedCatalogLocStringPrologue{
-    0x48, 0x8B, 0xC4, 0x53, 0x55, 0x56, 0x57, 0x48, 0x83,
-    0xEC, 0x48, 0x48, 0x83, 0x3D, 0xBD, 0x78, 0x15, 0x00, 0x00,
+    0x48, 0x8B, 0xC4, 0x53, 0x55, 0x56, 0x57, 0x41, 0x56, 0x41, 0x57,
+    0x48, 0x83, 0xEC, 0x38, 0x48, 0x83, 0x3D, 0xC9, 0x9F, 0x19, 0x00, 0x00,
 };
 
 // 当前 ItemInfo / ItemGroupInfo / stringinfo 全局与 definitions(+0x58) 的固定引用特征。
 constexpr std::array<std::uint8_t, 7> kExpectedItemTableLoad{
-    0x48, 0x8D, 0x15, 0x0F, 0x6A, 0x0B, 0x00,
+    0x48, 0x8B, 0x0D, 0x92, 0x9B, 0x1A, 0x00,
 };
 constexpr std::array<std::uint8_t, 7> kExpectedGroupTableLoad{
-    0x48, 0x8B, 0x0D, 0x6D, 0xA1, 0x15, 0x00,
+    0x48, 0x8B, 0x0D, 0xCD, 0x87, 0x1A, 0x00,
 };
 constexpr std::array<std::uint8_t, 7> kExpectedStringInfoTableLoad{
-    0x48, 0x8B, 0x0D, 0x73, 0x87, 0x15, 0x00,
+    0x48, 0x8B, 0x0D, 0x28, 0x8D, 0x19, 0x00,
 };
 constexpr std::array<std::uint8_t, 4> kExpectedDefinitionArrayLoad{
-    0x48, 0x8D, 0x4F, 0x58,
+    0x48, 0x8D, 0x4B, 0x58,
 };
 
 using AddFontFromFileTtfFn = void* (*)(
@@ -395,7 +395,7 @@ std::size_t PatchTranslationEntry(PeSectionView section, const generated::Transl
     }
     std::size_t patchedCount = 0;
     std::uint8_t* cursor = section.address;
-    std::uint8_t* end = section.address + section.size - entry.capacity - 1;
+    std::uint8_t* end = section.address + section.size - entry.capacity;
     while (cursor <= end) {
         if (std::memcmp(cursor, entry.original, originalLength) != 0 || cursor[originalLength] != 0) {
             ++cursor;
@@ -403,13 +403,13 @@ std::size_t PatchTranslationEntry(PeSectionView section, const generated::Transl
         }
         const bool paddingIsEmpty = std::all_of(
             cursor + originalLength,
-            cursor + entry.capacity + 1,
+            cursor + entry.capacity,
             [](std::uint8_t value) { return value == 0; });
         if (!paddingIsEmpty) {
             ++cursor;
             continue;
         }
-        std::string replacement(entry.capacity + 1, '\0');
+        std::string replacement(entry.capacity, '\0');
         std::memcpy(replacement.data(), entry.translation, translatedLength);
         if (!WriteMemory(cursor, replacement.data(), replacement.size())) {
             return patchedCount;
@@ -427,7 +427,28 @@ std::size_t ApplyEmbeddedTranslations(HMODULE module) {
     }
     std::size_t patchedCount = 0;
     for (const auto& entry : generated::kTranslations) {
-        patchedCount += PatchTranslationEntry(readOnlyData, entry);
+        if (entry.rva == 0) {
+            patchedCount += PatchTranslationEntry(readOnlyData, entry);
+            continue;
+        }
+        auto* target = reinterpret_cast<std::uint8_t*>(module) + entry.rva;
+        const std::size_t originalLength = std::strlen(entry.original);
+        const std::size_t translatedLength = std::strlen(entry.translation);
+        if (originalLength == 0 || entry.capacity < originalLength ||
+            translatedLength > entry.capacity ||
+            std::memcmp(target, entry.original, originalLength) != 0 ||
+            !std::all_of(
+                target + originalLength,
+                target + entry.capacity,
+                [](std::uint8_t value) { return value == 0; })) {
+            DebugLog("定点分类翻译校验失败（RVA 0x" + FormatHex(entry.rva) + "）。");
+            continue;
+        }
+        std::string replacement(entry.capacity, '\0');
+        std::memcpy(replacement.data(), entry.translation, translatedLength);
+        if (WriteMemory(target, replacement.data(), replacement.size())) {
+            ++patchedCount;
+        }
     }
     return patchedCount;
 }
@@ -459,22 +480,17 @@ bool BuildCatalogAddressTable(
     const std::uintptr_t managerSlot =
         reinterpret_cast<std::uintptr_t>(trinityModule) + trinityGlobalRva;
     if (!ReadCurrentProcessMemory(managerSlot, &manager, sizeof(manager)) || manager == 0) {
-        DebugLog("目录管理器全局为空（RVA 0x" + FormatHex(trinityGlobalRva) + "），稍后重试。");
         return false;
     }
 
     std::uintptr_t table = 0;
     if (!ReadCurrentProcessMemory(manager, &table, sizeof(table)) || table == 0) {
-        DebugLog("目录管理器表为空（manager 0x" + FormatHex(manager) + "），稍后重试。");
         return false;
     }
 
     std::uint32_t rowCount = 0;
     if (!ReadCurrentProcessMemory(table + kTableCountOffset, &rowCount, sizeof(rowCount)) ||
         rowCount < expectedRowCount) {
-        DebugLog(
-            "目录行数不足：实际 " + std::to_string(rowCount) + " 期望至少 " +
-            std::to_string(expectedRowCount) + "（RVA 0x" + FormatHex(trinityGlobalRva) + "）。");
         return false;
     }
 
@@ -484,7 +500,6 @@ bool BuildCatalogAddressTable(
             &definitionsAddress,
             sizeof(definitionsAddress)) ||
         definitionsAddress == 0) {
-        DebugLog("目录定义数组为空（table 0x" + FormatHex(table) + "）。");
         return false;
     }
 
@@ -493,7 +508,6 @@ bool BuildCatalogAddressTable(
             definitionsAddress,
             definitions.data(),
             definitions.size() * sizeof(definitions.front()))) {
-        DebugLog("读取目录定义数组失败（0x" + FormatHex(definitionsAddress) + "）。");
         return false;
     }
 
@@ -517,8 +531,6 @@ const char* FindCatalogTranslation(std::uintptr_t structAddress) {
     }
 
     AcquireSRWLockExclusive(&g_catalogTranslationLock);
-    // V1.2.3 物品名路径（0x22380 -> 0x22250）仍使用 ItemInfo 定义 +0x20 的 LocString；
-    // 按行号建立地址表后，Add Item 列表的 structAddress 能直接命中中文映射。
     if (!g_itemCatalogAddressesReady) {
         std::size_t mappedCount = 0;
         g_itemCatalogAddressesReady = BuildCatalogAddressTable(
@@ -609,9 +621,8 @@ bool HookedCatalogLocString(
     if (g_originalCatalogLocString == nullptr) {
         return false;
     }
-    // V1.2.3 的 getter 只在作者本地化表（0x179B20）非空时才会读取第 8 号栈参数；我们只传了
-    // 3 个参数，直接调用会读到脏数据。当前游戏运行时该表为空（作者日志：localisation table
-    // not found），原 getter 直接返回 false；若将来非空，宁可回退到引擎 key 也不调用不完整参数。
+    // 名称池非空时，原 getter 会读取 Hook 声明中不存在的额外栈参数；此时不调用跳板，
+    // 避免读取脏栈。作者本地化表未加载时该全局为空，原 getter 的快速失败路径可安全调用。
     std::uintptr_t namesHolder = 0;
     HMODULE module = GetModuleHandleW(kTargetModuleName);
     if (module != nullptr &&
@@ -721,7 +732,7 @@ bool InstallFontHook(HMODULE module) {
 }
 
 bool InstallCatalogTranslationHook(HMODULE module) {
-    // V1.2.3 的 0x22250 序言包含一条 RIP 相对的 cmp（检查名称池全局 0x179B20），
+    // V1.3.2 的 0x34240 序言包含一条 RIP 相对的 cmp（检查目录全局 0x1CE220），
     // 直接复制进跳板会读到跳板附近的未初始化内存。这里把 disp32 重定位到跳板自身，
     // 让回退调用仍然检查同一个绝对全局地址。
     auto* imageBase = reinterpret_cast<std::uint8_t*>(module);
@@ -735,7 +746,7 @@ bool InstallCatalogTranslationHook(HMODULE module) {
     }
     constexpr std::size_t jumpSize = 14;
     constexpr std::size_t trampolineSize = kCatalogHookOverwriteSize + jumpSize;
-    // 跳板内重定位的 cmp 用 RIP 相对寻址访问名称池全局（imageBase + 0x179B20），
+    // 跳板内重定位的 cmp 用 RIP 相对寻址访问目录就绪全局（imageBase + 0x1CE220），
     // 跳板必须落在模块 ±2GB 内，否则 disp32 溢出。AllocateNearAddress 返回
     // PAGE_READWRITE，复制内容后需转成 PAGE_EXECUTE_READWRITE 才能执行。
     auto* trampoline = static_cast<std::uint8_t*>(AllocateNearAddress(
@@ -752,21 +763,22 @@ bool InstallCatalogTranslationHook(HMODULE module) {
         return false;
     }
     std::memcpy(trampoline, target, kCatalogHookOverwriteSize);
-    // cmp 指令位于拷贝偏移 11，长度 8，其 RIP 为 trampoline + 19。
-    const auto nextRip = reinterpret_cast<std::intptr_t>(trampoline + 11 + 8);
-    const auto namesHolder = reinterpret_cast<std::intptr_t>(imageBase + kCatalogNamesHolderRva);
-    const auto displacement64 = namesHolder - nextRip;
+    // cmp 指令位于拷贝偏移 15，长度 8，其 RIP 为 trampoline + 23。
+    const auto nextRip = reinterpret_cast<std::intptr_t>(trampoline + 15 + 8);
+    const auto catalogReady = reinterpret_cast<std::intptr_t>(imageBase + kCatalogNamesHolderRva);
+    const auto displacement64 = catalogReady - nextRip;
     if (displacement64 < std::numeric_limits<std::int32_t>::min() ||
         displacement64 > std::numeric_limits<std::int32_t>::max()) {
         DebugLog(
-            "目录 Hook 跳板超出 RIP 相对寻址范围（namesHolder 0x" +
-            FormatHex(static_cast<std::uintptr_t>(namesHolder)) + " trampoline 0x" +
+            "目录 Hook 跳板超出 RIP 相对寻址范围（catalogReady 0x" +
+            FormatHex(static_cast<std::uintptr_t>(catalogReady)) + " trampoline 0x" +
             FormatHex(reinterpret_cast<std::uintptr_t>(trampoline)) + "）。");
         VirtualFree(trampoline, 0, MEM_RELEASE);
         return false;
     }
     const auto displacement = static_cast<std::int32_t>(displacement64);
-    std::memcpy(trampoline + 14, &displacement, sizeof(displacement));
+    // cmp 的 disp32 位于指令起始偏移 15 + 3，而不是旧版本的偏移 14。
+    std::memcpy(trampoline + 18, &displacement, sizeof(displacement));
     WriteAbsoluteJump(trampoline + kCatalogHookOverwriteSize, target + kCatalogHookOverwriteSize);
     g_originalCatalogLocString = reinterpret_cast<CatalogLocStringFn>(trampoline);
 

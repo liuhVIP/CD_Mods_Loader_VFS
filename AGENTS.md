@@ -1666,6 +1666,15 @@ Thank you.
 
 ## 2026-07-17 性转角色女巫脸与女性装备替换实机基线
 
+### 2026-08-31 游戏 2.0.01 K-Makeup 最终实机基线（优先采用）
+
+- 用户已实机确认 `Human Female - Five Witch Faces and Hairstyles - K-Makeup-2.00.01-fixed.cdmod` 生效：理发师捏人入口、五位女巫脸型、对应发型和 K-Makeup 妆容均正常。
+- **脸位与发型位是两套不同映射，后续更新修复必须保留：**脸型槽位 `2/3/4/5/6`；发型槽位 `2/3/4/5/7`。White Crow 的最终组合是脸 `6 -> 0046`、发型 `7 -> cd_phw_00_hair_00_0018`。
+- 完整映射：脸 `2=Areciel/0139`、`3=Bari/0143`、`4=Elowen/0141`、`5=Lyselia/0019`、`6=White Crow/0046`；发型 `2=0504`、`3=0007_01`、`4=0006_04`、`5=0505`、`7=0018`。
+- 不得把 White Crow 发型从 7 改到 6；实机结果是脸仍正确但发型不再前置。游戏或 Human Female 源模组更新时，先按该槽位基线迁移，再检查新版两份 `meshparam_example_damian.xml` / `meshparam_example_kliff.xml` 的结构变化。
+- 当前修复包使用 2.0.01 loose 基底的 `file-replacement`，不含旧 standalone；脸部每个 MeshSet 的 `SkeletonVariation`、`MeshFileName`、`IconPath` 三处必须同步，发型目标槽与原生槽必须成对交换。槽位 6 原版为 `0005_tear` 特殊条目，迁移脸型时允许 file-replacement XML 载荷变长或变短。
+- 验收顺序固定为：理发师入口 -> 脸 `2/3/4/5/6` -> 发型 `2/3/4/5/7` -> 妆容 -> 应用保存 -> 返回主菜单重载存档 -> 重启游戏。
+
 ### 五女巫脸型与发型
 
 - 用户已实机确认 `ZZ - Full Human Female Five Witch Faces and Hairstyles 2-3-4-5-7-1.5-test.cdmod` 的五张脸与五个发型全部可正常使用。映射为：`2=Areciel/0139/0504`、`3=Bari/0143/0007_01`、`4=Elowen/0141/0006_04`、`5=Lyselia/0019/0505`、`7=White Crow/0046/0018`。
@@ -1864,3 +1873,12 @@ Thank you.
 - 修复位置：`services/cdmod_format3_bridge.py` 新增 `iteminfo-price`（`is_iteminfo_price_field`）与 `iteminfo-record`（`ITEMINFO_RECORD_DIRECT_FIELDS`）两个家族并登记到 `_ordered_bridge_families`；`services/vfs_loader.py` `VFS_STATE_SCHEMA` 13→14 强制冷构建。
 - 验证闭环：真实 1.18.02 表派发 `iteminfo-record` 190→190/0、`iteminfo-price` 2127→73/0，其余家族不变；新增回归测试 `test/test_cdmod_format3_bridge.py::test_bridge_splits_iteminfo_price_and_record_families`；`test/` 501 passed、`ruff check .` 通过。用户实机确认深渊装备可正常插槽。
 - 注意事项：后续新增 iteminfo 字段类型必须先判断是否与现有 family 混批；价格/单记录/整表/窄字段必须拆批，禁止回退为单一 `iteminfo-whole-fields` 混批。
+
+## 2026-08-30 Infinite Resources / ItemInfo 2.00.01 语义迁移实机基线
+
+- 适用模组：`Infinite Cooldown Durability Stamina Spirit 1.18.00.cdmod`；目标游戏版本为 2.00.01。用户已实机确认新包 `Infinite Cooldown Durability Stamina Spirit 2.00.01 Semantic.cdmod` 成功生效。
+- 旧包启动时在 `(3/12)` 失败，日志出现 `ItemInfo _itemMemo/_stringKey/_itemIconList/_key` 读取失败、`characterinfo(Damian/4): ItemKey(0)`。根因是 2.00.01 ItemInfo 结构变化导致旧裸 byte patch 错位，破坏记录解析；不是继续计算旧偏移可以解决的问题。
+- 修复必须从当前表的字段语义重建：旧 `6400/640000` 三联字段映射为 `cooltime`、`unk_post_cooltime_a`、`unk_post_cooltime_b = 100`；旧 `ffff` 映射为 `max_endurance = 65535`；记录名后的 `01 -> 00` 映射为 `is_blocked = 0`。耐力/精神继续从当前 BuffInfo/Skill 结构重新发现负消耗字段。
+- 生成器为 `tools/build_infinite_resources_semantic_mod.py`，输出一个 `semantic-patch` ItemInfo 加当前 BuffInfo/Skill legacy patch 的组合 `.cdmod`。旧包和中间 `Fixed.cdmod` 只能作为只读迁移输入或禁用回退，不得与语义包同时启用。
+- 当前真实验证：ItemInfo `411/411` 目标值正确、无错位；VFS BuildOnly 生成 `nppv3_iteminfo` 且无 ItemInfo 解析错误；完整 `pytest test` 为 `519 passed`，`ruff check .` 通过；最终以用户实机启动并确认功能为准。
+- 后续遇到同类小型数值/资源模组更新，先读 `.codex/skills/crimson-desert-mod-loader/references/infinite-resources-mod.md`，冻结失败日志并做当前表结构/字段身份分析；禁止先复制旧偏移、禁止用全局短字节模式猜字段。该经验已同步到 `crimson-desert-mod-loader` 技能的 Infinite Resources Update Route。

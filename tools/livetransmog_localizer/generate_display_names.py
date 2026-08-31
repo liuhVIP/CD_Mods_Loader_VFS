@@ -2,7 +2,8 @@
 
 Live Transmog 的 TSV 第一列是 iteminfo 的内部 string_key（如 Aant_PlateArmor_Helm），
 第二列是显示名。本脚本按 string_key 从当前游戏版本的原版 iteminfo 与简体中文 PALOC
-中提取官方中文名，替换 TSV 第二列；无官方名称的条目（QA/开发者物品等）保留原显示名。
+中提取官方中文名，替换 TSV 第二列；无官方名称的条目（QA/开发者物品等）必须
+使用已有的中文回退名，禁止把英文显示名直接带入成品。
 
 只允许替换已存在的 key，禁止新增或删除行；行顺序、性别列、换行格式全部保留。
 生成前锁定游戏 EXE 与表哈希，游戏更新后哈希不匹配会直接拒绝，避免静默错位。
@@ -29,17 +30,17 @@ from cdmm.services.paloc import parse_paloc  # noqa: E402
 
 # 当前受支持游戏版本（Crimson Desert 1.18.01）的锁定哈希；任一漂移都必须重新分析。
 EXPECTED_GAME_EXE_SHA256 = (
-    "974C0446CFCFB46AE11654FA39E34330157E83C1A3C767333820BEA7EEAFA30A"
+    "B596A498701DFCDC49C486D890C42755DABC8C174314C7F26F7329394452446D"
 )
 EXPECTED_ASSET_SHA256 = {
-    "iteminfo.pabgb": "771FECB350BAA83BF77BB7BBD2756AEF8F7F47C96BB9A7F95E5539C7EB81C8D7",
-    "iteminfo.pabgh": "31D03AB14BA12797F1AD75A45766178EBBD52ACEA048FB8FFEACB9CFC30A1B16",
+    "iteminfo.pabgb": "51F87FB41046C1D8DE9F84DE6F11E51BA2A837205F121FA5825552C2E6948746",
+    "iteminfo.pabgh": "2621A26D3432C02DE4692361EBA6F437B7B16D2233A6131EAD280265FC52D627",
     "localizationstring_zho-cn.paloc": (
-        "11A0A80CDB9D41F86DE11AABA14FB0638AA862264A0A3030D0FD0A769BE39E66"
+        "B8F209C4AF224E4BCF103961BA72EDB8E8722DCAA8B9D04A9CB234874EFC04DF"
     ),
 }
 
-EXPECTED_ITEM_ROWS = 6573
+EXPECTED_ITEM_ROWS = 6810
 
 
 def _sha256(path: Path) -> str:
@@ -156,6 +157,7 @@ def main() -> int:
     replaced = 0
     kept = 0
     missing = 0
+    untranslated: list[str] = []
     output_lines: list[str] = []
     for line in raw_lines:
         stripped = line.rstrip("\r\n")
@@ -171,7 +173,18 @@ def main() -> int:
         else:
             kept += 1
             missing += 1
+            # QA/开发者条目常没有 PALOC 官方名。允许保留已经人工补好的中文回退名，
+            # 但禁止静默保留英文，避免发布半汉化 TSV。
+            if len(parts) < 2 or not any("\u4e00" <= char <= "\u9fff" for char in parts[1]):
+                untranslated.append(key)
         output_lines.append("\t".join(parts) + line[len(stripped):])
+
+    if untranslated:
+        preview = ", ".join(untranslated[:20])
+        suffix = " ..." if len(untranslated) > 20 else ""
+        raise ValueError(
+            f"{len(untranslated)} 个无官方名称条目仍为英文，请先补中文回退名：{preview}{suffix}"
+        )
 
     tsv_out.parent.mkdir(parents=True, exist_ok=True)
     with open(tsv_out, "w", encoding="utf-8", newline="") as handle:
@@ -181,7 +194,7 @@ def main() -> int:
     print(f"完成：共 {total} 行，替换为原版名称 {replaced}，保留原显示名 {kept}。")
     print(f"输出：{tsv_out}")
     if missing:
-        print(f"提示：{missing} 个 key 无官方简中名称（多为 QA/开发者物品），已保留原显示名。")
+        print(f"提示：{missing} 个 key 无官方简中名称（多为 QA/开发者物品），已保留中文回退名。")
     return 0
 
 

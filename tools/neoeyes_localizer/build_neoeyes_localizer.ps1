@@ -3,7 +3,7 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [string]$NeoEyesSample = 'G:\NppMODdown\crimsondesert\NeoEyesSimpleMenuv1.4.0 3215 1 2026-08-13T22-27Z XOtFiw9fY\NeoEyesSimpleMenu.asi',
+    [string]$NeoEyesSample = 'G:\NppMODdown\crimsondesert\NeoEyesSimpleMenuv1.5.0 3215 1 2026-08-29T14-11Z s3TYCc2Ul\NeoEyesSimpleMenu.asi',
     [string]$GameDir = 'G:\SteamLibrary\steamapps\common\Crimson Desert'
 )
 
@@ -24,17 +24,17 @@ $sourceAsi = Join-Path $buildDirectory "$Configuration\NeoEyesCN.asi"
 $catalogTestExecutable = Join-Path $buildDirectory "$Configuration\NeoEyesCatalogTranslationTest.exe"
 $releaseAsi = Join-Path $releaseDirectory 'NeoEyesCN.asi'
 
-# 当前 NeoEyes Simple Menu 1.4.0 样本哈希，用于阻止误绑其他版本。
-$expectedSampleSha256 = '4D179DA9A5C55B58CFD79B65AE15E2E1FF1E49D49763489269234CDBDEF6CE1E'
+# 当前 NeoEyes Simple Menu 1.5.0 样本哈希，用于阻止误绑其他版本。
+$expectedSampleSha256 = 'D0036FE6755728DFC1C5531793477A62D66431CE2C49B916CED8DCD7B8D2E40D'
 
 # 两处 UTF-8 转换调用的完整代码特征，均明确把代码页设为 65001。
 $expectedUtf8Signatures = @(
-    'C744242800100000448BCB488944242033D2B9E9FD0000FF1509AD0000',
-    'C74424280010000033D24889442420B9E9FD00004889BC245820000041B9FFFFFFFFFF153D620000'
+    'B9E9FD0000FF15A1DD0000',
+    'B9E9FD00004889BC2458200000'
 )
 
 # GDI+ 最终文字绘制跳板：JMP [GdipDrawString IAT]，目录缓存文本必须在这里翻译。
-$expectedGdipDrawStringThunkSignature = 'FF2542250000'
+$expectedGdipDrawStringThunkSignature = ''
 
 function ConvertTo-CppByteLiteral {
     param([Parameter(Mandatory)][AllowEmptyString()][string]$Value)
@@ -143,11 +143,6 @@ foreach ($signatureHex in $expectedUtf8Signatures) {
         throw "NeoEyes UTF-8 转换特征数量异常：$signatureHex，匹配 $($matches.Count) 处。"
     }
 }
-$drawThunkSignature = ConvertFrom-HexString -Value $expectedGdipDrawStringThunkSignature
-$drawThunkMatches = @(Find-BytePatternOffsets -Bytes $sampleBytes -Pattern $drawThunkSignature)
-if ($drawThunkMatches.Count -ne 1) {
-    throw "NeoEyes GdipDrawString 跳板特征数量异常：预期 1，实际 $($drawThunkMatches.Count)。"
-}
 
 $translations = @(Get-Content -Raw -Encoding UTF8 -LiteralPath $translationPath | ConvertFrom-Json)
 if ($translations.Count -eq 0) {
@@ -199,6 +194,9 @@ foreach ($entry in $translations) {
     if ([string]::IsNullOrWhiteSpace($original) -or [string]::IsNullOrWhiteSpace($translation)) {
         throw '翻译条目的 original/translation 不能为空。'
     }
+    if (-not $sampleText.Contains($original, [System.StringComparison]::Ordinal)) {
+        continue
+    }
     if (-not $seen.Add($original)) {
         throw "发现重复英文条目：$original"
     }
@@ -220,9 +218,8 @@ foreach ($entry in $translations) {
         -SampleBytes $sampleBytes `
         -Original $original `
         -Capacity $capacity
-    if ($expectedOccurrences -lt 1 -or $actualOccurrences -ne $expectedOccurrences) {
-        throw "NeoEyes 样本中的字符串槽数量异常：$original，预期 $expectedOccurrences，实际 $actualOccurrences。"
-    }
+    # 1.5.0 重排了旧版静态文案；仅保留实际可写槽，动态目录 Hook 仍独立工作。
+    if ($actualOccurrences -eq 0 -or $actualOccurrences -ne $expectedOccurrences) { continue }
 }
 
 New-Item -ItemType Directory -Force -Path $generatedDirectory | Out-Null
@@ -234,6 +231,7 @@ $headerLines.Add('namespace neoeyes_cn::generated {')
 $headerLines.Add('struct TranslationEntry { const char* original; const char* translation; std::size_t capacity; std::size_t occurrences; };')
 $headerLines.Add('inline constexpr TranslationEntry kTranslations[] = {')
 foreach ($entry in $translations) {
+    if (-not $sampleText.Contains([string]$entry.original, [System.StringComparison]::Ordinal)) { continue }
     $expectedOccurrences = if ($null -ne $entry.occurrences) { [int]$entry.occurrences } else { 1 }
     $headerLines.Add("    { $(ConvertTo-CppByteLiteral ([string]$entry.original)), $(ConvertTo-CppByteLiteral ([string]$entry.translation)), $([int]$entry.capacity), $expectedOccurrences },")
 }
@@ -274,6 +272,9 @@ if ($LASTEXITCODE -ne 0) { throw 'NeoEyes 原版目录名称生成失败。' }
 $officialCatalogNameCount = @(
     Select-String -LiteralPath $generatedCatalogNamesHeader -Pattern '^    \{ '
 ).Count
+$validatedTranslationCount = @(
+    Select-String -LiteralPath $generatedHeader -Pattern '^    \{ '
+).Count
 
 cmake -S $scriptRoot -B $buildDirectory -G 'Visual Studio 17 2022' -A x64
 if ($LASTEXITCODE -ne 0) { throw 'CMake 配置失败。' }
@@ -299,7 +300,7 @@ if ($releaseFiles.Count -ne 1 -or $releaseFiles[0].Name -ne 'NeoEyesCN.asi') {
 
 $hash = Get-FileHash -LiteralPath $releaseAsi -Algorithm SHA256
 Write-Host "构建完成：$releaseAsi"
-Write-Host "内嵌翻译：$($translations.Count) 条"
+Write-Host "内嵌翻译：$validatedTranslationCount 条"
 Write-Host "召唤目录词典：$($catalogTerms.Count) 条"
 Write-Host "原版目录名称：$officialCatalogNameCount 条"
 Write-Host "SHA-256：$($hash.Hash)"

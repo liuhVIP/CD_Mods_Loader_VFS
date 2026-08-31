@@ -112,7 +112,7 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    constexpr std::size_t fakeImageSize = 0x20000;
+    constexpr std::size_t fakeImageSize = 0x30000;
     auto* fakeImage = static_cast<std::uint8_t*>(VirtualAlloc(
         nullptr, fakeImageSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
     if (fakeImage == nullptr) {
@@ -131,14 +131,14 @@ int main() {
         sizeof(IMAGE_IMPORT_DESCRIPTOR) * 2;
     auto* importDescriptor = reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(fakeImage + 0x1000);
     importDescriptor->OriginalFirstThunk = 0x1100;
-    importDescriptor->FirstThunk = 0x1D480;
+    importDescriptor->FirstThunk = 0x225C0;
     importDescriptor->Name = 0x1300;
     auto* originalThunk = reinterpret_cast<IMAGE_THUNK_DATA64*>(fakeImage + 0x1100);
     originalThunk[0].u1.AddressOfData = 0x1200;
     auto* importByName = reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(fakeImage + 0x1200);
     strcpy_s(reinterpret_cast<char*>(importByName->Name), 32, "GdipDrawString");
     strcpy_s(reinterpret_cast<char*>(fakeImage + 0x1300), 32, "gdiplus.dll");
-    auto* importSlot = reinterpret_cast<ULONGLONG*>(fakeImage + 0x1D480);
+    auto* importSlot = reinterpret_cast<ULONGLONG*>(fakeImage + 0x225C0);
     *importSlot = reinterpret_cast<ULONGLONG>(&CaptureGdipDrawString);
     neoeyes_cn::gOriginalGdipDrawString = nullptr;
     if (!neoeyes_cn::InstallGdipDrawStringHook(reinterpret_cast<HMODULE>(fakeImage)) ||

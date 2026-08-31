@@ -21,31 +21,32 @@ from cdmm.services.json_loader import extract_plaintext  # noqa: E402
 from cdmm.services.pab_table_service import parse_pabgh_index  # noqa: E402
 from cdmm.services.paloc import parse_paloc  # noqa: E402
 
-# Trinity 0.13.2 修复版所对应的 Crimson Desert 1.17.00 游戏主程序哈希。
+# Trinity V1.3.2 VTweak 所对应的当前 Crimson Desert 游戏主程序哈希。
 EXPECTED_GAME_EXE_SHA256 = (
-    "974C0446CFCFB46AE11654FA39E34330157E83C1A3C767333820BEA7EEAFA30A"
+    "B596A498701DFCDC49C486D890C42755DABC8C174314C7F26F7329394452446D"
 )
 
 # 动态目录生成依赖的原版明文表哈希；任一漂移都必须重新分析后再更新。
 EXPECTED_ASSET_SHA256 = {
-    "iteminfo.pabgb": "771FECB350BAA83BF77BB7BBD2756AEF8F7F47C96BB9A7F95E5539C7EB81C8D7",
-    "iteminfo.pabgh": "31D03AB14BA12797F1AD75A45766178EBBD52ACEA048FB8FFEACB9CFC30A1B16",
-    "itemgroupinfo.pabgb": "5876E74185A59911D2B0EBBBFD0B85350AE20009E7D0C1AD0E033C67BE37CBF1",
-    "itemgroupinfo.pabgh": "C43F6EAB65F41784E60B5C47EA575E1F18B426F5C9F51D61500F7A0E6C725F57",
-    "inventory.pabgb": "8C8ADAB208B21E72DA9940901AE227A79E5F4644734A3833648E8EEFAC981139",
-    "inventory.pabgh": "72787539A21C7E86552EC4F4599207C8D5F8192C1DE01548CFEC32DF76609B44",
+    "iteminfo.pabgb": "51F87FB41046C1D8DE9F84DE6F11E51BA2A837205F121FA5825552C2E6948746",
+    "iteminfo.pabgh": "2621A26D3432C02DE4692361EBA6F437B7B16D2233A6131EAD280265FC52D627",
+    "itemgroupinfo.pabgb": "115A27E43E5DEDD8930B967240AB2BC61FFCB7A5BFBBD617F9A9D38CB8D29C41",
+    "itemgroupinfo.pabgh": "748966C64D9A582B77F2B6F60ABB0A082A9EFB72CDCEC8071B7E0B4A2C3DAB77",
+    "inventory.pabgb": "EE841F4BA922538B32ECCB9665F269861099502C66384CE1745503BBCE70AAA6",
+    "inventory.pabgh": "9FAB547265374C3052BE71F1C1CF2DA80AF641E338F0AB80CFE0778F45B70D32",
     "localizationstring_zho-cn.paloc": (
-        "11A0A80CDB9D41F86DE11AABA14FB0638AA862264A0A3030D0FD0A769BE39E66"
+        "B8F209C4AF224E4BCF103961BA72EDB8E8722DCAA8B9D04A9CB234874EFC04DF"
     ),
 }
 
 # 当前游戏表的严格行数与可用中文记录数，用于拒绝部分解析或错误分包。
-EXPECTED_ITEM_ROWS = 6573
-EXPECTED_ITEM_TRANSLATIONS = 6501
+EXPECTED_ITEM_ROWS = 6810
+EXPECTED_ITEM_OFFICIAL_TRANSLATIONS = 6738
+EXPECTED_ITEM_MOD_FALLBACKS = 72
 EXPECTED_GROUP_ROWS = 1597
 EXPECTED_GROUP_TRANSLATIONS = 1594
-EXPECTED_INVENTORY_ROWS = 20
-EXPECTED_INVENTORY_TRANSLATIONS = 20
+EXPECTED_INVENTORY_ROWS = 21
+EXPECTED_INVENTORY_TRANSLATIONS = 21
 
 # InventoryInfo 的官方名称存在多条“背包/仓库”，平铺显示时按稳定引擎 key 中文消歧。
 INVENTORY_NAME_OVERRIDES = {
@@ -61,6 +62,83 @@ INVENTORY_NAME_OVERRIDES = {
 
 # inventory.pabgb 每行 _InventoryNameUIText 使用的稳定本地化字段编号。
 INVENTORY_NAME_FIELD_ID = 0x680
+
+# 当前 ItemInfo 中没有官方 PALOC 名称的开发、测试与特殊物品。
+# 保留 [mod] 风险标记，但显示名必须人工翻译为中文，禁止回退到英文内部 key。
+ITEM_MOD_NAME_OVERRIDES = {
+    "Specialty_Cigar_TwoHandAxe": "特制雪茄双手斧",
+    "LightSaber_TwoHandSword": "光剑",
+    "Wolf_Test_OneHandSword": "狼族测试单手剑",
+    "TestTwoHandAxe": "测试双手斧",
+    "TestShield": "测试盾牌",
+    "Lance_OneHandLance": "单手骑枪",
+    "Dev_Specialty_Crudell_OneHandAxe": "开发用克鲁德尔特制单手斧",
+    "TestSword": "测试剑",
+    "Specialty_Mercenary_OneHandSword": "佣兵特制单手剑",
+    "Specialty_Dragon_Slayer_OneHandSword": "屠龙者特制单手剑",
+    "Test_OneHandAxe": "测试单手斧",
+    "Test_OneHandMace": "测试单手钝器",
+    "MastKey_Gloves": "万能钥匙手套",
+    "Dev_Growth_Ring_I": "开发用成长戒指 I",
+    "Dev_Growth_Ring_II": "开发用成长戒指 II",
+    "Dev_Growth_Ring_III": "开发用成长戒指 III",
+    "Dev_Growth_Ring_IV": "开发用成长戒指 IV",
+    "Dev_Growth_Ring_V": "开发用成长戒指 V",
+    "Dev_Growth_Ring_VI": "开发用成长戒指 VI",
+    "Dev_Growth_Ring_VII": "开发用成长戒指 VII",
+    "Dev_Growth_Ring_VIII": "开发用成长戒指 VIII",
+    "Dev_Growth_Ring_IX": "开发用成长戒指 IX",
+    "Dev_Growth_Ring_X": "开发用成长戒指 X",
+    "Dev_Speed_Ring": "开发用速度戒指",
+    "Dev_Red_Dragon_Ring_Str_HP": "开发用红龙力量生命戒指",
+    "Dev_Red_Dragon_Ring_Def_HP": "开发用红龙防御生命戒指",
+    "Dev_Red_Dragon_Ring_MP_Stamina": "开发用红龙精神耐力戒指",
+    "Dev_Red_Dragon_Ring_Immune": "开发用红龙免疫戒指",
+    "TestNeck_1_1": "测试项链 1-1",
+    "TestNeck_1_2": "测试项链 1-2",
+    "TestNeck_2_1": "测试项链 2-1",
+    "TestNeck_2_2": "测试项链 2-2",
+    "TestNeck_3_1": "测试项链 3-1",
+    "TestNeck_3_2": "测试项链 3-2",
+    "TestNeck_4_1": "测试项链 4-1",
+    "TestNeck_4_2": "测试项链 4-2",
+    "TestNeck_5_1": "测试项链 5-1",
+    "TestNeck_5_2": "测试项链 5-2",
+    "TestNeck_5_3": "测试项链 5-3",
+    "Testarmor": "测试防具",
+    "Douglas_Leather_Armor_T5_QA": "道格拉斯皮甲 T5 测试版",
+    "Deerking_Leather_Armor_T4_QA": "鹿王皮甲 T4 测试版",
+    "Tychaon_Fabric_Armor_T5_QA": "泰查恩布甲 T5 测试版",
+    "Scalaphynion_Fabric_Armor_T4_QA": "斯卡拉菲尼翁布甲 T4 测试版",
+    "Tychaon_Fabric_Cloak_T5_QA": "泰查恩布披风 T5 测试版",
+    "Scalaphynion_Fabric_Cloak_T4_QA": "斯卡拉菲尼翁布披风 T4 测试版",
+    "Heisellen_Fabric_Cloak_T1_QA": "海瑟伦布披风 T1 测试版",
+    "Dev_Red_Dragon_Yann_Leather_Armor": "开发用红龙扬皮甲",
+    "Dev_Red_Dragon_Oongka_Leather_Armor": "开发用红龙翁卡皮甲",
+    "Dev_Red_Dragon_Kliff_Leather_Armor": "开发用红龙克里夫皮甲",
+    "Demian_Fabric_Cloak_V": "德米安布披风 V",
+    "Socket_Test_Gloves": "插槽测试手套",
+    "Douglas_Leather_Gloves_T5_QA": "道格拉斯皮手套 T5 测试版",
+    "Legendary_Deer_Leather_Gloves_T4_QA": "传说鹿皮手套 T4 测试版",
+    "Reeddevil_Fabric_Gloves_T5_QA": "芦苇恶魔布手套 T5 测试版",
+    "Tarif_Fabric_Gloves_T4_QA": "塔里夫布手套 T4 测试版",
+    "Tarif_Fabric_Gloves_T3_QA": "塔里夫布手套 T3 测试版",
+    "Hanbok_Fabric_Gloves_T1_QA": "韩服布手套 T1 测试版",
+    "Restraint_Rope_Fabric_Gloves_I": "束缚绳布手套 I",
+    "Bainian_Leather_Boots_T5_QA": "贝尼安皮鞋 T5 测试版",
+    "Ludvic_Leather_Boots_T4_QA": "路德维克皮鞋 T4 测试版",
+    "Reeddevil_Fabric_Boots_T5_QA": "芦苇恶魔布鞋 T5 测试版",
+    "Tarif_Fabric_Boots_T4_QA": "塔里夫布鞋 T4 测试版",
+    "Tarif_Fabric_Boots_T3_QA": "塔里夫布鞋 T3 测试版",
+    "Abidon_Fabric_Helm_T5_QA": "阿比顿布头盔 T5 测试版",
+    "Scalaphynion_Fabric_Helm_T4_QA": "斯卡拉菲尼翁布头盔 T4 测试版",
+    "Deer_King_Leather_Helm_T4_QA": "鹿王皮头盔 T4 测试版",
+    "Tesslit_Leather_Helm_T2_QA": "特斯利特皮头盔 T2 测试版",
+    "Dev_Red_Dragon_HorseArmor_Helm": "开发用红龙马铠头甲",
+    "Dev_Red_Dragon_HorseArmor_Stirrup": "开发用红龙马铠马镫",
+    "Dev_Red_Dragon_HorseArmor_Armor": "开发用红龙马铠护甲",
+    "Dev_Red_Dragon_HorseArmor_Saddle": "开发用红龙马铠马鞍",
+}
 
 
 def main() -> int:
@@ -122,7 +200,9 @@ def main() -> int:
     )
     print(
         "动态目录中文生成完成："
-        f"物品 {len(item_translations)}/{item_rows}，"
+        f"物品 {len(item_translations)}/{item_rows}"
+        f"（官方 {EXPECTED_ITEM_OFFICIAL_TRANSLATIONS}，"
+        f"[mod] {EXPECTED_ITEM_MOD_FALLBACKS}），"
         f"分类 {len(group_translations)}/{group_rows}，"
         f"仓库 {len(inventory_translations)}/{inventory_rows}"
     )
@@ -203,6 +283,7 @@ def _build_item_translations(
     """按 ItemInfo 运行时行号提取物品名称的简中 PALOC 文本。"""
     key_size, bounds = _ordered_bounds(header, body, "iteminfo")
     translations: list[tuple[int, str]] = []
+    used_mod_name_overrides: set[str] = set()
     for row, (start, end) in enumerate(bounds):
         record = memoryview(body)[start:end]
         cursor = key_size
@@ -217,9 +298,30 @@ def _build_item_translations(
         if category != 7:
             raise ValueError(f"ItemInfo row={row} 本地化分类异常：{category}")
         localized = localization.get(str(localization_index))
-        if localized is not None and localized.value:
-            translations.append((row, localized.value))
+        record_key = _read_record_key(record, key_size, row)
+        if localized is None or not localized.value:
+            used_mod_name_overrides.add(record_key)
+        translations.append((row, _item_display_name(record_key, localized)))
+    unknown_mod_name_overrides = sorted(ITEM_MOD_NAME_OVERRIDES.keys() - used_mod_name_overrides)
+    if unknown_mod_name_overrides:
+        raise ValueError(
+            "ItemInfo [mod] 中文名称表存在失效 key："
+            + ", ".join(unknown_mod_name_overrides)
+        )
     return len(bounds), translations
+
+
+def _item_display_name(record_key: str, localized: object | None) -> str:
+    """官方简中缺失时标记 Trinity 中可能不可正常添加的内部物品。"""
+    localized_value = getattr(localized, "value", None)
+    if isinstance(localized_value, str) and localized_value:
+        return localized_value
+    if not record_key:
+        raise ValueError("ItemInfo 内部物品名为空，无法生成 [mod] 标记")
+    translation = ITEM_MOD_NAME_OVERRIDES.get(record_key)
+    if translation is None:
+        raise ValueError(f"ItemInfo 缺少 [mod] 中文名称：{record_key}")
+    return f"[mod] {translation}"
 
 
 def _build_group_translations(
@@ -336,7 +438,7 @@ def _validate_counts(
     )
     expected = (
         EXPECTED_ITEM_ROWS,
-        EXPECTED_ITEM_TRANSLATIONS,
+        EXPECTED_ITEM_ROWS,
         EXPECTED_GROUP_ROWS,
         EXPECTED_GROUP_TRANSLATIONS,
         EXPECTED_INVENTORY_ROWS,
@@ -344,6 +446,17 @@ def _validate_counts(
     )
     if actual != expected:
         raise ValueError(f"动态目录记录数不匹配：{actual} != {expected}")
+    item_mod_fallbacks = sum(translation.startswith("[mod] ") for _, translation in items)
+    item_official_translations = len(items) - item_mod_fallbacks
+    if (
+        item_official_translations != EXPECTED_ITEM_OFFICIAL_TRANSLATIONS
+        or item_mod_fallbacks != EXPECTED_ITEM_MOD_FALLBACKS
+    ):
+        raise ValueError(
+            "物品名称来源计数不匹配："
+            f"官方 {item_official_translations}/{EXPECTED_ITEM_OFFICIAL_TRANSLATIONS}，"
+            f"[mod] {item_mod_fallbacks}/{EXPECTED_ITEM_MOD_FALLBACKS}"
+        )
 
 
 def _write_generated_header(
