@@ -54,6 +54,7 @@ from cdmm.services.standalone_archive_service import (
     STANDALONE_CONFLICT_WARNING_PREFIX,
     collect_standalone_archives,
     promote_partshrink_descriptor_archives,
+    registered_papgt_dirs,
     standalone_state_items,
 )
 from cdmm.storage.state_store import load_state
@@ -94,9 +95,10 @@ GAME_EXECUTABLE_MTIME_STATE_KEY = "game_executable_mtime_ns"
 # 产物；新商品只允许替换商店 key 与 item key。
 # v14 强制重建 ItemInfo 价格/单记录字段拆分后的桥接产物，修复混合批次
 # 整批跳过（如 DMM_AbyssGearUnlock 的 equipable_hash 与商店价格字段混批）。
-# StoreInfo Format 3 now accepts 2.00.01 indexed stock/reset-day fields;
-# invalidate snapshots produced by the pre-adapter writer.
-VFS_STATE_SCHEMA = 15
+# StoreInfo Format 3 now accepts 2.00.01 indexed stock/reset-day fields.
+# v16 invalidates snapshots whose standalone directories could collide with
+# numeric names already registered by the current vanilla PAPGT.
+VFS_STATE_SCHEMA = 16
 
 # 活动快照物化模式写入状态，确保旧复制快照只冷构建一次后切换到硬链接。
 VFS_MATERIALIZATION_MODE = "hardlink"
@@ -369,6 +371,9 @@ def build_vfs_package(
         previous_standalone_items = []
     standalone_archives = collect_standalone_archives(
         game_dir,
+        reserved_dirs=registered_papgt_dirs(
+            vanilla_store.read_file(f"{META_DIR_NAME}/{PAPGT_FILE_NAME}")
+        ),
         previous_items=previous_standalone_items,
         ordered_mods=mods,
         warnings=warnings,

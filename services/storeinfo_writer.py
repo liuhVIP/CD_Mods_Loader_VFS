@@ -122,8 +122,6 @@ def _patch_store_entry(
     output_records = list(vanilla_records)
     replace_list = False
     structural_change = False
-    raw_c_changes: list[tuple[int, int]] = []
-    indexed_record_changes: list[tuple[int, StockRecord]] = []
     scalar_changes: list[tuple[str, int]] = []
     template_replays = 0
     generic_replays = 0
@@ -201,7 +199,10 @@ def _patch_store_entry(
                 continue
             if not 0 <= index < len(output_records):
                 raise StoreinfoWriteRefused(f"{field} 越界，当前记录数 {len(output_records)}")
-            indexed_record_changes.append((index, replayed))
+            # Format 3 intents are an ordered edit program.  Apply indexed
+            # replacements immediately so a later append/duplicate check sees
+            # the author's current logical list rather than the vanilla list.
+            output_records[index] = replayed
             template_replays += replay_kind == "item"
             generic_replays += replay_kind == "generic"
             continue
@@ -209,18 +210,13 @@ def _patch_store_entry(
         if index is not None:
             if op != "set" or isinstance(value, bool) or not isinstance(value, int):
                 raise StoreinfoWriteRefused(f"{field} 必须是整数 set")
-            raw_c_changes.append((index, value))
+            if not 0 <= index < len(output_records):
+                raise StoreinfoWriteRefused(
+                    f"stock_data_list[{index}].raw_c 越界，当前记录数 {len(output_records)}"
+                )
+            output_records[index].raw_c = value
             continue
         raise StoreinfoWriteRefused(f"不支持字段 {field!r}")
-
-    for index, value in raw_c_changes:
-        if not 0 <= index < len(output_records):
-            raise StoreinfoWriteRefused(
-                f"stock_data_list[{index}].raw_c 越界，当前记录数 {len(output_records)}"
-            )
-        output_records[index].raw_c = value
-    for index, record in indexed_record_changes:
-        output_records[index] = record
 
     patched = bytearray(entry)
     try:
@@ -322,17 +318,19 @@ def _replay_current_stock_template(
         if template.is_restore_item and template.lookup_a != store_key:
             logger.warning(
                 "storeinfo writer: store %d item %d only has a RestoreItem "
-                "template from store %d; rejected to preserve global uniqueness",
+                "template from store %d; replaying with a non-RestoreItem "
+                "generic current template",
                 store_key,
                 requested.body,
                 template.lookup_a,
             )
-            return None, "rejected"
-        replayed = replace(
-            template,
-            lookup_a=store_key,
-        )
-        return replayed, "item"
+        else:
+            replayed = replace(
+                template,
+                lookup_a=store_key,
+                raw_d=requested.raw_d,
+            )
+            return replayed, "item"
 
     compatible = [
         item
@@ -359,6 +357,7 @@ def _replay_current_stock_template(
         template,
         lookup_a=store_key,
         body=requested.body,
+        raw_d=requested.raw_d,
         value_raw_q=requested.body,
     )
     return replayed, "generic"

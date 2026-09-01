@@ -1882,3 +1882,42 @@ Thank you.
 - 生成器为 `tools/build_infinite_resources_semantic_mod.py`，输出一个 `semantic-patch` ItemInfo 加当前 BuffInfo/Skill legacy patch 的组合 `.cdmod`。旧包和中间 `Fixed.cdmod` 只能作为只读迁移输入或禁用回退，不得与语义包同时启用。
 - 当前真实验证：ItemInfo `411/411` 目标值正确、无错位；VFS BuildOnly 生成 `nppv3_iteminfo` 且无 ItemInfo 解析错误；完整 `pytest test` 为 `519 passed`，`ruff check .` 通过；最终以用户实机启动并确认功能为准。
 - 后续遇到同类小型数值/资源模组更新，先读 `.codex/skills/crimson-desert-mod-loader/references/infinite-resources-mod.md`，冻结失败日志并做当前表结构/字段身份分析；禁止先复制旧偏移、禁止用全局短字节模式猜字段。该经验已同步到 `crimson-desert-mod-loader` 技能的 Infinite Resources Update Route。
+
+## 2026-08-31 standalone 官方预登记编号冲突修复与 Male Glide 初测
+
+- 当前游戏 `CrimsonDesert.exe` 为 `1.0.0.2658`。官方 vanilla `meta/0.papgt` 已预登记
+  `0036-0040`，即使游戏根目录没有这些实体文件夹，也必须视为已占用编号。
+- 旧逻辑只枚举游戏根目录实际存在的四位数字目录，因此把作者原版 standalone
+  `Male Glide Animation 2.19 / N20260818192609` 分配到 `0037`。重建 PAPGT 又只把
+  全新名称置顶，导致该包留在原版 `0009/0010` 之后，表现为已扫描、已映射但游戏内
+  不生效；这不是其他模组的最终路径覆盖冲突。
+- 修复后 VFS/Physical 统一读取 vanilla 备份 PAPGT 的数字目录作为保留编号，普通
+  overlay 与 standalone 均避让；明确列入 `prepend_order` 的已登记修改目录先从旧位置
+  移除再置顶。VFS state schema 升到 16，避免热复用旧错误快照。
+- 保留作者 `0.paz/0.pamt` 原字节，不转 `.cdmod`、不改作者资源。当前五个 standalone
+  依次分配到 `0041-0045`；PAPGT 顺序为 `npp* -> 0041-0045 -> vanilla`，目录名无重复。
+- `BuildOnly`、专项 24 项、完整 `test/` 525 项和 `ruff check .` 均通过。用户通过
+  `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning` 初步实机测试，
+  目前未发现问题；该结果只记为初步通过，仍在继续测试，暂不得宣称长期稳定。
+
+## 2026-08-31 All Craft Material 2.00.01 商店库存与排序实机成功基线
+
+- 作者原版 `All Craft Material All Gear All Dye.field.json` 保持不改、不转 `.cdmod`。
+  旧加载器生成的雷特武器店只有 503/590 条；第一轮补齐商品后用户实机确认商品已全，
+  但界面仍把火枪、旗帜、扇子等混排在前面，证明只验证 stock 链的物理顺序不够。
+- 商品丢失有两个根因：`storeinfo_writer` 把“只在其他商店存在 RestoreItem 模板”的
+  商品直接拒绝；统一语义计划又按字段名字典序把 `stock_data_list` append 排在
+  `stock_data_list[N]` 索引替换前，导致同店 RestoreItem 重复检查基于旧原版列表。
+  修复为跨店 RestoreItem 使用目标店非 RestoreItem generic 模板，并固定 StoreInfo
+  计划顺序为“索引替换（数字序）→ append → raw_c 细化”。
+- 游戏商店 UI 的作者排序由每条 StockRecord 的 `raw_d` 控制，不是 PAMT/stock 链
+  记录先后本身。作者对雷特明确写入唯一连续 `raw_d=0..589`，对提娜服装店写入
+  `raw_d=0..669`。模板重放必须只从作者请求保留 `raw_d`；其他当前版本字段继续继承
+  当前原版合法模板，不能为修排序整条复制作者旧记录。
+- 最终 `nppgen` 验证：`Store_Her_Equipment` 590/590，商品 key 与 `raw_d` 均逐条匹配
+  作者，`Store_Her_Costume` 670/670 同样逐条匹配；Calphade 服装店 238/238、Varnia
+  服装店 173/173 也保持各自连续排序。主模组与后加载的材料、每日重置、贡献商店
+  附加包组合后，最终 `storeinfo.pabgb/.pabgh` 与内存组合基准字节一致。
+- 用户实机确认：雷特商品完整且排序恢复正常，提娜服装店排序也正常。回归验证为
+  完整 `test/` 528 passed、`ruff check .` 通过。后续 StoreInfo 更新验收必须同时核对
+  数量、商品 key 序列和 `raw_d`，不得再以“商品都存在”或“链顺序一致”宣称排序正确。

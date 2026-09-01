@@ -19,6 +19,23 @@ ENTRY_SIZE = 12
 DEFAULT_LANG_TYPE = 0x3FFF
 
 
+def directory_names(papgt_bytes: bytes) -> list[str]:
+    """按文件顺序返回 PAPGT 中已登记的目录名。"""
+    papgt = bytearray(papgt_bytes)
+    if len(papgt) < 12:
+        return []
+    entry_count = _find_entry_count(papgt)
+    string_table_start = 12 + entry_count * ENTRY_SIZE + 4
+    names: list[str] = []
+    for index in range(entry_count):
+        position = 12 + index * ENTRY_SIZE
+        name_offset = struct.unpack_from("<I", papgt, position + 4)[0]
+        name = _read_string(papgt, string_table_start, name_offset)
+        if name:
+            names.append(name)
+    return names
+
+
 def build_papgt(
     game_dir: Path,
     vanilla_store: VanillaStore,
@@ -50,10 +67,16 @@ def build_papgt(
 
     modified_names = set(modified_pamts)
     existing = {name for name, _flags, _hash in parsed_entries}
-    new_dirs = _order_new_dirs(modified_names, existing, prepend_order)
+    prepend_dirs = _order_new_dirs(modified_names, existing, prepend_order)
+    prepend_names = set(prepend_dirs)
 
     live_entries: list[tuple[str, int, int]] = []
     for name, flags, old_hash in parsed_entries:
+        # 明确置顶的修改目录需先从旧位置移除。游戏更新可能会在 vanilla
+        # PAPGT 预登记无实体目录的编号；standalone 复用该编号时若仍留在
+        # 原版包之后，会表现为已加载但游戏内无效果。
+        if name in prepend_names:
+            continue
         if name in modified_names or _should_keep_existing(game_dir, name):
             if normalize_existing_flags:
                 flags = encode_flags()
@@ -61,7 +84,7 @@ def build_papgt(
 
     all_entries: list[tuple[str, int, int | None]] = []
     default_flags = encode_flags()
-    all_entries.extend((name, default_flags, None) for name in new_dirs)
+    all_entries.extend((name, default_flags, None) for name in prepend_dirs)
     all_entries.extend(live_entries)
 
     string_table = bytearray()
@@ -95,12 +118,12 @@ def _order_new_dirs(
     existing_names: set[str],
     prepend_order: list[str] | None,
 ) -> list[str]:
-    """按调用方指定顺序排列新增目录，剩余目录保持稳定字母序。"""
+    """按调用方指定顺序排列需置顶目录，剩余新增目录保持稳定字母序。"""
     unordered = {name for name in modified_names if name not in existing_names}
     ordered: list[str] = []
     if prepend_order:
         for name in prepend_order:
-            if name in unordered and name not in ordered:
+            if name in modified_names and name not in ordered:
                 ordered.append(name)
     remaining = sorted(name for name in unordered if name not in set(ordered))
     return [*ordered, *remaining]

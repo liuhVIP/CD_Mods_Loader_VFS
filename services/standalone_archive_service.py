@@ -103,6 +103,14 @@ def collect_standalone_archives(
     return result
 
 
+def registered_papgt_dirs(papgt_bytes: bytes) -> set[str]:
+    """读取 PAPGT 已登记的四位数字目录，供 standalone 安全编号避让。"""
+    # 延迟导入复用 PAPGT 的唯一解析规则，避免复制二进制布局。
+    from cdmm.services.papgt_service import directory_names
+
+    return {name for name in directory_names(papgt_bytes) if _is_dir_name(name)}
+
+
 def promote_partshrink_descriptor_archives(
     archives: list[StandaloneArchive],
     warnings: list[str] | None = None,

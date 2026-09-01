@@ -33,6 +33,7 @@ CDMOD_PLAN_REJECTED = "REJECTED"
 CDMOD_BUILD_PLAN_SCHEMA = 2
 
 _STORE_STOCK_RAW_C_PATH = re.compile(r"^stock_data_list\[\d+]\.raw_c$")
+_STORE_STOCK_INDEX_PATH = re.compile(r"^stock_data_list\[(\d+)]$")
 
 
 @dataclass(frozen=True)
@@ -406,9 +407,23 @@ def _stable_union(left: Any, right: Any) -> list[Any]:
     return result
 
 
-def _planned_operation_sort_key(operation: CdmodPlannedOperation) -> tuple[str, str]:
-    """返回与输入文件枚举无关的稳定排序键。"""
-    return _selector_text(operation.selector), operation.path
+def _planned_operation_sort_key(operation: CdmodPlannedOperation) -> tuple[object, ...]:
+    """返回与输入文件枚举无关且保留 writer 依赖顺序的稳定排序键。"""
+    selector = _selector_text(operation.selector)
+    if operation.target.rsplit("/", 1)[-1].lower() == "storeinfo.pabgb":
+        indexed = _STORE_STOCK_INDEX_PATH.fullmatch(operation.path)
+        if indexed:
+            # DMM 2.00.01 的商店导出先按索引重排原版槽位，再追加剩余商品。
+            # 若按普通字典序把父路径 stock_data_list 排在子路径之前，writer
+            # 会在旧原版列表上误判 RestoreItem 重复并静默丢商品。
+            return selector, 0, int(indexed.group(1)), operation.path
+        if operation.path == "stock_data_list":
+            return selector, 1, 0, operation.path
+        if _STORE_STOCK_RAW_C_PATH.fullmatch(operation.path):
+            index = int(operation.path.split("[", 1)[1].split("]", 1)[0])
+            return selector, 2, index, operation.path
+        return selector, 3, 0, operation.path
+    return selector, operation.path
 
 
 def _selector_text(selector: dict[str, Any]) -> str:

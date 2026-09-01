@@ -50,6 +50,7 @@ from cdmm.services.scanner import (
 from cdmm.services.standalone_archive_service import (
     cleanup_stale_standalone_dirs,
     collect_standalone_archives,
+    registered_papgt_dirs,
     standalone_state_items,
 )
 from cdmm.storage.state_store import clear_state, load_state, save_state
@@ -171,6 +172,9 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
     phase_started = perf_counter()
     standalone_archives = collect_standalone_archives(
         game_dir,
+        reserved_dirs=registered_papgt_dirs(
+            vanilla_store.read_file(f"{META_DIR_NAME}/{PAPGT_FILE_NAME}")
+        ),
         previous_items=previous_standalone_items,
         ordered_mods=mods,
         warnings=warnings,
@@ -212,11 +216,17 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
         return LoaderResult(overlay_dir=None, loaded_mods=mods, warnings=warnings, errors=[])
 
     standalone_pamts = {archive.assigned_dir: archive.pamt_bytes for archive in standalone_archives}
+    vanilla_registered_dirs = registered_papgt_dirs(
+        vanilla_store.read_file(f"{META_DIR_NAME}/{PAPGT_FILE_NAME}")
+    )
     overlay_dir: str | None = None
     overlay = None
     pathc_bytes: bytes | None = None
     if overlay_inputs:
-        reserved_dirs = {archive.assigned_dir for archive in standalone_archives}
+        reserved_dirs = {
+            *vanilla_registered_dirs,
+            *(archive.assigned_dir for archive in standalone_archives),
+        }
         overlay_dir = allocate_overlay_dir(game_dir)
         while overlay_dir in reserved_dirs:
             overlay_dir = f"{int(overlay_dir) + 1:04d}"
