@@ -39,6 +39,10 @@ from cdmm.services.cdmod_localization_loader import detect_active_paloc_language
 from cdmm.services.json_loader import build_json_overlay_entries, collect_json_pamt_targets
 from cdmm.services.loader import validate_game_dir
 from cdmm.services.loose_file_service import build_loose_overlay_entries, collect_loose_pamt_targets
+from cdmm.services.missing_target_policy import (
+    DEFAULT_ALLOW_MISSING_TARGETS,
+    apply_missing_target_policy,
+)
 from cdmm.services.overlay_service import build_overlay, overlay_rel_paths
 from cdmm.services.pamt_index_service import register_game_pamt_targets, save_game_pamt_target_cache
 from cdmm.services.papgt_service import build_papgt
@@ -98,7 +102,9 @@ GAME_EXECUTABLE_MTIME_STATE_KEY = "game_executable_mtime_ns"
 # StoreInfo Format 3 now accepts 2.00.01 indexed stock/reset-day fields.
 # v16 invalidates snapshots whose standalone directories could collide with
 # numeric names already registered by the current vanilla PAPGT.
-VFS_STATE_SCHEMA = 16
+# v17 invalidates snapshots built while a preexisting, downgradeable missing
+# resource error could suppress every later Format 3 table package.
+VFS_STATE_SCHEMA = 17
 
 # 活动快照物化模式写入状态，确保旧复制快照只冷构建一次后切换到硬链接。
 VFS_MATERIALIZATION_MODE = "hardlink"
@@ -179,7 +185,7 @@ class VfsBuildResult:
 
 def build_vfs_package_for_launch(
     game_dir: Path,
-    allow_missing_targets: bool = False,
+    allow_missing_targets: bool = DEFAULT_ALLOW_MISSING_TARGETS,
     progress_callback: Callable[[str], None] | None = None,
 ) -> VfsBuildResult:
     """两阶段准备 VFS：完成构建后确认文件稳定，并复核整包缓存完整性。"""
@@ -227,7 +233,7 @@ def build_vfs_package_for_launch(
 
 def build_vfs_package(
     game_dir: Path,
-    allow_missing_targets: bool = False,
+    allow_missing_targets: bool = DEFAULT_ALLOW_MISSING_TARGETS,
     progress_callback: Callable[[str], None] | None = None,
     refresh_vanilla_on_game_change: bool = True,
 ) -> VfsBuildResult:
@@ -357,8 +363,11 @@ def build_vfs_package(
         format3_overlay_inputs,
     )
     _log_vfs_stage("拆分 DMM-like VFS 包", stage_started)
-    if allow_missing_targets:
-        errors = _downgrade_missing_target_errors(errors, warnings)
+    errors = apply_missing_target_policy(
+        errors,
+        warnings,
+        allow_missing_targets=allow_missing_targets,
+    )
     if errors:
         _log_vfs_stage("VFS 构建总耗时", total_started)
         return _empty_result(game_dir, mods, warnings, errors)
@@ -748,17 +757,6 @@ def _vfs_output_snapshot(result: VfsBuildResult) -> tuple[tuple[str, int, int], 
         stat = path.stat()
         snapshot.append((str(path), stat.st_size, stat.st_mtime_ns))
     return tuple(snapshot)
-
-
-def _downgrade_missing_target_errors(errors: list[str], warnings: list[str]) -> list[str]:
-    """VFS 试跑时允许跳过当前游戏版本不存在的 JSON 目标。"""
-    remaining: list[str] = []
-    for error in errors:
-        if "未在任何 PAMT 中找到目标文件" not in error:
-            remaining.append(error)
-            continue
-        warnings.append(f"VFS 实验模式已跳过缺失目标：{error}")
-    return remaining
 
 
 def _build_dmm_like_overlay_packages(

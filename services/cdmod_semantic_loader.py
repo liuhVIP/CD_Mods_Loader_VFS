@@ -93,8 +93,13 @@ def build_semantic_overlay_entries(
     """按唯一加载顺序合并Format 3/cdmod并复用现有writer生成entry。"""
     if not mods:
         return []
+    initial_error_count = len(errors)
     packages = _normalize_semantic_packages(mods, errors, warnings)
-    if errors:
+    # errors 是整条构建管线共享的列表。前序 file-replacement 可能记录了
+    # 当前游戏已删除的资源目标，稍后会由 missing_target_policy 降级为
+    # warning；不能因此跳过所有无关的 Format 3 表。这里只响应本阶段新
+    # 增加的包解析错误。
+    if len(errors) > initial_error_count:
         return []
     plan = compile_cdmod_package_plan(tuple(packages), game_dir=game_dir)
     if plan.status != CDMOD_PLAN_VALID:
@@ -149,8 +154,9 @@ def build_cdmod_file_base_entries(
     base_entries: list[OverlayInputEntry] | None = None,
 ) -> list[OverlayInputEntry]:
     """在 JSON/Format 3 之前构建 cdmod 完整资源 base。"""
+    initial_error_count = len(errors)
     packages = _normalize_semantic_packages(mods, errors, warnings)
-    if errors:
+    if len(errors) > initial_error_count:
         return []
     return build_file_replacement_overlay_entries(
         game_dir,

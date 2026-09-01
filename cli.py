@@ -75,7 +75,7 @@ UI_CONFIG_SCHEMA = 1
 # pyc 发布包启动脚本写入的启动目录环境变量，用于恢复“程序所在目录”语义。
 LAUNCH_DIR_ENV_NAME = "CDLOADER_LAUNCH_DIR"
 
-# 命令行可执行动作，apply 是带 tqdm 的默认真实加载模式。
+# 命令行可执行动作；apply 仅保留为废弃兼容入口。
 COMMAND_APPLY = "apply"
 COMMAND_SCAN = "scan"
 COMMAND_REVERT = "revert"
@@ -109,7 +109,7 @@ UI_TEXTS = {
         "app_title": "红色沙漠独立轻量模组加载器 {app_version}",
         "app_subtitle": "B站 UP「改名开发」制作 | 支持游戏 1.13 以下版本",
         "arg_description": "红色沙漠独立轻量模组加载器 {app_version}（支持中文 / English）",
-        "arg_command_help": "apply=加载模组，scan=只扫描，revert=恢复上次写入",
+        "arg_command_help": "apply=已废弃兼容入口，scan=只扫描，revert=恢复上次写入",
         "arg_game_dir_help": "游戏根目录；打包 exe 无参数时必须放在游戏根目录",
         "feature_lines": (
             "体积小、轻量化：专注独立加载，不依赖完整 GUI 管理器。",
@@ -123,7 +123,7 @@ UI_TEXTS = {
         "language_prompt_input": "请输入编号，直接回车默认中文",
         "language_invalid": "无效选择，请输入 1 或 2。",
         "select_action": "请选择要执行的操作：",
-        "menu_apply": "1. 开始加载模组",
+        "menu_apply": "1. 普通加载（已废弃，请改用 VFS / Physical）",
         "menu_scan": "2. 只扫描 mods，不写入游戏文件",
         "menu_exit": "3. 退出",
         "choice_prompt": "请输入编号，直接回车默认执行 1：",
@@ -150,7 +150,11 @@ UI_TEXTS = {
         "elapsed": "完成时间：{seconds:.2f}s",
         "pause_menu": "按 Enter 返回菜单",
         "pause_exit": "按 Enter 退出",
-        "apply_desc": "真实加载 mods",
+        "apply_desc": "废弃兼容加载",
+        "legacy_apply_deprecated": (
+            "警告：普通 apply 单 overlay 加载已废弃，不再维护新功能。\n"
+            "请关闭本程序并改用 cdloader-VFS；无法使用 VFS 时请用 cdloader-Physical。"
+        ),
         "progress_unit": "阶段",
         "scan_group_titles": {
             "json": "JSON 补丁",
@@ -175,7 +179,7 @@ UI_TEXTS = {
         "app_title": "Crimson Desert Lightweight Mod Loader {app_version}",
         "app_subtitle": "Made by Bilibili creator GaiMingDev | Supports game version 1.04.02+",
         "arg_description": "Crimson Desert Lightweight Mod Loader {app_version} (Chinese / English)",
-        "arg_command_help": "apply=load mods, scan=scan only, revert=restore last write",
+        "arg_command_help": "apply=deprecated compatibility path, scan=scan only, revert=restore last write",
         "arg_game_dir_help": "Game root directory; packaged exe without arguments must be placed in the game root",
         "feature_lines": (
             "Small and lightweight: focused standalone loading without the full GUI manager.",
@@ -189,7 +193,7 @@ UI_TEXTS = {
         "language_prompt_input": "Enter a number, press Enter for Chinese",
         "language_invalid": "Invalid choice. Please enter 1 or 2.",
         "select_action": "Choose an action:",
-        "menu_apply": "1. Load mods",
+        "menu_apply": "1. Legacy load (deprecated; use VFS / Physical)",
         "menu_scan": "2. Scan mods only, do not write game files",
         "menu_exit": "3. Exit",
         "choice_prompt": "Enter a number, press Enter to run 1 by default: ",
@@ -216,7 +220,11 @@ UI_TEXTS = {
         "elapsed": "Elapsed: {seconds:.2f}s",
         "pause_menu": "Press Enter to return to the menu",
         "pause_exit": "Press Enter to exit",
-        "apply_desc": "Loading mods",
+        "apply_desc": "Deprecated compatibility load",
+        "legacy_apply_deprecated": (
+            "Warning: the legacy single-overlay apply path is deprecated and receives no new features.\n"
+            "Close this program and use cdloader-VFS, or cdloader-Physical when VFS is unavailable."
+        ),
         "progress_unit": "phase",
         "scan_group_titles": {
             "json": "JSON patches",
@@ -467,7 +475,8 @@ def default_config_path() -> Path:
 
 
 def run_apply_command(game_dir: Path, language: str = DEFAULT_LANGUAGE) -> LoaderResult:
-    """执行真实加载并显示轻量控制台进度。"""
+    """执行废弃兼容加载并显示轻量控制台进度。"""
+    print(text("legacy_apply_deprecated", language), file=sys.stderr)
     progress_bar = ConsoleProgress(
         total=len(APPLY_PROGRESS_PHASES),
         desc=text("apply_desc", language),

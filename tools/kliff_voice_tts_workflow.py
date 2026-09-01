@@ -23,6 +23,7 @@ from typing import Any
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from cdmm.archive.pamt import parse_pamt
 from cdmm.services.cdmod_converter import _write_cdmod_zip
 from cdmm.services.json_loader import extract_plaintext
 from cdmm.services.paloc import parse_paloc
@@ -376,6 +377,156 @@ def package(args: argparse.Namespace) -> int:
     return 0
 
 
+def migrate(args: argparse.Namespace) -> int:
+    """按当前游戏 PAMT 过滤并规范化既有 Kliff TTS 完整资源包。"""
+    source = args.source.resolve()
+    output = args.output.resolve()
+    game_dir = args.game_dir.resolve()
+    with zipfile.ZipFile(source) as archive:
+        documents: dict[str, dict[str, Any] | bytes] = {
+            info.filename: archive.read(info.filename)
+            for info in archive.infolist()
+            if not info.is_dir()
+        }
+    replacements = json.loads(documents["files/replacements.json"].decode("utf-8"))
+    specs = replacements["files"]
+    source_0035_kliff_names = {
+        Path(str(item["target"])).name.casefold()
+        for item in specs
+        if str(item["pamt_dir"]) == "0035"
+        and Path(str(item["target"])).name.casefold().startswith("unique_kliff_")
+    }
+    targets_by_dir = _current_targets_by_pamt_dir(
+        game_dir,
+        {str(item["pamt_dir"]) for item in specs},
+    )
+    retained: list[dict[str, Any]] = []
+    removed: list[dict[str, str]] = []
+    normalized: list[dict[str, str]] = []
+    for spec in specs:
+        pamt_dir = str(spec["pamt_dir"])
+        old_target = str(spec["target"]).replace("\\", "/")
+        basename = Path(old_target).name.casefold()
+        candidates = targets_by_dir[pamt_dir].get(basename, [])
+        if not candidates:
+            removed.append({"pamt_dir": pamt_dir, "target": old_target})
+            documents.pop(str(spec["payload"]), None)
+            continue
+        exact = next(
+            (target for target in candidates if target.casefold() == old_target.casefold()),
+            None,
+        )
+        if exact is None:
+            if len(candidates) != 1:
+                raise RuntimeError(
+                    f"{pamt_dir}/{basename} 在当前 PAMT 有 {len(candidates)} 个候选，拒绝猜测迁移"
+                )
+            exact = candidates[0]
+            normalized.append(
+                {"pamt_dir": pamt_dir, "old_target": old_target, "new_target": exact}
+            )
+        spec["target"] = exact
+        retained.append(spec)
+    replacements["files"] = retained
+
+    manifest = json.loads(documents["manifest.json"].decode("utf-8"))
+    manifest["id"] = f"kliff-female-voice-chinese-{args.game_version.replace('.', '-')}-tts-damian-clone2"
+    manifest["version"] = f"{args.game_version}.1"
+    manifest["description"] = (
+        f"基于当前 {args.game_version} PAMT 迁移的 Kliff 女性中文 WEM"
+        "（音色：达米安 clone_2 克隆音色）；已过滤当前版本删除的目标，"
+        "无字幕新增语音保留原版声音。"
+    )
+    source_info = manifest.setdefault("source", {})
+    source_info["game_version"] = args.game_version
+    source_info["migrated_from"] = str(source)
+    for component in manifest.get("components", []):
+        if component.get("type") == "file-replacement":
+            component["file_count"] = len(retained)
+
+    current_0035 = targets_by_dir.get("0035", {})
+    new_kliff_names = sorted(
+        name
+        for name in current_0035
+        if name.startswith("unique_kliff_") and name not in source_0035_kliff_names
+    )
+    localization = _current_simplified_chinese_localization(game_dir)
+    new_kliff_targets = []
+    for name in new_kliff_names:
+        subtitle_key = Path(name).stem.removeprefix("unique_kliff_")
+        subtitle = localization.get(subtitle_key)
+        new_kliff_targets.append(
+            {
+                "target": current_0035[name][0],
+                "subtitle_key": subtitle_key,
+                "has_simplified_chinese_subtitle": subtitle is not None,
+                "subtitle": subtitle.value if subtitle is not None else None,
+            }
+        )
+
+    report = {
+        "schema": 1,
+        "type": "kliff-voice-game-update-migration",
+        "game_version": args.game_version,
+        "game_exe_size": (game_dir / "bin64" / "CrimsonDesert.exe").stat().st_size,
+        "game_exe_mtime_ns": (game_dir / "bin64" / "CrimsonDesert.exe").stat().st_mtime_ns,
+        "source_cdmod": str(source),
+        "source_sha256": _sha256(source),
+        "retained_count": len(retained),
+        "removed_count": len(removed),
+        "normalized_target_count": len(normalized),
+        "removed_targets": removed,
+        "normalized_targets": normalized,
+        "new_kliff_target_count": len(new_kliff_targets),
+        "new_kliff_with_subtitle_count": sum(
+            bool(item["has_simplified_chinese_subtitle"])
+            for item in new_kliff_targets
+        ),
+        "new_kliff_targets": new_kliff_targets,
+        "subtitle_tables_modified": False,
+        "new_targets_without_subtitle_are_original_voice": True,
+    }
+    documents["files/replacements.json"] = replacements
+    documents["manifest.json"] = manifest
+    documents["reports/game-update-migration.json"] = report
+    _write_cdmod_zip(output, documents)
+    print(f"{args.game_version} 兼容包已生成：{output}")
+    print(
+        f"保留 {len(retained)} 个 WEM；过滤 {len(removed)} 个废弃目标；"
+        f"规范化 {len(normalized)} 个当前 PAMT 路径"
+    )
+    return 0
+
+
+def _current_simplified_chinese_localization(game_dir: Path) -> dict[str, Any]:
+    """读取当前游戏简中 PALOC，供增量新增语音判断是否可以生成 TTS。"""
+    paloc_entry = get_game_pamt_index(game_dir).find_best(
+        "gamedata/localizationstring_zho-cn.paloc"
+    )
+    if paloc_entry is None:
+        raise RuntimeError("当前游戏 PAMT 中找不到简中 localizationstring PALOC")
+    paloc_bytes, _ = extract_plaintext(paloc_entry)
+    return parse_paloc(paloc_bytes).by_key()
+
+
+def _current_targets_by_pamt_dir(
+    game_dir: Path,
+    pamt_dirs: set[str],
+) -> dict[str, dict[str, list[str]]]:
+    """建立当前 PAMT 的 basename -> resolved final path 索引。"""
+    result: dict[str, dict[str, list[str]]] = {}
+    for pamt_dir in sorted(pamt_dirs):
+        pamt_path = game_dir / pamt_dir / "0.pamt"
+        if not pamt_path.is_file():
+            raise FileNotFoundError(f"当前游戏缺少 {pamt_dir}/0.pamt")
+        by_name: dict[str, list[str]] = {}
+        for entry in parse_pamt(pamt_path, paz_dir=pamt_path.parent):
+            target = _target_for_entry(entry).replace("\\", "/")
+            by_name.setdefault(Path(target).name.casefold(), []).append(target)
+        result[pamt_dir] = by_name
+    return result
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -406,6 +557,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("package", parents=[common])
     p.add_argument("--output", type=Path, required=True)
     p.set_defaults(func=package)
+
+    p = sub.add_parser("migrate", parents=[common])
+    p.add_argument("--source", type=Path, required=True)
+    p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--game-version", required=True)
+    p.set_defaults(func=migrate)
     return parser
 
 

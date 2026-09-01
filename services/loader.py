@@ -32,6 +32,10 @@ from cdmm.services.cdmod_semantic_loader import (
 from cdmm.services.json_loader import build_json_overlay_entries, collect_json_pamt_targets
 from cdmm.services.loose_file_service import build_loose_overlay_entries, collect_loose_pamt_targets
 from cdmm.services.loader_mode_service import clear_physical_mode_after_revert
+from cdmm.services.missing_target_policy import (
+    DEFAULT_ALLOW_MISSING_TARGETS,
+    apply_missing_target_policy,
+)
 from cdmm.services.overlay_service import (
     allocate_overlay_dir,
     build_overlay,
@@ -59,6 +63,12 @@ from cdmm.utils.hash_utils import fingerprint_mods
 
 logger = logging.getLogger(__name__)
 
+# 旧单数字 overlay 管线仅为历史脚本保留。正式加载统一使用 VFS/Physical。
+LEGACY_APPLY_DEPRECATION_WARNING = (
+    "[DEPRECATED] 普通 apply 单 overlay 加载已废弃；"
+    "请改用 cdloader-VFS 或 cdloader-Physical。该兼容入口不再扩展新功能。"
+)
+
 # apply 阶段进度回调签名，供 CLI 精简模式显示 tqdm 进度条。
 ProgressCallback = Callable[[str], None]
 
@@ -84,8 +94,13 @@ def scan_loader(game_dir: Path) -> LoaderResult:
     return LoaderResult(overlay_dir=None, loaded_mods=mods, warnings=warnings, errors=[])
 
 
-def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = None) -> LoaderResult:
-    """全量重建 overlay 并注册到 PAPGT。"""
+def apply_loader(
+    game_dir: Path,
+    progress_callback: ProgressCallback | None = None,
+    *,
+    allow_missing_targets: bool = DEFAULT_ALLOW_MISSING_TARGETS,
+) -> LoaderResult:
+    """兼容旧脚本的废弃单 overlay 加载；新调用应使用 VFS/Physical。"""
     total_started = perf_counter()
     validate_game_dir(game_dir)
     ensure_work_dirs(game_dir)
@@ -93,6 +108,7 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
     recovered = recover_interrupted(game_dir)
     warnings: list[str] = []
     errors: list[str] = []
+    warnings.append(LEGACY_APPLY_DEPRECATION_WARNING)
     if recovered:
         warnings.append(f"检测到上次中断提交，已恢复 {recovered} 个文件")
     previous_state = load_state(game_dir)
@@ -167,6 +183,11 @@ def apply_loader(game_dir: Path, progress_callback: ProgressCallback | None = No
     _notify_progress(progress_callback, "构建 Format 3 overlay 输入")
     # loose 先写、JSON 再写、Format 3 最后写；同 entry_path 时 build_overlay 会保留最后写入结果。
     overlay_inputs = [*loose_overlay_inputs, *json_overlay_inputs, *format3_overlay_inputs]
+    errors = apply_missing_target_policy(
+        errors,
+        warnings,
+        allow_missing_targets=allow_missing_targets,
+    )
     if errors:
         return LoaderResult(overlay_dir=None, loaded_mods=mods, warnings=warnings, errors=errors)
     phase_started = perf_counter()

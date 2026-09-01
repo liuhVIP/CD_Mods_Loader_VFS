@@ -544,6 +544,9 @@ def print_vfs_result(result: VfsBuildResult) -> None:
     for error in result.errors:
         logging.error(error)
         print(f"ERROR: {error}", file=sys.stderr)
+    if result.errors:
+        print("VFS 构建失败：存在未处理错误，未启动游戏。", file=sys.stderr)
+        return
     print(f"VFS 构建完成：映射文件 {result.mapping_path}")
     print(f"VFS 输出目录：{result.vfs_root}")
     print(f"已映射文件数：{len(result.mapped_files)}")

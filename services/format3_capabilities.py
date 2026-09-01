@@ -268,9 +268,11 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
         table_name="npcinfo",
         field_rules=(
             Format3FieldRule(
-                pattern=re.compile(r"^dye_color_group_data_list$"),
+                pattern=re.compile(
+                    r"^(dye_color_group_data_list|dye_texture_set_data_list)$"
+                ),
                 reason_when_miss=(
-                    "npcinfo 当前仅支持 dye_color_group_data_list array_append"
+                    "npcinfo 当前仅支持染色组 array_append，或染色组/纹理集窄 set"
                 ),
             ),
         ),

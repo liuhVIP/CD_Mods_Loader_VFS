@@ -151,17 +151,19 @@ def _parse_intents(raw_intents: object, label: str) -> tuple[Format3Intent, ...]
             intents.append(_parse_clone_record_intent(raw_intent, intent_label))
             continue
         match_spec = _parse_match(raw_intent.get("match"), f"{label}[{index}].match")
+        raw_key = raw_intent.get("key", 0)
+        if isinstance(raw_key, bool) or not isinstance(raw_key, int):
+            raise ValueError(f"{label}[{index}].key 必须是整数")
         if "entry" in raw_intent:
             entry = _require_entry(raw_intent.get("entry"), f"{label}[{index}].entry")
-        elif match_spec is not None:
+        elif match_spec is not None or "key" in raw_intent:
+            # DMM v3.1 允许纯 key 定位；entry 只是更稳定的首选项，并非
+            # 必填字段。保留空字符串让各表 writer 按 key 回退。
             entry = ""
         else:
             entry = _require_entry(raw_intent.get("entry"), f"{label}[{index}].entry")
         field = _require_str(raw_intent.get("field"), f"{label}[{index}].field")
         value = _read_intent_value(raw_intent, f"{label}[{index}]")
-        raw_key = raw_intent.get("key", 0)
-        if isinstance(raw_key, bool) or not isinstance(raw_key, int):
-            raise ValueError(f"{label}[{index}].key 必须是整数")
         raw_old = raw_intent.get("old")
         if raw_old is not None and not isinstance(raw_old, str):
             raise ValueError(f"{label}[{index}].old 必须是字符串")

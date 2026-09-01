@@ -4,7 +4,7 @@
 
 ## 版本号规范
 
-- 项目根目录 `version.txt` 是普通加载器与 VFS 加载器发布版本号的唯一来源。
+- 项目根目录 `version.txt` 是 VFS、Physical 与废弃兼容加载器发布版本号的唯一来源。
 - VFS 成品文件名、控制台标题、错误提示以及 Windows PE 的 FileVersion/ProductVersion 必须由 `version.txt` 派生，禁止在 Python 或 PowerShell 中重复硬编码版本号。
 - 简洁版本（例如 `v3`、`v1.1`）在 PE 元数据中依次补零为四段数字（例如 `3.0.0.0`、`1.1.0.0`）。
 
@@ -40,6 +40,15 @@ cdloader/
 - Physical active/pending 状态必须阻止 VFS 构建和启动，因为游戏实体 meta 已被修改；只有完整 `--revert` 成功后才能解除互斥锁并重新允许 VFS。
 - Physical 冷构建必须复用 VFS 的控制台阶段回调，并额外显示实体文件名、大小、事务提交、旧目录清理和状态保存。耗时阶段至少每 3 秒输出一次“仍在处理”，避免低性能电脑用户误以为程序卡死。
 - Physical 与 VFS 两个外层 EXE 共用 standalone 目录版 `cdloader/cdloader-vfs-core.exe`。版本号、PE 元数据和文件名仍只能由 `version.txt` 派生；每次修改 Physical 至少运行 `test/test_physical_launcher.py`、`test/test_vfs_launcher_command.py`、完整 `test/` 与 `ruff check .`。
+
+## 2026-09-01 普通 apply 废弃确认
+
+- `services/loader.py::apply_loader()` 的旧单数字 overlay 管线已经废弃，不再作为正式加载方式，也不再扩展新功能。它暂时只为旧 CLI、历史脚本和已有恢复流程保留兼容性；后续不得让 VFS 或 Physical 回退复用该管线。
+- 正式加载方式只有两种：VFS 使用虚拟映射启动；Physical 复用同一个 `services/vfs_loader.py::build_vfs_package()` 构建结果，再以事务方式实体写入。两者必须继续共用扫描、排序、目标解析、缺失目标策略、DMM-like 分包及 PAPGT 顺序，禁止维护两套业务规则。
+- 游戏更新后，传统 JSON 与 `.cdmod file-replacement` 声明的目标若已不在当前 PAMT，统一由 `services/missing_target_policy.py` 过滤为 warning；其他错误仍为致命错误。VFS、Physical 和废弃兼容 apply 使用同一个策略，显式严格模式仍可阻止加载。
+- 旧普通加载的菜单和调用结果必须保留 `[DEPRECATED]` / “已废弃”提示，引导用户使用 `cdloader-VFS`，无法使用 native VFS runtime 时改用 `cdloader-Physical`。不得重新把旧 apply 描述为推荐入口。
+- 本次 2.0.02 Kliff 女性中文配音更新验证：旧包有 6 个 WEM 目标被当前 `0035` 删除；默认策略正确跳过后，VFS BuildOnly 成功生成 `nppvoice`、`nppgen`、`nppsa`，完成二阶段缓存复核，热构建可正常命中缓存。用户反馈目前未发现问题。
+- 本次代码回归基线：完整 `test/` 为 `536 passed`，`ruff check .` 通过。该结果是构建/回归与用户当前使用反馈记录，不应扩大表述为所有模组、所有机器均已完成实机验证。
 
 ## 项目定位
 
@@ -103,7 +112,7 @@ Set-Location 'T:\python_pro\cdmm'
 成品 exe 命令行调用方式：
 
 ```powershell
-# 推荐：cdloader.exe 放到游戏根目录后，无参数双击/运行进入菜单。
+# 废弃兼容入口：只为旧脚本/恢复流程保留，不再推荐用于加载模组。
 & 'G:\SteamLibrary\steamapps\common\Crimson Desert\cdloader.exe'
 
 # 外部 Python 客户端或脚本调用时可以显式传游戏根目录。
@@ -114,7 +123,7 @@ Set-Location 'T:\python_pro\cdmm'
 & 'T:\python_pro\cdmm\dist\cdloader.exe' revert --game-dir 'G:\SteamLibrary\steamapps\common\Crimson Desert'
 ```
 
-## 菜单行为
+## 废弃普通加载器菜单行为
 
 成品 exe 无参数启动且确认位于游戏根目录后，显示标题：
 
@@ -122,9 +131,9 @@ Set-Location 'T:\python_pro\cdmm'
 红色沙漠独立轻量模组加载器(b站up改名开发)—版本v1.0
 ```
 
-菜单只有三项：
+该菜单只为兼容旧版本保留，加载项必须明确显示废弃状态：
 
-- `1. 开始加载模组`：执行 apply，扫描并写入 overlay / meta。默认使用 tqdm 进度条，不在控制台刷详细警告。
+- `1. 普通加载（已废弃，请改用 VFS / Physical）`：兼容执行旧 apply，扫描并写入单数字 overlay / meta；不再增加新功能。
 - `2. 只扫描 mods，不写入游戏文件`：用于观察识别结果。
 - `3. 退出`
 

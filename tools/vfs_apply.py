@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 
 from cdmm.services.vfs_loader import build_vfs_package_for_launch
+from cdmm.services.missing_target_policy import DEFAULT_ALLOW_MISSING_TARGETS
 from cdmm.utils.console_alert import (
     is_high_risk_mod_warning,
     is_json_version_mismatch_warning,
@@ -42,14 +43,23 @@ def main() -> int:
     parser.add_argument(
         "--allow-missing-targets",
         action="store_true",
-        help="实验模式：跳过当前 PAMT 中不存在的 JSON 目标",
+        help="兼容旧参数；现在所有用户入口默认都会跳过当前游戏已删除的目标",
+    )
+    parser.add_argument(
+        "--strict-targets",
+        action="store_true",
+        help="严格处理缺失目标并阻止构建",
     )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     result = build_vfs_package_for_launch(
         Path(args.game_dir),
-        allow_missing_targets=args.allow_missing_targets,
+        allow_missing_targets=(
+            DEFAULT_ALLOW_MISSING_TARGETS
+            if not args.strict_targets
+            else False
+        ),
     )
     for warning in result.warnings:
         print_vfs_warning(warning)
