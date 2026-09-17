@@ -44,7 +44,12 @@ from cdmm.services.missing_target_policy import (
     apply_missing_target_policy,
 )
 from cdmm.services.overlay_service import build_overlay, overlay_rel_paths
-from cdmm.services.pamt_index_service import register_game_pamt_targets, save_game_pamt_target_cache
+from cdmm.services.pamt_index_service import (
+    is_table_body_target,
+    is_table_header_target,
+    register_game_pamt_targets,
+    save_game_pamt_target_cache,
+)
 from cdmm.services.papgt_service import build_papgt
 from cdmm.services.pathc_service import build_pathc_for_overlay
 from cdmm.services.scanner import (
@@ -104,7 +109,14 @@ GAME_EXECUTABLE_MTIME_STATE_KEY = "game_executable_mtime_ns"
 # numeric names already registered by the current vanilla PAPGT.
 # v17 invalidates snapshots built while a preexisting, downgradeable missing
 # resource error could suppress every later Format 3 table package.
-VFS_STATE_SCHEMA = 17
+# v18 invalidates snapshots built while the 2.01+ ``.staticinfoheader``
+# companion lookup still re-appended the legacy ``.pabgh`` suffix, which made
+# every Format 3 table intent skip and left iteminfo/stringinfo/characterinfo
+# overlays missing from the reused package.
+# v19 invalidates snapshots built before DMM ``autorelocate_disable`` and insert-only
+# byte patches were honored: the mod set fingerprint is unchanged but the produced
+# package content can differ, so an old snapshot would mask the fix.
+VFS_STATE_SCHEMA = 19
 
 # 活动快照物化模式写入状态，确保旧复制快照只冷构建一次后切换到硬链接。
 VFS_MATERIALIZATION_MODE = "hardlink"
@@ -113,8 +125,10 @@ VFS_MATERIALIZATION_MODE = "hardlink"
 VFS_EMPTY_MAPPING_WARNING = "没有生成 VFS overlay entry，已使用空映射启动"
 
 # 分包构建算法版本，必须参与缓存key。v3 为下划线 XML（包括服装
-# PAC_XML）恢复游戏原生加密标记。
-VFS_PACKAGE_BUILD_SCHEMA = 4
+# PAC_XML）恢复游戏原生加密标记。v5 修正 2.01/2.02 表头 companion
+# 定位后 Format 3 分包内容会变化，必须丢弃旧分包重建。v6 加入 DMM
+# 纯插入型 change 识别与 ``autorelocate_disable`` 字面 offset 语义。
+VFS_PACKAGE_BUILD_SCHEMA = 6
 
 # 冷构建返回后只读取文件元数据确认稳定，不重复读取或哈希大型 PAZ。
 VFS_STABILITY_CHECK_INTERVAL_SECONDS = 0.1
@@ -786,7 +800,9 @@ def _build_dmm_like_overlay_packages(
     )
     for entry in format3_overlay_inputs:
         package_name = _format3_package_name(entry) or (
-            NPP_JSON_PACKAGE if entry.entry_path.lower().endswith((".pabgb", ".pabgh")) else NPP_LOOSE_PACKAGE
+            NPP_JSON_PACKAGE
+            if is_table_body_target(entry.entry_path) or is_table_header_target(entry.entry_path)
+            else NPP_LOOSE_PACKAGE
         )
         grouped[package_name].append(entry)
 

@@ -184,31 +184,62 @@ def _expand_patch_sources(
 ) -> dict[str, OverlayInputEntry | PazEntry]:
     """展开单目标或语言通配 PALOC，低编号 vanilla 优先。"""
     if "*" not in target:
-        source = _resolve_source_entry(game_dir, target, base_entries)
-        return {lower_game_rel_path(target): source} if source is not None else {}
+        # On 2.01 the legacy merged filename is replaced by split per-table
+        # PALOC files. Treat it as an implicit language wildcard.
+        name = Path(lower_game_rel_path(target)).name
+        if not (name.startswith("localizationstring_") and name.endswith(".paloc")):
+            source = _resolve_source_entry(game_dir, target, base_entries)
+            return {lower_game_rel_path(target): source} if source is not None else {}
+        target = lower_game_rel_path(target)
     pattern = lower_game_rel_path(target)
-    if pattern.count("*") != 1 or not Path(pattern).name.startswith("localizationstring_*"):
+    # Legacy target localizationstring_<lang>.paloc represented one merged
+    # table.  Since 2.01 each language is split into 39 ``*.paloc`` files;
+    # accept the legacy wildcard and enumerate the active language directory.
+    legacy_language = None
+    legacy_name = Path(pattern).name
+    if legacy_name.startswith("localizationstring_") and legacy_name.endswith(".paloc"):
+        legacy_language = legacy_name[len("localizationstring_") : -len(".paloc")]
+        if legacy_language == "*":
+            legacy_language = None
+    if pattern.count("*") != 1 and legacy_language is None:
         raise ValueError(f"不安全的 PALOC 通配目标：{target}")
+    # Legacy wildcard is still matched against base entries (unit tests and
+    # pre-2.01 installs) before scanning split PAMT directories.
     matches: dict[str, OverlayInputEntry | PazEntry] = {}
     for entry in base_entries:
         normalized = lower_game_rel_path(entry.entry_path)
-        if fnmatchcase(normalized, pattern):
+        if fnmatchcase(normalized, pattern) or (
+            legacy_language not in (None, "*")
+            and normalized.endswith(".paloc")
+            and normalized.endswith(f"_{legacy_language}.paloc")
+        ):
             matches[normalized] = entry
     for pamt_path in sorted(game_dir.glob("[0-9][0-9][0-9][0-9]/0.pamt")):
         try:
-            if b"localizationstring_" not in pamt_path.read_bytes().lower():
-                continue
             entries = parse_pamt(pamt_path, pamt_path.parent)
         except (OSError, ValueError):
             continue
         for entry in entries:
             normalized = lower_game_rel_path(entry.path)
-            if fnmatchcase(normalized, pattern):
+            language_dir = lower_game_rel_path(entry.resolved_dir_path or "")
+            is_split_language = (
+                legacy_language is not None
+                and normalized.endswith(".paloc")
+                and language_dir.endswith("/" + legacy_language)
+            )
+            if fnmatchcase(normalized, pattern) or is_split_language:
                 matches.setdefault(normalized, entry)
     if not matches:
         return matches
     active_language = detect_active_paloc_language(game_dir)
     suffix = f"_{active_language}.paloc"
+    if legacy_language not in (None, "*"):
+        # Split-table 2.01 entries have no language suffix in basename; the
+        # language was encoded by PAMT resolved_dir_path. Keep all entries
+        # discovered from the requested legacy language directory.
+        if legacy_language != active_language:
+            return {}
+        return matches
     selected = {
         target_path: source
         for target_path, source in matches.items()
@@ -299,6 +330,7 @@ def _read_source(
         compression_type=detected_entry.compression_type,
         encrypted=detected_entry.encrypted,
         crypto_filename=Path(detected_entry.path).name,
+        resolved_dir_path=detected_entry.resolved_dir_path,
     )
 
 
@@ -311,4 +343,5 @@ def _with_content(template: OverlayInputEntry, content: bytes) -> OverlayInputEn
         compression_type=template.compression_type,
         encrypted=template.encrypted,
         crypto_filename=template.crypto_filename,
+        resolved_dir_path=template.resolved_dir_path,
     )

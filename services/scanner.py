@@ -280,12 +280,19 @@ def _is_non_empty_json_patch_item(item: object) -> bool:
 
 
 def _has_patch_bytes(change: object) -> bool:
-    """判断 change 是否至少声明了 original/patched 中的一段字节内容。"""
+    """判断 change 是否至少声明了 original/patched/bytes 中的一段字节内容。
+
+    DMM 的 insert 类 change 只写 `type: "insert"` + `bytes`，不带
+    `original`/`patched`。只看后两者会把纯插入型传统 JSON 模组整个漏掉，
+    所以这里必须把 `bytes` 一并视为有效字节载荷。
+    """
     if not isinstance(change, dict):
         return False
-    original = change.get("original")
-    patched = change.get("patched")
-    return (isinstance(original, str) and bool(original)) or (isinstance(patched, str) and bool(patched))
+    for key in ("original", "patched", "bytes"):
+        value = change.get(key)
+        if isinstance(value, str) and value:
+            return True
+    return False
 
 
 def is_format3_data(data: object) -> bool:

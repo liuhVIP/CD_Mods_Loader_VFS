@@ -55,11 +55,35 @@ from cdmm.services.iteminfo_native_parser import (
     read_iteminfo_match_prefix,
 )
 from cdmm.services.pab_table_service import build_entry_bounds, parse_pabgh_index
-from cdmm.services.pamt_index_service import get_game_pamt_index
+from cdmm.services.pamt_index_service import (
+    TABLE_BODY_SUFFIXES,
+    get_game_pamt_index,
+    is_table_body_target,
+    table_body_target,
+    table_header_target,
+)
 from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.path_utils import lower_game_rel_path
 
 logger = logging.getLogger(__name__)
+
+
+def _logical_table_name(game_file: str) -> str:
+    """Return writer table stem for legacy or 2.01 static-info filenames."""
+    stem = Path(game_file.replace("\\", "/")).stem.lower()
+    if stem.endswith(".staticinfobody"):
+        return stem[: -len(".staticinfobody")]
+    if stem.endswith(".staticinfoheader"):
+        return stem[: -len(".staticinfoheader")]
+    return stem
+
+
+def _companion_target(game_file: str) -> str:
+    """Derive companion header path preserving 2.01 naming convention."""
+    normalized = game_file.replace("\\", "/")
+    if normalized.lower().endswith(TABLE_BODY_SUFFIXES):
+        return table_header_target(normalized)
+    return normalized.rsplit(".", 1)[0] + ".pabgh"
 
 # Format 3 writer 注册表。当前 iteminfo 入口内部会继续按字段分流到
 # 窄 writer / whole-table writer，后续迁移新 table 时只需要继续往这里注册。
@@ -274,7 +298,7 @@ def _apply_format3_changes_to_current_base(
     if not changes:
         return current_body, current_header
 
-    table_name = Path(game_file.replace("\\", "/")).stem.lower()
+    table_name = _logical_table_name(game_file)
     key_size, offsets = parse_pabgh_index(current_header, table_name)
     entry_bounds = build_entry_bounds(current_body, key_size, offsets) if offsets else {}
     name_offsets = _name_offsets_from_bounds(entry_bounds)
@@ -329,7 +353,7 @@ def _apply_format3_changes_to_current_base(
                 len(header_changes),
             )
             return bytes(body), None
-    elif inserts_out and game_file.lower().endswith(".pabgb"):
+    elif inserts_out and is_table_body_target(game_file):
         header = bytearray(fixup_pabgh_after_inserts(bytes(header), inserts_out))
 
     return bytes(body), bytes(header)
@@ -345,7 +369,7 @@ def _apply_dynamic_body_changes(
     table_name = Path(game_file.replace("\\", "/")).stem.lower()
     applied_total = 0
     mismatched_total = 0
-    current_header: bytearray | None = header if game_file.lower().endswith(".pabgb") else None
+    current_header: bytearray | None = header if is_table_body_target(game_file) else None
     name_offsets: dict[str, int] | None = None
     if current_header is not None:
         key_size, offsets = parse_pabgh_index(bytes(current_header), table_name)
@@ -402,8 +426,10 @@ def _change_targets_header(change: dict, game_file: str) -> bool:
     target = change.get("_target_file")
     if not isinstance(target, str):
         return False
-    expected = lower_game_rel_path(game_file.rsplit(".", 1)[0] + ".pabgh")
-    return lower_game_rel_path(target) == expected
+    expected = lower_game_rel_path(_companion_target(game_file))
+    legacy = lower_game_rel_path(game_file.rsplit(".", 1)[0] + ".pabgh")
+    actual = lower_game_rel_path(target)
+    return actual in {expected, legacy}
 
 
 def _strip_change_routing(change: dict) -> dict:
@@ -423,11 +449,9 @@ def collect_format3_pamt_targets(mods: list[DiscoveredMod]) -> list[str]:
         except Exception:
             continue
         for target_spec in target_specs:
-            body_target = lower_game_rel_path(target_spec.target)
-            if not body_target.endswith(".pabgb"):
-                body_target += ".pabgb"
+            body_target = table_body_target(target_spec.target)
             targets.append(body_target)
-            targets.append(body_target.rsplit(".", 1)[0] + ".pabgh")
+            targets.append(table_header_target(body_target))
     return targets
 
 
@@ -438,7 +462,7 @@ def _format3_intents_to_result(
     intents: list[Format3Intent],
 ) -> Format3DispatchResult:
     """按目标表分发 Format 3 intent 写入器。"""
-    table_name = Path(game_file.replace("\\", "/")).stem.lower()
+    table_name = _logical_table_name(game_file)
     key_size, offsets = parse_pabgh_index(vanilla_header, table_name)
     if key_size not in (2, 4) or not offsets:
         return _skip_all_intents(intents, f"{table_name}.pabgh 索引无效")
@@ -699,7 +723,7 @@ def _resolve_format3_target(game_dir: Path, target: str) -> tuple[str, PazEntry,
     if body_entry is None:
         return None
     body_path = body_entry.path
-    header_target = body_path.rsplit(".", 1)[0] + ".pabgh"
+    header_target = _companion_target(body_path)
     header_entry = _find_preferred_game_entry(game_dir, header_target, suffix=".pabgh")
     return body_path, body_entry, header_entry
 

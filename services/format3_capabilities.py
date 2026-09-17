@@ -291,12 +291,24 @@ def partition_supported_intents(
     intents: list[Format3Intent],
 ) -> tuple[list[Format3Intent], tuple[Format3SkippedIntent, ...]]:
     """按能力声明把 intents 分成“可尝试执行”和“直接跳过”。"""
+    # 调参器 intent 的跳过与表能力无关；必须在 capability 早退之前处理，
+    # 否则没有声明能力声明的表会让它们带着被丢弃的乘算语义继续执行。
+    tuner_skipped = tuple(
+        Format3SkippedIntent(
+            intent=intent,
+            reason="DMM 调参器字段暂不支持：" + ", ".join(intent.tuner_keys),
+        )
+        for intent in intents
+        if intent.tuner_keys
+    )
+    intents = [intent for intent in intents if not intent.tuner_keys]
+
     capability = get_table_capability(table_name)
     if capability is None:
-        return list(intents), ()
+        return list(intents), tuner_skipped
 
     supported: list[Format3Intent] = []
-    skipped: list[Format3SkippedIntent] = []
+    skipped: list[Format3SkippedIntent] = list(tuner_skipped)
     for intent in intents:
         if _matches_any_rule(intent, capability.field_rules):
             supported.append(intent)

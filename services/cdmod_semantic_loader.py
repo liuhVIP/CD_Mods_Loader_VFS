@@ -35,9 +35,22 @@ from cdmm.services.cdmod_resource_loader import (
 from cdmm.services.format3_loader import build_format3_overlay_entries
 from cdmm.services.format3_capabilities import partition_supported_intents
 from cdmm.services.format3_parser import parse_format3_file
+from cdmm.services.pamt_index_service import (
+    TABLE_BODY_SUFFIXES,
+    table_body_target,
+    table_header_target,
+)
 from cdmm.services.scanner import MOD_TYPE_CDMOD, MOD_TYPE_FORMAT3
 from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.path_utils import lower_game_rel_path
+
+
+def _companion_target(target: str) -> str:
+    """Return table header companion for legacy or 2.01 body names."""
+    normalized = target.replace("\\", "/")
+    if normalized.lower().endswith(TABLE_BODY_SUFFIXES):
+        return table_header_target(normalized)
+    return normalized.rsplit(".", 1)[0] + ".pabgh"
 
 
 def collect_semantic_warnings(mods: list[DiscoveredMod]) -> list[str]:
@@ -65,17 +78,15 @@ def collect_semantic_pamt_targets(mods: list[DiscoveredMod]) -> list[str]:
             for target in declared_targets:
                 normalized = lower_game_rel_path(target)
                 targets.append(normalized)
-                if normalized.endswith(".pabgb"):
-                    targets.append(normalized.rsplit(".", 1)[0] + ".pabgh")
+                if normalized.endswith(TABLE_BODY_SUFFIXES):
+                    targets.append(_companion_target(normalized))
             continue
         legacy_mods.append(mod)
 
     for package in _normalize_semantic_packages(legacy_mods, errors=[]):
         for operation in package.operations:
-            body_target = lower_game_rel_path(operation.target)
-            if not body_target.endswith(".pabgb"):
-                body_target += ".pabgb"
-            targets.extend((body_target, body_target.rsplit(".", 1)[0] + ".pabgh"))
+            body_target = table_body_target(operation.target)
+            targets.extend((body_target, _companion_target(body_target)))
         targets.extend(collect_localization_pamt_targets([package]))
         targets.extend(collect_resource_pamt_targets([package]))
         targets.extend(collect_file_replacement_pamt_targets([package]))

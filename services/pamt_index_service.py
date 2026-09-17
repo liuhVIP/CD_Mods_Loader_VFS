@@ -33,6 +33,67 @@ from cdmm.utils.path_utils import lower_game_rel_path
 
 logger = logging.getLogger(__name__)
 
+# 表体/表头在新旧归档里的两种物理写法（2.01 起 ``.pabgb/.pabgh`` 变为
+# ``.staticinfobody/.staticinfoheader``）。这是表类后缀知识的唯一来源：
+# 新增表类后缀只改这里，调用方一律复用下面的补全函数，不要各自再拼一次。
+TABLE_BODY_SUFFIXES = (".pabgb", ".staticinfobody")
+TABLE_HEADER_SUFFIXES = (".pabgh", ".staticinfoheader")
+
+_TABLE_SUFFIX_VARIANTS = {
+    ".pabgb": TABLE_BODY_SUFFIXES,
+    ".pabgh": TABLE_HEADER_SUFFIXES,
+}
+
+
+def table_body_target(target: str) -> str:
+    """把逻辑表目标补全成表体目标，已是新旧任一种表体写法时原样返回。
+
+    早期实现无条件追加 ``.pabgb``，会把第三方 2.01/2.02 模组写的
+    ``gamedata/iteminfo.staticinfobody`` 变成
+    ``iteminfo.staticinfobody.pabgb``：这个目标既进不了 PAMT 预筛选集合，
+    companion 也永远查不到，模组会被静默跳过。
+    """
+    normalized = lower_game_rel_path(target)
+    if normalized.endswith(TABLE_BODY_SUFFIXES):
+        return normalized
+    return normalized + ".pabgb"
+
+
+def table_header_target(target: str) -> str:
+    """由表体目标推导表头 companion，保留目标自身的新旧命名。"""
+    normalized = lower_game_rel_path(target)
+    for body_suffix, header_suffix in zip(TABLE_BODY_SUFFIXES, TABLE_HEADER_SUFFIXES):
+        if normalized.endswith(body_suffix):
+            return normalized[: -len(body_suffix)] + header_suffix
+    if normalized.endswith(TABLE_HEADER_SUFFIXES):
+        return normalized
+    return normalized + ".pabgh"
+
+
+def is_table_body_target(target: str) -> bool:
+    """判断目标是否是新旧任一命名下的表体（``.pabgb``/``.staticinfobody``）。
+
+    表体的“是否需要同步 companion 表头”一类的判断必须走这里：只认
+    ``.pabgb`` 会让 2.01+ 写新名的模组跳过 PABGH 修正，表体长度变了而索引
+    没变，游戏从记录中间读 key。
+    """
+    return lower_game_rel_path(target).endswith(TABLE_BODY_SUFFIXES)
+
+
+def is_table_header_target(target: str) -> bool:
+    """判断目标是否是新旧任一命名下的表头（``.pabgh``/``.staticinfoheader``）。"""
+    return lower_game_rel_path(target).endswith(TABLE_HEADER_SUFFIXES)
+
+
+def _apply_query_suffix(target: str, suffix: str | None) -> str:
+    """按 suffix 补全查询目标，表类后缀兼容 2.01 的新旧两种命名。"""
+    if not suffix:
+        return target
+    variants = _TABLE_SUFFIX_VARIANTS.get(suffix)
+    if variants is None:
+        return target if target.endswith(suffix) else target + suffix
+    return target if target.endswith(variants) else target + suffix
+
 
 @dataclass
 class GamePamtIndex:
@@ -98,23 +159,40 @@ class GamePamtIndex:
     ) -> PazEntry | None:
         """按完整路径、basename、gamedata、低编号规则按需查找目标 entry。"""
         normalized = lower_game_rel_path(target)
-        if suffix and not normalized.endswith(suffix):
-            normalized += suffix
+        normalized = _apply_query_suffix(normalized, suffix)
         cache_key = _target_cache_key(normalized, require_unique_best=require_unique_best)
         if cache_key in self.target_cache:
             return self.target_cache[cache_key]
 
         basename = os.path.basename(normalized)
+        # Game 2.01 renamed binary tables from ``*.pabgb/pabgh`` to
+        # ``*.staticinfobody/staticinfoheader`` while retaining the logical
+        # table stem.  Keep legacy mod targets resolvable by matching the
+        # corresponding new basename as an alias; callers still receive the
+        # real PAMT entry (including resolved_dir_path).
+        alias_normalized, alias_basename = _table_target_alias(normalized)
+        # 别名必须和原目标一起登记，再进入本轮目录预筛选。只在匹配失败后补扫
+        # 的话，冷构建时所有 PAMT 已经按旧名过滤解析完毕：补扫结果只写回索引，
+        # 不会回写本轮局部候选，新名 entry 永远进不了 basename_matches，
+        # 真实存在的表会被误报成“目标未找到”。
         self.register_target(normalized)
+        if alias_normalized is not None:
+            self.register_target(alias_normalized)
         exact_matches: list[PazEntry] = []
         basename_matches: list[PazEntry] = []
         self._ensure_all_dirs_loaded(target_basename=basename)
         for dir_name, _mtime, _size in self.signature:
             for entry in self.entries_in_dir(dir_name):
                 entry_key = lower_game_rel_path(entry.path)
-                if normalized in _entry_lookup_keys(entry):
+                lookup_keys = _entry_lookup_keys(entry)
+                if normalized in lookup_keys or (
+                    alias_normalized is not None and alias_normalized in lookup_keys
+                ):
                     exact_matches.append(entry)
-                if os.path.basename(entry_key) == basename:
+                if os.path.basename(entry_key) in {
+                    basename,
+                    alias_basename,
+                }:
                     basename_matches.append(entry)
 
         match = _pick_best(
@@ -130,6 +208,13 @@ class GamePamtIndex:
                 basename,
                 require_unique_best=require_unique_best,
             )
+        if (
+            match is not None
+            and alias_basename is not None
+            and alias_basename != basename
+            and os.path.basename(lower_game_rel_path(match.path)) == alias_basename
+        ):
+            logger.info("2.01 表别名匹配 %s -> %s", normalized, match.path)
         self.target_cache[cache_key] = match
         self.target_cache_dirty = True
         return match
@@ -137,8 +222,7 @@ class GamePamtIndex:
     def register_target(self, target: str, *, suffix: str | None = None) -> None:
         """登记本次运行将查询的目标，供冷启动解析时预筛选候选。"""
         normalized = lower_game_rel_path(target)
-        if suffix and not normalized.endswith(suffix):
-            normalized += suffix
+        normalized = _apply_query_suffix(normalized, suffix)
         basename = os.path.basename(normalized)
         if normalized in self.desired_exact and basename in self.desired_basenames:
             return
@@ -459,6 +543,24 @@ def _entry_lookup_keys(entry: PazEntry) -> set[str]:
     if resolved_dir and basename:
         keys.add(f"{resolved_dir}/{basename}")
     return keys
+
+
+def _table_target_alias(normalized: str) -> tuple[str | None, str | None]:
+    """Return 2.01 static-info alias for a legacy ``.pabgb/.pabgh`` target.
+
+    The archive keeps the logical table stem but changed the suffixes.  This
+    helper deliberately handles only those two suffixes and leaves unrelated
+    paths untouched.
+    """
+    if normalized.endswith(".pabgb"):
+        stem = normalized[: -len(".pabgb")]
+        basename_stem = normalized.rsplit("/", 1)[-1][: -len(".pabgb")]
+        return stem + ".staticinfobody", basename_stem + ".staticinfobody"
+    if normalized.endswith(".pabgh"):
+        stem = normalized[: -len(".pabgh")]
+        basename_stem = normalized.rsplit("/", 1)[-1][: -len(".pabgh")]
+        return stem + ".staticinfoheader", basename_stem + ".staticinfoheader"
+    return None, None
 
 
 def _cache_path(game_dir: Path) -> Path:

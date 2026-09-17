@@ -15,7 +15,11 @@ from cdmm.archive.paz_crypto import decrypt, lz4_decompress
 from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
 from cdmm.services.pabgh_rewrite import rewrite_pabgh_offsets
 from cdmm.services.pab_table_service import parse_entry_name_end, parse_pabgh_index
-from cdmm.services.pamt_index_service import get_game_pamt_index
+from cdmm.services.pamt_index_service import (
+    get_game_pamt_index,
+    is_table_body_target,
+    table_header_target,
+)
 from cdmm.services.scanner import MOD_TYPE_CDMOD, load_json_file
 from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.path_utils import lower_game_rel_path
@@ -43,6 +47,34 @@ JSON_VERSION_WARNING_MISMATCH_RATIO = 0.5
 
 # 大 JSON 版本错配/慢加载告警前缀，与 standalone/high-risk 共用同一套入口路由约定。
 JSON_VERSION_MISMATCH_WARNING_PREFIX = "[JSON-VERSION-MISMATCH]"
+
+# DMM 作者用来声明“offset 已定稿、不要自动重定位”的开关名。
+# DMM 日志原文：auto-relocation DISABLED by author ...; literal offsets only。
+RELOCATION_DISABLE_KEY = "autorelocate_disable"
+
+# DMM 自己解析出的字面 offset；仅在缺少常规 offset 时作为兼容别名使用。
+DMM_OFFSET_KEY = "dmm_offset"
+
+
+def _flag_enabled(value: object) -> bool:
+    """把 JSON 里可能出现的 bool/数字/"true" 统一判断为真。"""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return False
+
+
+def _change_relocation_disabled(change: dict) -> bool:
+    """判断单条 change 是否声明禁用自动重定位。"""
+    return _flag_enabled(change.get(RELOCATION_DISABLE_KEY))
+
+
+def _document_relocation_disabled(data: dict, patch: dict) -> bool:
+    """判断模组文档或单个 patch 块是否声明禁用自动重定位。"""
+    return _flag_enabled(data.get(RELOCATION_DISABLE_KEY)) or _change_relocation_disabled(patch)
 
 
 def build_json_overlay_entries(
@@ -75,6 +107,7 @@ def build_json_overlay_entries(
                 patch = dict(patch)
                 patch["_allow_partial_apply"] = _allow_partial_apply(data)
                 patch["_game_version"] = _declared_game_version(data)
+                patch["_relocation_disabled"] = _document_relocation_disabled(data, patch)
                 game_file = str(patch["game_file"])
                 group_key = lower_game_rel_path(game_file)
                 resolved = _find_patch_target_entry(game_file, game_dir)
@@ -130,8 +163,8 @@ def collect_json_pamt_targets(mods: list[DiscoveredMod]) -> list[str]:
                     continue
                 game_file = str(patch["game_file"])
                 targets.append(game_file)
-                if game_file.lower().endswith(".pabgb"):
-                    targets.append(game_file.rsplit(".", 1)[0] + ".pabgh")
+                if is_table_body_target(game_file):
+                    targets.append(table_header_target(game_file))
     return targets
 
 
@@ -244,6 +277,7 @@ def build_patch_overlay_entries(
                 vanilla_data=plaintext,
                 inserts_out=inserts_out,
                 name_offsets=patch_name_offsets,
+                allow_relocation=not bool(patch.get("_relocation_disabled")),
             )
             total_applied += applied
             total_mismatched += mismatched
@@ -326,7 +360,7 @@ def build_patch_overlay_entries(
         )
 
         # 如果 .pabgb 发生 insert，必须同步修正 companion .pabgh 的指针。
-        if game_file.lower().endswith(".pabgb"):
+        if is_table_body_target(game_file):
             companion = _build_pabgh_companion(
                 game_dir,
                 vanilla_store,
@@ -465,12 +499,26 @@ def apply_byte_patches(
     vanilla_data: bytes | None = None,
     inserts_out: list[tuple[int, int]] | None = None,
     name_offsets: dict[str, int] | None = None,
+    allow_relocation: bool = True,
 ) -> tuple[int, int, int]:
     """应用传统 JSON byte patch，返回 applied/mismatched/relocated 数量。"""
     original_snapshot = bytes(data) if signature else None
     base_offset = _resolve_signature_base(data, signature)
     if base_offset is None:
         return 0, len(changes), 0
+
+    def relocate(change: dict, original_offset: int, original_bytes: bytes | None) -> int | None:
+        """按作者声明决定是否允许模糊重定位。
+
+        DMM 允许作者用 `autorelocate_disable` 声明“literal offsets only”
+        （文档级或单条 change 级）。禁用时只接受字面 offset，匹配不上就记为
+        mismatch，绝不猜偏移；否则游戏更新后会把补丁写到无关记录上。
+        """
+        if not allow_relocation or original_bytes is None:
+            return None
+        if _change_relocation_disabled(change):
+            return None
+        return _pattern_scan(data, original_offset, original_bytes, vanilla_data)
 
     applied = 0
     mismatched = 0
@@ -533,11 +581,7 @@ def apply_byte_patches(
                 # 模糊扫描（01/6400/1027 等值在表内大量重复）。
                 mismatched += 1
                 continue
-            new_offset = (
-                _pattern_scan(data, original_offset, original_bytes, vanilla_data)
-                if original_bytes is not None
-                else None
-            )
+            new_offset = relocate(change, original_offset, original_bytes)
             if (
                 new_offset is None
                 or new_offset + old_len > len(data)
@@ -568,7 +612,7 @@ def apply_byte_patches(
                 old_len,
                 written_replacements,
             )
-            new_offset = _pattern_scan(data, original_offset, original_bytes, vanilla_data)
+            new_offset = relocate(change, original_offset, original_bytes)
             if prior_replacement is not None:
                 if (
                     new_offset is not None
@@ -620,6 +664,7 @@ def apply_byte_patches(
             vanilla_data=vanilla_data,
             inserts_out=inserts_out,
             name_offsets=name_offsets,
+            allow_relocation=allow_relocation,
         )
     return applied, mismatched, relocated
 
@@ -742,7 +787,7 @@ def _build_pabgh_companion(
     required: bool = True,
 ) -> OverlayInputEntry | None:
     """构造 insert 场景需要同步输出的 .pabgh companion entry。"""
-    pabgh_file = game_file.rsplit(".", 1)[0] + ".pabgh"
+    pabgh_file = table_header_target(game_file)
     entry = _find_patch_target_entry(pabgh_file, game_dir)
     if entry is None:
         if required:
@@ -879,9 +924,9 @@ def _build_name_offsets(
     header_override: bytes | None = None,
 ) -> dict[str, int] | None:
     """构建 entry 名称到 name_end 的映射，用于 Format 3 的 entry+rel_offset。"""
-    if not game_file.lower().endswith(".pabgb"):
+    if not is_table_body_target(game_file):
         return None
-    pabgh_file = game_file.rsplit(".", 1)[0] + ".pabgh"
+    pabgh_file = table_header_target(game_file)
     entry = _find_patch_target_entry(pabgh_file, game_dir)
     if entry is None:
         return None
@@ -928,9 +973,9 @@ def _build_current_pabgh_for_body(
     base_by_entry: dict[str, OverlayInputEntry] | None = None,
 ) -> bytes | None:
     """用当前 body 修复 companion PABGH，供动态 entry offset 重新锚定。"""
-    if not game_file.lower().endswith(".pabgb"):
+    if not is_table_body_target(game_file):
         return None
-    pabgh_file = game_file.rsplit(".", 1)[0] + ".pabgh"
+    pabgh_file = table_header_target(game_file)
     entry = _find_patch_target_entry(pabgh_file, game_dir)
     if entry is None:
         return None
@@ -995,6 +1040,8 @@ def _parse_change_offset(
             return anchor + rel_value
 
     raw = change.get("offset")
+    if raw is None:
+        raw = change.get(DMM_OFFSET_KEY)
     if raw is None:
         raw = change.get("rel_offset")
     if raw is None:
@@ -1289,9 +1336,9 @@ def _split_patch_changes(
 def _default_companion_target(game_file: str) -> str | None:
     """返回 `.pabgb` 默认 companion `.pabgh` 路径。"""
     normalized = lower_game_rel_path(game_file)
-    if not normalized.endswith(".pabgb"):
+    if not is_table_body_target(normalized):
         return None
-    return game_file.rsplit(".", 1)[0] + ".pabgh"
+    return table_header_target(game_file)
 
 
 def _extract_change_target(value: object) -> str | None:

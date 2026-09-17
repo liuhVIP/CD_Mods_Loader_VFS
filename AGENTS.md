@@ -50,6 +50,172 @@ cdloader/
 - 本次 2.0.02 Kliff 女性中文配音更新验证：旧包有 6 个 WEM 目标被当前 `0035` 删除；默认策略正确跳过后，VFS BuildOnly 成功生成 `nppvoice`、`nppgen`、`nppsa`，完成二阶段缓存复核，热构建可正常命中缓存。用户反馈目前未发现问题。
 - 本次代码回归基线：完整 `test/` 为 `536 passed`，`ruff check .` 通过。该结果是构建/回归与用户当前使用反馈记录，不应扩大表述为所有模组、所有机器均已完成实机验证。
 
+## 2026-09-04 Crimson Desert 2.01.00 结构迁移与加载器 v9.3.9 基线
+
+- 游戏更新到 `2.01.00` 后，归档里所有数据表被移动并重命名，旧加载器按 `iteminfo.pabgb` 等物理名查找会报 “File not found in any group PAMT”。本次修复随加载器 v9.3.9 发布（`version.txt` = v9.3.9），转换器与旧普通 apply 管线不涉及。
+- 数据表物理形态：`*.pabgb` → `gamedata/binarystaticinfo__/bin/*.staticinfobody`，`*.pabgh` → 同目录 `*.staticinfoheader`（例：`gamedata/binarystaticinfo__/bin/iteminfo.staticinfobody`）。
+- 加载器不要求模组批量改名：PAMT 索引层把逻辑目标 `iteminfo.pabgb/.pabgh` 等别名到真实新版 entry 并保留 `resolved_dir_path`；body/header companion 由实际 body 路径推导（`.staticinfobody` → `.staticinfoheader`）。第三方 2.01 模组直接写新名（如 `gamedata/iteminfo.staticinfobody`、`gamedata/inventory.staticinfobody`）时同样命中同一套索引。
+- 本地化表拆分：2.01 起语言文本不再是合并的 `localizationstring_<lang>.paloc` 单表，而是每种语言独立目录下按逻辑表拆分的约 39 个 `.paloc`，语言信息由 PAMT `resolved_dir_path` 记录；已验证简体中文（zho-cn）位于 `0032`，含 39 个拆分表。旧 `localizationstring_<lang>.paloc` 仍作为逻辑目标由 loader 兼容展开并按活动语言输出，输出保留新版语言目录的 `resolved_dir_path`。
+- 实现集中在：`services/pamt_index_service.py`（表别名与延迟重载）、`services/format3_loader.py`、`services/cdmod_game_resolver.py`、`services/cdmod_semantic_loader.py`、`services/cdmod_localization_loader.py`。后续所有表解析、writer、companion 收集和 PALOC 处理必须沿这套逻辑目标结构继续，禁止绕开别名把旧物理文件名直接写回 PAMT。
+- 兼容边界：作者已更新为 2.01.00 新表名的 JSON/loose 模组可正常构建；2.01 之前的 `.cdmod file-replacement`（例如 2.00.01 时代的角色、DDS、XML 资源）仍可能因资源目录或 PAMT 目标变化缺失，必须以完整 VFS BuildOnly + 缺失目标策略验证，不能因“包能解析”判定兼容。旧的整表 PALOC 不得当作当前版本单表直接加载；旧语言无关通配与逐 key 归属在 2.01 拆分表上需按当前归档核验。
+- 2026-09-04 样本验证：Max Inventory Storage（`inventory.staticinfobody`）与 Fat Stacks Plus JMM（`iteminfo.staticinfobody`，4973 条修改）在真实 2.01.00 归档上 `0 warning / 0 error`；Hernand Barber 为 `0014` 内 3 个 sequencer loose（`.paseq/.paseqc/.pastage`），支持加载；Human Female Witch Hair K-Makeup 旧 `.cdmod`（424 个 file-replacement）解析正常但必须实机验证。
+- 本次代码回归基线：完整 `test/` 为 `544 passed`，`ruff check .` 通过。该结论是 2.01.00 目标解析/构建与样本回归记录，不等于所有旧模组、所有机器均已实机验证。
+
+## 2026-09-17 Crimson Desert 2.02.00 基础模组恢复与加载器 v9.4.0 表头定位修复
+
+- 游戏主程序更新到 `2.02.00`（`meta/0.paver` = `020002000000585c92c8`）。与 `2.01.00`
+  相比只有数据内容变化：34 个编号目录（`0018`/`0034` 两版都不存在）、71 个归档文件、
+  268 张 `gamedata/binarystaticinfo__/bin/*.staticinfo(body|header)` 的名称与数量完全
+  一致，只有 12 张表的字节数变化；没有表重命名、目录迁移或 PALOC 结构变化。因此本次
+  不需要再改 PAMT 别名层，问题出在加载器自己的 companion 定位代码。
+- 结构核验手段：DMM 2.9.0 可执行文件内嵌了一份 Steam 校验过的原版指纹清单
+  （`{"builds": [{...}]}`，同时包含 2.02.00 与 2.01.00，记录每个归档文件的 size/sha1
+  和 268 张表的字节数）。把该 JSON 抽取出来后，加载器实测读到的
+  `stringinfo`/`characterinfo`/`inventory` body+header 明文长度与 DMM 清单逐项一致，
+  可以直接用它判断“表布局有没有变”，不必凭猜测。`meta/0.paver` 是版本判定依据。
+- 根因：2.01 迁移新增的 `_companion_target()` 会为 body 推导 `.staticinfoheader`，
+  但 `GamePamtIndex.find_best()` / `register_target()` 仍是“目标不以 `suffix` 结尾就
+  拼接”的旧逻辑，于是 `iteminfo.staticinfoheader` 被拼成
+  `iteminfo.staticinfoheader.pabgh`，companion 恒为 `None`。结果是三个 Format 3 模组的
+  288 条 intent 全部被判定为“缺少 companion PABGH”并跳过：`Female Armor Module`、
+  `Female Animations` 表面构建成功，实际游戏内完全无效。
+- 修复集中在 `services/pamt_index_service.py::_apply_query_suffix()`：表类后缀
+  `.pabgb/.pabgh` 识别 2.01 的新旧两种写法，已经是新版后缀的目标不再重复拼接。该入口
+  被 `format3_loader`、`cdmod_game_resolver`、`cdmod_semantic_loader`、`json_loader`
+  共用，禁止在调用方各自打补丁绕过；新增表类后缀必须同步扩展此表。
+- 同一类 bug 还有第二处：`collect_format3_pamt_targets()` 与
+  `collect_semantic_pamt_targets()` 早期无条件给目标追加 `.pabgb`，会把第三方
+  2.01/2.02 模组直接写的新名 `gamedata/iteminfo.staticinfobody` 变成
+  `iteminfo.staticinfobody.pabgb`：该目标既不在真实 entry 集合里，companion 也查不到，
+  模组会被静默跳过。现统一改用 `pamt_index_service.table_body_target()` /
+  `table_header_target()`；表体/表头后缀知识只由 `TABLE_BODY_SUFFIXES` /
+  `TABLE_HEADER_SUFFIXES` 声明一次，`format3_loader`、`cdmod_semantic_loader`、
+  `cdmod_game_resolver` 一律复用，不要再自己拼后缀。回归用例在
+  `test/test_pamt_index_staticinfo_alias.py`。
+- 缓存失效规则（重要）：这类“输入不变、产物变化”的修复只改代码不升 schema 时，热启动
+  会继续复用修复前的产物，表现为“已经修了但游戏里仍然无效”。必须同时升
+  `VFS_STATE_SCHEMA`（本次 17→18，丢弃旧整包快照）与 `VFS_PACKAGE_BUILD_SCHEMA`
+  （本次 4→5，丢弃旧分包）；Physical 复用同一构建，自动一起失效。
+- 2026-09-17 当前 `mods` 目录（12 个可识别模组）在真实 2.02.00 归档上的验证：
+  `Format 3 bridge: 处理 1 个模组、2 个目标，288 个生成补丁 / 0 跳过`；
+  `nppv3_stringinfo` 的 263 条字符串修改逐条命中、`nppsa` 的 characterinfo 25 条逐条
+  命中，且两批全部与 vanilla 字节不同（不是等价改写）；`nppgen` 为 MaxInventoryStorage
+  的 `inventory.staticinfobody` 16/16 条；三个 `Female Armor Module` standalone 包分配
+  `0041/0042/0043` 并注册进重建 PAPGT；PATHC 更新 401 条 DDS 映射。
+- `N20260917141029` 的 399 张 `ui/texture/image/customizeimage/*.dds` 与
+  `decorationparam_player_oongka.xml` 在 2.02 原版 PAMT 中确实不存在（`oongka` 只有
+  `meshparam_example_oongka.xml`），属于模组新增内容；按原始路径写入 overlay 是预期
+  行为，不能当成“目标匹配失败”去修。
+- 本次未修改任何模组文件，只改加载器。回归基线：完整 `test/` 549 passed（新增 5 项表头
+  后缀/companion 回归用例）、`ruff check .` 通过。该结论是构建与字节级验证记录，不等于
+  已在游戏内实机确认；`version.txt` 升至 v9.4.0。
+- 别再把 2.01 别名层写两遍：`find_best()` 里只能保留 `_apply_query_suffix()` 与
+  `_table_target_alias()` 这一条链路。曾经并存的“末尾再扫一遍 `.pabgb -> .staticinfobody`”
+  兜底分支与前面完全等价，是纯粹的死代码加重复实现，已删除；不要以“多一层保险”为由恢复。
+- 打包产物（2026-09-17 用户确认后重新打包，已包含 2.02 表头 companion 修复、
+  冷构建别名登记修复、PABGH 修正后缀修复）：`dist_nuitka/cdloader-VFS-v9.4.0.zip`，
+  SHA-256 `bf466223fd0c039418d38a8d867601b316761ca1f085efb34c5d3059f6fe5eef`，
+  18,069,152 字节。结构：外层 `cdloader-VFS-v9.4.0.exe` +
+  `cdloader-Physical-v9.4.0.exe` + `cdloader/cdloader-vfs-core.exe`
+  （`cdloader/cdmm/private/vfs_runtime/` 内置 runtime 与 VC 运行库）、
+  `SHA256SUMS.txt`、封面与两种加载方式说明；三个 EXE 的
+  FileVersion/ProductVersion 均为 `9.4.0.0`，仍是 `--standalone` 目录版。
+- 产物核验方式（打包后必须做）：解包目录里的 `cdloader/cdloader-vfs-core.exe`
+  应能检出本次新增函数的文档字符串（例如 `table_body_target`、`is_table_body_target`），
+  用来证明修复确实编进成品，而不是只看 ZIP 时间戳；再实跑外层 EXE
+  `--build-only --game-dir <游戏目录>`，确认退出码 0、映射文件数正确、未启动游戏。
+  本次结果：18 个映射文件、5 个 overlay 包、退出码 0。
+- 打包入口是 `build_cdloader_vfs_nuitka.ps1`（不是 `build_cdloader.ps1`，后者是已废弃的
+  PyInstaller `--onefile` 单体 exe）。不要照旧包的 SHA-256 写发布说明：
+  `41a40c20…`（18,059,535 字节）是修复前的过期产物，已被本次覆盖作废。
+- 实机确认仍是打包前提：先跑
+  `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning`，确认无误后才打包。
+- 实机验证状态（2026-09-17）：用户已实机进入游戏，**模组正常加载**，但只做了部分抽查，
+  **尚未全量测试**（未逐个确认 Equip Everything 全角色解锁、Female Armor Module
+  图标/字符串、Kliff 女性动画、MaxInventoryStorage、三件 standalone 护甲、三个 UI 模组）。
+  对外只能表述为“实机可进游戏、模组正常加载（部分验证）”，不得写成“全量通过”。
+
+## 2026-09-17 DMM 2.9.0 JSON 格式对齐（cdmm 兼容清单）
+
+- 开发阶段先跑 `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning`
+  实机确认，确认无误后才做正式打包；不要再在未确认前自行打包发布。
+- DMM 2.9.0（Tauri/Rust，无源码随包）认可的模组形态与 JSON 键已完整抽出，记录在
+  `.codex/skills/crimson-desert-mod-loader/references/dmm-json-format-coverage.md`。
+  抽取方法：在 `DMM.exe` 里定位 `b"struct ModFile"` 后按可打印 run 打印 serde 字段池，
+  不要靠猜；日志/changelog 同样内嵌在 exe 里。
+- 范围纪律：cdmm 是加载器，唯一职责是“把模组挂载进游戏”。只对齐 DMM 的挂载逻辑
+  （怎么识别模组文件、怎么把补丁写进表与 overlay），不对齐 DMM 的管理器功能
+  （baseline/Establish、Steam 校验、ASI 管理、Mod Builder、预设、整合包、浏览器模组、
+  汉化包、贴图降质等）。`modinfo.json`/`manifest.json`/`mod.json`/`dmm_pack.json`
+  属于作者写给管理器的声明信息，不是模组内容：不读取、不解析、不参与挂载决策，
+  只保证它们不会被当成游戏文件写进 overlay。
+- 本次对齐新增的行为（都有回归用例，见 `test/test_dmm_format_compat.py`）：
+  - `scanner._has_patch_bytes` 必须把 `type: "insert"` + `bytes` 视为有效载荷，
+    否则纯插入型传统 JSON 模组会被整个漏识别。
+  - `autorelocate_disable`（文档级/change 级）必须真正禁止模糊重定位，
+    对应 DMM 日志“literal offsets only”；忽略它会让补丁写到无关记录上。
+  - `dmm_offset` 仅作为 `offset` 缺失时的兼容别名，禁止反过来覆盖 `offset`。
+  - Format 3 的 DMM 调参器字段（`where`/`optional`/`merge_key`/`factor`/`clamp`/
+    `guard_min`/`guard_max`/`value_type`）当前只按原因跳过，绝不忽略后直接写 `new`。
+- 仍未支持、必须显式报错的项：调参器求解、`field_path`、`data`。
+  清单见上面那份 reference，扩实现前先读它。
+- 2026-09-17 字节级复验（真实 2.02.00 归档、12 个模组、强制冷构建）：Format 3 bridge
+  `288 生成补丁 / 0 跳过`；`nppv3_stringinfo` 263/263、`nppsa` characterinfo 25/25、
+  `nppgen` 的 `inventory.staticinfobody` 16/16 全部命中且与 vanilla 字节不同；
+  standalone 分配 `0041/0042/0043` 并注册进重建 PAPGT，PATHC 401 条 DDS 映射。
+  唯一的 1 条 error 来自强制冷构建脚本自身禁用了复核，不是业务失败。
+  删除 metadata 相关代码后完整 `test/` 为 561 passed（上一节写的 549 是当时那次
+  修复的点位记录，不是当前值）、`ruff check .` 通过。
+  这是构建与字节级记录，仍不等于实机确认。
+
+## 2026-09-17 冷构建目标解析 + PABGH 修正回归（Equip Everything 暴露的两处加载器 bug）
+
+- 触发：用户实机跑 `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning`，
+  构建直接失败，报 `cdmod语义计划-<hash>: Format 3 目标未找到：characterinfo.pabgb /
+  equipslotinfo.pabgb / iteminfo.pabgb / stringinfo.pabgb`。新增模组
+  `Equip Everything V8.0.json` 是 Format 3（equipslotinfo 13 条 + iteminfo 2381 条
+  `prefab_data_list` set）。
+- 教训（重要）：跑 `force_cold_build.py` **不能**证明冷构建可用——它只绕过整包复用，
+  不绕过 `.cdloader/pamt_target_cache.json`。目标是热缓存命中时 `find_best()` 直接返回
+  缓存值，会把冷路径的 bug 全部掩盖（本次就是这样先“验证通过”了一次）。任何涉及
+  目标发现/表解析的修复，必须在无 `pamt_target_cache.json` 的状态下复现一遍；
+  本机用 `.diagnostics/probe_alias_cold.py` 直接探测目标解析。
+- bug 1（目标发现，报错型）：2.01 表别名只在“匹配失败之后”才补登记，而那时所有 PAMT
+  已按旧名过滤解析完毕；补扫结果只写回索引、不回写本轮局部候选，于是真实存在的
+  `gamedata/iteminfo.staticinfobody` 永远进不了候选，`find_best("iteminfo.pabgb")`
+  返回 None。修复：在 `find_best()` 进入目录预筛选**之前**就
+  `register_target(alias_normalized)`，让别名 basename 参与同一轮预筛选。
+- bug 2（表头修正，静默损坏，更危险）：`_apply_format3_changes_to_current_base()` 的
+  PABGH 修正被 `elif inserts_out and game_file.lower().endswith(".pabgb")` 挡掉，而
+  2.01+ 的 `game_file` 是 `gamedata/iteminfo.staticinfobody`，永远不匹配。后果：
+  iteminfo body 少 33,672 字节、header 与 vanilla 逐字节相同，6813 条记录里 2799 条
+  偏移错位（记录名解析落在记录中间），而构建日志 0 error / 0 warning，属于
+  “看起来成功、游戏读错行”的典型。修复：新增
+  `pamt_index_service.is_table_body_target()` / `is_table_header_target()`，
+  `format3_loader` 与 `json_loader`（5 处）一律改用它；
+  `game_file.rsplit(".", 1)[0] + ".pabgh"` 这类手拼 companion 全部改为
+  `table_header_target()`（`_build_pabgh_companion`、`_default_companion_target` 等）。
+- 同类一致性修复：`collect_format3_pamt_targets()`、`collect_semantic_pamt_targets()`、
+  `cdmod_general_loose_converter.allow_table_replace`、`vfs_loader` 分包路由——新名
+  表体/表头之前因后缀不匹配被塞进 `nppsa`，现在按契约进 `nppgen`（characterinfo 已
+  回到 `nppgen`）。判断“是不是表体/表头”只有 `is_table_body_target()` /
+  `is_table_header_target()` 两个入口，禁止再写 `.endswith(".pabgb")` 式后缀判断。
+- 新增强制校验：`.diagnostics/verify_table_consistency.py`。它对每个 overlay 包里的
+  表体，用 companion header 的每个 offset 去 body 解析记录名，失败数必须为 0。
+  本次修复后 5 张表全部 0 失败：`nppv3_stringinfo 31755`、`nppv3_iteminfo 6813`、
+  `nppgen` characterinfo 7250、`nppgen` inventory 21、`nppv3_equipslotinfo 17`。
+- 2026-09-17 复验（13 个模组、强制冷构建、真实 2.02.00 归档）：
+  `Format 3 bridge: 处理 1 个模组、4 个目标，2673 个生成补丁`；stringinfo 263/263、
+  characterinfo 25/25、inventory 16/16；Equip Everything `equipslotinfo 3/3`、
+  `iteminfo 2381/2381`（声明 key 全部命中，undeclared 0，declared_unchanged 0，
+  记录数 6813 不变）；PATHC 401 条 DDS 映射；standalone `0041/0042/0043`；
+  18 个映射文件。回归基线：完整 `test/` 564 passed、`ruff check .` 通过。
+  以上是构建与字节级记录。实机状态见下文 v9.4.0 打包段的“实机验证状态（2026-09-17）”：
+  用户已实机进入游戏、模组正常加载，但只做了部分抽查，**尚未全量测试**。
+- 诊断脚本陷阱：`verify_inventory.py` / `verify_snapshot.py` 曾按 PAMT 顺序取条目，
+  同包多表时会取错表（表现为 inventory 0/16）。已改为按 basename 跨包查找；
+  后续诊断脚本不要假设“一个包只有一张表”。
+
 ## 项目定位
 
 - 当前目录：`T:\python_pro\cdmm`
@@ -365,6 +531,7 @@ xxx.pabgh
 
 要点：
 
+- 2.01.00 起数据表物理归档更名为 `*.staticinfobody` / `*.staticinfoheader` 并移入 `gamedata/binarystaticinfo__/bin/`；本节与模组目标里写的 `.pabgb/.pabgh` 属于逻辑名，加载器会按 PAMT 索引自动别名到真实 entry（详见上文“2026-09-04 Crimson Desert 2.01.00 结构迁移与加载器 v9.3.9 基线”）。
 - `.pabgb` 是主要数据。
 - `.pabgh` 常保存行偏移或索引信息。
 - 如果 `.pabgb` 的行长度发生变化，必须同步修 `.pabgh` offset。

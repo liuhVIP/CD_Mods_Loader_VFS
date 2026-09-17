@@ -17,7 +17,12 @@ from cdmm.services.cdmod_converter import (
     _write_cdmod_zip,
 )
 from cdmm.services.loose_file_service import _infer_dds_target_from_pathc
-from cdmm.services.pamt_index_service import get_game_pamt_index, register_game_pamt_targets
+from cdmm.services.pamt_index_service import (
+    get_game_pamt_index,
+    is_table_body_target,
+    is_table_header_target,
+    register_game_pamt_targets,
+)
 from cdmm.utils.path_utils import lower_game_rel_path
 
 # 全新资源目录没有 vanilla sibling 时，只允许按稳定的游戏顶层分区回退。
@@ -76,7 +81,7 @@ def convert_general_loose_to_cdmod(
                 "sha256": digest,
                 "size": len(content),
                 "allow_new": allow_new,
-                "allow_table_replace": target.endswith((".pabgb", ".pabgh")),
+                "allow_table_replace": is_table_body_target(target) or is_table_header_target(target),
             }
         )
         documents[payload_path] = content

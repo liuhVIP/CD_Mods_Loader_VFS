@@ -24,6 +24,21 @@ FORMAT3_NEW_RECORD_FIELD = "__new_record__"
 # 待改字段，运行层负责安全跳过并提示，避免整个模组被解析层拒绝。
 FORMAT3_CLONE_RECORD_FIELD = "__clone_record__"
 
+# DMM 的 Intent 结构还带一组“调参器”字段（Typed Tuning / Mod Builder）。
+# 它们要求按 vanilla 现值做乘法、夹取与条件判断才能算出新值，cdmm 的
+# writer 目前不实现这套语义。这里显式识别并交给运行层按原因跳过，
+# 绝不忽略它们后直接写 `new` —— 那会把调参模组写成错误的固定值。
+FORMAT3_TUNER_INTENT_KEYS = (
+    "where",
+    "optional",
+    "merge_key",
+    "factor",
+    "clamp",
+    "guard_min",
+    "guard_max",
+    "value_type",
+)
+
 # 先迁入参考仓库里已经被真实模组验证过的 iteminfo 字段别名，统一在解析层
 # 归一化，避免 capability / writer 重复维护多套命名。
 _ITEMINFO_FIELD_ALIASES: dict[str, str] = {
@@ -60,6 +75,8 @@ class Format3Intent:
     new: Any
     old: str | None = None
     match: dict[str, Any] | None = None
+    # 出现在原始 intent 里但当前 writer 不支持的 DMM 调参器字段。
+    tuner_keys: tuple[str, ...] = ()
 
     def to_legacy_dict(self) -> dict[str, Any]:
         """转换为当前独立加载器 writer 仍在使用的 dict 结构。"""
@@ -176,9 +193,15 @@ def _parse_intents(raw_intents: object, label: str) -> tuple[Format3Intent, ...]
                 new=value,
                 old=raw_old,
                 match=match_spec,
+                tuner_keys=_collect_tuner_keys(raw_intent),
             )
         )
     return tuple(intents)
+
+
+def _collect_tuner_keys(raw_intent: dict[str, Any]) -> tuple[str, ...]:
+    """收集当前 writer 尚不支持的 DMM 调参器字段名。"""
+    return tuple(key for key in FORMAT3_TUNER_INTENT_KEYS if key in raw_intent)
 
 
 def _read_intent_value(raw_intent: dict[str, Any], label: str) -> Any:

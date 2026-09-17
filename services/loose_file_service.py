@@ -35,8 +35,20 @@ logger = logging.getLogger(__name__)
 _DDS_TEXTURE_DIR_NAME = "texture"
 _PATHC_HASH_CACHE: dict[tuple[str, int, int], tuple[int, ...]] = {}
 
-# Windows/macOS 自动生成的目录元数据不是游戏资源，禁止写入 overlay。
-_IGNORED_LOOSE_FILE_NAMES = frozenset({"desktop.ini", "thumbs.db", ".ds_store"})
+# Windows/macOS 自动生成的目录元数据，以及 DMM 放在模组里的作者声明文件
+# （modinfo.json/manifest.json/mod.json/dmm_pack.json）都不是游戏资源——原版
+# 归档里不存在这些路径——一律不参与加载。
+_IGNORED_LOOSE_FILE_NAMES = frozenset(
+    {
+        "desktop.ini",
+        "thumbs.db",
+        ".ds_store",
+        "modinfo.json",
+        "manifest.json",
+        "mod.json",
+        "dmm_pack.json",
+    }
+)
 
 
 def build_loose_overlay_entries(

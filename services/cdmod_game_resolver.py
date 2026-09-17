@@ -16,7 +16,11 @@ from cdmm.services.format3_loader import (
 )
 from cdmm.services.json_loader import extract_plaintext
 from cdmm.services.pab_table_service import build_entry_bounds, parse_pabgh_index
-from cdmm.services.pamt_index_service import get_game_pamt_index
+from cdmm.services.pamt_index_service import (
+    TABLE_BODY_SUFFIXES,
+    get_game_pamt_index,
+    table_header_target,
+)
 
 # 第一版动态选择器只支持 ItemInfo 前缀中可快速读取的装备类型字段。
 SUPPORTED_ITEMINFO_MATCH_FIELDS = frozenset({"equip_type_info"})
@@ -98,7 +102,13 @@ def _load_iteminfo_match_records(game_dir: Path) -> tuple[list[dict[str, object]
     body_entry = index.find_best("iteminfo.pabgb", suffix=".pabgb", require_unique_best=False)
     if body_entry is None:
         return [], ("无法在游戏 PAMT 中定位 iteminfo.pabgb",)
-    header_target = body_entry.path.rsplit(".", 1)[0] + ".pabgh"
+    # 2.01 uses ``staticinfoheader`` companion; derive from the actual body
+    # entry rather than the legacy target spelling.
+    body_path = body_entry.path
+    if body_path.lower().endswith(TABLE_BODY_SUFFIXES):
+        header_target = table_header_target(body_path)
+    else:
+        header_target = body_path.rsplit(".", 1)[0] + ".pabgh"
     header_entry = index.find_best(header_target, suffix=".pabgh", require_unique_best=False)
     if header_entry is None:
         return [], ("无法在游戏 PAMT 中定位 iteminfo.pabgh",)
