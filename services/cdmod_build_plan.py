@@ -30,10 +30,17 @@ CDMOD_PLAN_VALID = "VALID"
 CDMOD_PLAN_REJECTED = "REJECTED"
 
 # 构建计划schema，参与整体哈希，结构变化时必须提升。
-CDMOD_BUILD_PLAN_SCHEMA = 2
+CDMOD_BUILD_PLAN_SCHEMA = 3
 
 _STORE_STOCK_RAW_C_PATH = re.compile(r"^stock_data_list\[\d+]\.raw_c$")
 _STORE_STOCK_INDEX_PATH = re.compile(r"^stock_data_list\[(\d+)]$")
+
+# DMM Field JSON v3.1 的列表操作族。追加类只拼接元素，并集/合并类在拼接时按
+# 值去重；同一字段坐标被多个模组同时操作时，必须按加载顺序做等价合并，不能
+# 让后一个操作直接覆盖前一个，否则会静默丢掉前序模组追加的成员。
+_LIST_APPEND_OPS = frozenset({"list_append", "array_append"})
+_LIST_UNION_OPS = frozenset({"list_union", "list_merge"})
+_LIST_OPS = _LIST_APPEND_OPS | _LIST_UNION_OPS
 
 
 @dataclass(frozen=True)
@@ -46,6 +53,11 @@ class CdmodPlannedOperation:
     op: str
     payload: Any
     sources: tuple[str, ...]
+    merge_key: str | None = None
+    # 该坐标首次出现的全局序号。DMM 按加载顺序逐条应用 intent，clone_record
+    # 与列表追加的最终顺序就是输入顺序；计划层必须保留它，不能按 key 或路径
+    # 重新排序，否则同一张表的追加顺序会和 DMM 不一致。
+    order: int = 0
 
 
 @dataclass(frozen=True)
@@ -166,6 +178,7 @@ def _merge_packages(
     record_paths: dict[tuple[str, str], list[tuple[str, str, int, str]]] = {}
     resolutions: list[str] = []
     errors: list[str] = []
+    next_order = 0
     for package in packages:
         for operation in package.operations:
             selector_identity = _selector_identity(operation)
@@ -201,10 +214,11 @@ def _merge_packages(
                 )
             )
             coordinate = (*record_key, operation.path)
-            incoming = _planned_from_operation(package, operation)
+            incoming = _planned_from_operation(package, operation, next_order)
             existing = merged.get(coordinate)
             if existing is None:
                 merged[coordinate] = incoming
+                next_order += 1
                 continue
             combined, resolution, error = _merge_same_coordinate(existing, incoming)
             if error is not None:
@@ -280,6 +294,59 @@ def _merge_same_coordinate(
             f"{coordinate}: 在前序set结果上应用list_union",
             None,
         )
+    if existing.op in _LIST_OPS and incoming.op in _LIST_OPS:
+        left = _planned_list_elements(existing.payload)
+        right = _planned_list_elements(incoming.payload)
+        if existing.op in _LIST_UNION_OPS or incoming.op in _LIST_UNION_OPS:
+            # union/merge 参与时必须按值去重，保持“先追加后去重”的等价语义。
+            op = "list_merge"
+            payload = _stable_union(left, right)
+        elif existing.op == incoming.op:
+            op = existing.op
+            payload = [*left, *right]
+        else:
+            op = "list_append"
+            payload = [*left, *right]
+        return (
+            CdmodPlannedOperation(
+                target=existing.target,
+                selector=existing.selector,
+                path=existing.path,
+                op=op,
+                payload=payload,
+                sources=sources,
+                merge_key=existing.merge_key or incoming.merge_key,
+                order=existing.order,
+            ),
+            f"{coordinate}: {existing.op}+{incoming.op} 自动合并",
+            None,
+        )
+    if (
+        existing.op == "set"
+        and incoming.op in _LIST_OPS
+        and isinstance(existing.payload, list)
+    ):
+        # 前序 set 已经把整个数组替换成声明值，后续追加/并集必须叠加在该值上，
+        # 否则后加载模组的追加会被集合覆盖语义吞掉。
+        added = _planned_list_elements(incoming.payload)
+        payload = (
+            _stable_union(existing.payload, added)
+            if incoming.op in _LIST_UNION_OPS
+            else [*existing.payload, *added]
+        )
+        return (
+            CdmodPlannedOperation(
+                target=existing.target,
+                selector=existing.selector,
+                path=existing.path,
+                op="set",
+                payload=payload,
+                sources=sources,
+                order=existing.order,
+            ),
+            f"{coordinate}: 在前序 set 结果上应用 {incoming.op}",
+            None,
+        )
     # 后续set具有明确覆盖语义；相同值也统一去重为一条操作。
     return (
         CdmodPlannedOperation(
@@ -289,6 +356,8 @@ def _merge_same_coordinate(
             op=incoming.op,
             payload=incoming.payload,
             sources=sources,
+            merge_key=incoming.merge_key,
+            order=existing.order,
         ),
         f"{coordinate}: 按加载顺序由 {incoming.sources[-1]} 覆盖",
         None,
@@ -323,7 +392,11 @@ def _rejected_plan(packages: tuple[CdmodPackage, ...], reasons: tuple[str, ...])
     )
 
 
-def _planned_from_operation(package: CdmodPackage, operation: CdmodOperation) -> CdmodPlannedOperation:
+def _planned_from_operation(
+    package: CdmodPackage,
+    operation: CdmodOperation,
+    order: int = 0,
+) -> CdmodPlannedOperation:
     """保留来源模组ID并转为计划操作。"""
     return CdmodPlannedOperation(
         target=operation.target,
@@ -332,6 +405,8 @@ def _planned_from_operation(package: CdmodPackage, operation: CdmodOperation) ->
         op=operation.op,
         payload=[operation.payload] if operation.op == "array_append" else operation.payload,
         sources=(package.mod_id,),
+        merge_key=operation.merge_key,
+        order=order,
     )
 
 
@@ -392,6 +467,13 @@ def _is_parent(parent: str, child: str) -> bool:
     return child.startswith(parent) and len(child) > len(parent) and child[len(parent)] in ".["
 
 
+def _planned_list_elements(payload: Any) -> list[Any]:
+    """把列表操作的 payload 展开成按顺序追加的元素序列。"""
+    if isinstance(payload, list):
+        return list(payload)
+    return [payload]
+
+
 def _stable_union(left: Any, right: Any) -> list[Any]:
     """对JSON值数组执行支持对象元素的确定性去重并集。"""
     if not isinstance(left, list) or not isinstance(right, list):
@@ -408,22 +490,14 @@ def _stable_union(left: Any, right: Any) -> list[Any]:
 
 
 def _planned_operation_sort_key(operation: CdmodPlannedOperation) -> tuple[object, ...]:
-    """返回与输入文件枚举无关且保留 writer 依赖顺序的稳定排序键。"""
-    selector = _selector_text(operation.selector)
-    if operation.target.rsplit("/", 1)[-1].lower() == "storeinfo.pabgb":
-        indexed = _STORE_STOCK_INDEX_PATH.fullmatch(operation.path)
-        if indexed:
-            # DMM 2.00.01 的商店导出先按索引重排原版槽位，再追加剩余商品。
-            # 若按普通字典序把父路径 stock_data_list 排在子路径之前，writer
-            # 会在旧原版列表上误判 RestoreItem 重复并静默丢商品。
-            return selector, 0, int(indexed.group(1)), operation.path
-        if operation.path == "stock_data_list":
-            return selector, 1, 0, operation.path
-        if _STORE_STOCK_RAW_C_PATH.fullmatch(operation.path):
-            index = int(operation.path.split("[", 1)[1].split("]", 1)[0])
-            return selector, 2, index, operation.path
-        return selector, 3, 0, operation.path
-    return selector, operation.path
+    """返回保留输入顺序的稳定排序键。
+
+    DMM 按加载顺序逐条应用 intent，因此提交给 writer 的顺序必须等于
+    首次出现顺序（`order`）；按 selector/路径重排会让同一张表的字段写入
+    与 DMM 不一致。2026-09-17 起 storeinfo 也不例外：2.02 的 storeinfo
+    writer 改为逐字段原样写入，不再需要“先索引重排、再追加”的旧路径优先级。
+    """
+    return (operation.order, operation.path)
 
 
 def _selector_text(selector: dict[str, Any]) -> str:
@@ -439,6 +513,7 @@ def _operation_payload(operation: CdmodPlannedOperation) -> dict[str, Any]:
         "op": operation.op,
         "payload": operation.payload,
         "sources": list(operation.sources),
+        "merge_key": operation.merge_key,
     }
 
 

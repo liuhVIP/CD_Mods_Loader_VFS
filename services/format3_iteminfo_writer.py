@@ -8,7 +8,6 @@ vanilla PABGB entry 内定位目标并生成传统 byte patch。
 
 from __future__ import annotations
 
-import math
 import re
 import struct
 from typing import Any
@@ -29,6 +28,9 @@ from cdmm.services.format3_iteminfo_whole_writer import (
 from cdmm.services.format3_iteminfo_record_writer import (
     build_iteminfo_record_result,
     should_use_iteminfo_record_writer,
+)
+from cdmm.services.format3_iteminfo_clone_writer import (
+    build_iteminfo_clone_record_result,
 )
 from cdmm.services.format3_iteminfo_price_writer import (
     build_iteminfo_price_result,
@@ -89,7 +91,6 @@ LEGACY_PREFAB_SCALE_NEEDLE = struct.pack("<fff", 1.0, 1.0, 1.0)
 # 实测 1.18 原版装备记录中该字段恒为 0xEAC5E173（8 个样本全一致），
 # 旧版（1.17 及以前）没有该字段，尾部只有 3 字节。
 LEGACY_PREFAB_UNK_MAGIC = 0xEAC5E173
-LEGACY_PREFAB_UNK_TAIL_BYTES = 4
 
 # 只在单条 ItemInfo 记录尾部小窗口内扫描 legacy prefab，避免误命中普通数据。
 LEGACY_PREFAB_SCAN_TAIL_BYTES = 8192
@@ -299,6 +300,8 @@ def build_iteminfo_prefab_result(
     intents: list[Format3Intent],
 ) -> Format3DispatchResult:
     """按字段能力自动分流到窄 writer 或 whole-table writer。"""
+    if any(intent.op == "clone_record" for intent in intents):
+        return build_iteminfo_clone_record_result(context, intents)
     name_index = (
         context.entry_name_index
         if context.entry_name_index is not None
@@ -524,34 +527,16 @@ def _build_iteminfo_prefab_list_result(
         try:
             existing, field_start, field_end = parse_iteminfo_prefab_data_list(entry_bytes)
         except Exception as exc:
-            legacy_change, legacy_reason = _build_legacy_prefab_list_change(
-                entry_bytes,
-                entry_off,
-                entry_name,
-                name_end,
-                intent,
+            skipped.append(
+                Format3SkippedIntent(
+                    intent=intent,
+                    reason=f"iteminfo prefab_data_list 定位失败：{exc}",
+                )
             )
-            if legacy_change is not None:
-                changes.append(legacy_change)
-                continue
-            reason = legacy_reason or f"iteminfo prefab_data_list 定位失败：{exc}"
-            skipped.append(Format3SkippedIntent(intent=intent, reason=reason))
             continue
 
         new_value, reason = _coerce_prefab_data_list(existing, intent.new)
         if reason is not None:
-            legacy_change, legacy_reason = _build_legacy_prefab_list_change(
-                entry_bytes,
-                entry_off,
-                entry_name,
-                name_end,
-                intent,
-            )
-            if legacy_change is not None:
-                changes.append(legacy_change)
-                continue
-            if legacy_reason is not None:
-                reason = f"{reason}；legacy fallback 未生效：{legacy_reason}"
             skipped.append(Format3SkippedIntent(intent=intent, reason=reason))
             continue
         if not shape_matches(existing, new_value):
@@ -750,120 +735,6 @@ def _build_legacy_visual_copy_change(
             "label": f"{target_name}.legacy_visual_copy",
         },
         None,
-    )
-
-
-def _build_legacy_prefab_list_change(
-    entry_bytes: bytes,
-    entry_off: int,
-    entry_name: str,
-    name_end: int,
-    intent: Format3Intent,
-) -> tuple[dict | None, str | None]:
-    """生成 DMM V3 legacy prefab-list 的整段替换补丁。"""
-    block = _locate_legacy_prefab_data_list(entry_bytes, intent.new)
-    if block is None:
-        return None, "未定位到 DMM V3 legacy prefab_data_list 尾部块"
-
-    start, end = block
-    # 以原版块实际尾部形态打包：1.18 元素尾部含 u32 unk，旧版没有。
-    # 避免把新游戏字节错误地按旧 3 字节尾部生成，或反之。
-    has_unk_tail = (
-        _consume_legacy_prefab_data_list_with_tail(entry_bytes, start, unk_tail=True)
-        is not None
-    )
-    patched = _pack_legacy_prefab_data_list(intent.new, include_unk_tail=has_unk_tail)
-    if patched is None:
-        return None, "prefab_data_list 不是 DMM V3 legacy 结构"
-
-    original = entry_bytes[start:end]
-    if original == patched:
-        return None, "目标字节已是期望值"
-
-    return {
-        "entry": entry_name or str(intent.entry or intent.key),
-        "rel_offset": entry_off + start - name_end,
-        "original": original.hex(),
-        "patched": patched.hex(),
-        "label": f"{intent.entry or intent.key}.prefab_data_list",
-    }, None
-
-
-def _pack_legacy_prefab_data_list(value: object, *, include_unk_tail: bool = True) -> bytes | None:
-    """按 DMM V3 / Equip Everything V6 的 legacy prefab 尾部结构打包。
-
-    1.18（EXE 1.0.0.2443）起每个元素在 tribe_gender_list 后新增 u32
-    unk 字段（恒为 0xEAC5E173），再跟 3 个尾字节。旧版没有该字段。
-    include_unk_tail=True 时输出 1.18 新版 7 字节尾部；False 输出旧版
-    3 字节尾部（保留给旧游戏版本兼容路径）。
-    """
-    if not isinstance(value, list):
-        return None
-
-    out = bytearray(struct.pack("<I", len(value)))
-    for item in value:
-        if not isinstance(item, dict):
-            return None
-        prefab_names = item.get("prefab_names") or []
-        animation_paths = item.get("animation_path_list") or []
-        equip_slots = item.get("equip_slot_list") or []
-        tribe_genders = item.get("tribe_gender_list") or []
-        craft_material = item.get("is_craft_material", 0)
-        use_gimmick_prefab = item.get("use_gimmick_prefab", 0)
-        prefab_data_type = item.get("prefab_data_type", 0)
-        scale = _pack_legacy_scale(item.get("scale", (1.0, 1.0, 1.0)))
-        if scale is None:
-            return None
-        if not _is_u32_list(prefab_names):
-            return None
-        if not _is_u32_list(animation_paths):
-            return None
-        if not _is_u16_list(equip_slots):
-            return None
-        if not _is_u32_list(tribe_genders):
-            return None
-        if not all(
-            _is_u8(value)
-            for value in (craft_material, use_gimmick_prefab, prefab_data_type)
-        ):
-            return None
-
-        out += scale
-        out += _pack_u32_array(prefab_names)
-        out += _pack_u32_array(animation_paths)
-        out += _pack_u16_array(equip_slots)
-        out += _pack_u32_array(tribe_genders)
-        if include_unk_tail:
-            # 1.18 新增：tribe 后固定 u32 unk 标记。
-            out += struct.pack("<I", LEGACY_PREFAB_UNK_MAGIC)
-        # 三个尾字节均是实际字段，V8 中 prefab_data_type 大量使用值 3。
-        out += struct.pack("<BBB", craft_material, use_gimmick_prefab, prefab_data_type)
-    return bytes(out)
-
-
-def _pack_legacy_scale(value: object) -> bytes | None:
-    """校验并序列化 legacy PrefabData 的三个 f32 缩放值。"""
-    if not isinstance(value, (list, tuple)) or len(value) != 3:
-        return None
-    if not all(
-        isinstance(item, (int, float))
-        and not isinstance(item, bool)
-        and math.isfinite(float(item))
-        for item in value
-    ):
-        return None
-    try:
-        return struct.pack("<fff", *(float(item) for item in value))
-    except (OverflowError, struct.error):
-        return None
-
-
-def _is_u8(value: object) -> bool:
-    """判断值能否安全写入无符号单字节字段。"""
-    return (
-        isinstance(value, int)
-        and not isinstance(value, bool)
-        and 0 <= value <= 0xFF
     )
 
 
@@ -1075,16 +946,6 @@ def _first_prefab_hash(value: object) -> int | None:
         if isinstance(first, int) and not isinstance(first, bool) and 0 <= first <= 0xFFFFFFFF:
             return first
     return None
-
-
-def _pack_u32_array(values: list[int]) -> bytes:
-    """打包 CArray<u32>。"""
-    return struct.pack("<I", len(values)) + b"".join(struct.pack("<I", item) for item in values)
-
-
-def _pack_u16_array(values: list[int]) -> bytes:
-    """打包 CArray<u16>。"""
-    return struct.pack("<I", len(values)) + b"".join(struct.pack("<H", item) for item in values)
 
 
 def _build_single_change_with_reason(
@@ -1692,14 +1553,6 @@ def _is_u32_list(value: object) -> bool:
     """判断新值是否为可写入 CArray<u32> 的列表。"""
     return isinstance(value, list) and all(
         isinstance(item, int) and not isinstance(item, bool) and 0 <= item <= 0xFFFFFFFF
-        for item in value
-    )
-
-
-def _is_u16_list(value: object) -> bool:
-    """判断新值是否为可写入 CArray<u16> 的列表。"""
-    return isinstance(value, list) and all(
-        isinstance(item, int) and not isinstance(item, bool) and 0 <= item <= 0xFFFF
         for item in value
     )
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import struct
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
@@ -12,11 +11,9 @@ from pathlib import Path
 from cdmm.archive.pamt import parse_pamt_filtered
 from cdmm.services.json_loader import extract_plaintext
 from cdmm.services.pab_table_service import build_entry_bounds, parse_pabgh_index
-from cdmm.services.storeinfo_writer import (
-    _build_template_indexes,
-    _locate_stock_list,
-    _record_from_json,
-    _replay_current_stock_template,
+from cdmm.services.storeinfo_native_parser import (
+    parse_storeinfo_entry,
+    stock_record_from_json,
 )
 from cdmm.tools.build_all_craft_early_barber_one_copper_mod import (
     _extract_vanilla_storeinfo,
@@ -49,10 +46,12 @@ def build_diagnostic_mod(
     vanilla_body, vanilla_header = _extract_vanilla_storeinfo(game_dir)
     key_size, offsets = parse_pabgh_index(vanilla_header, "storeinfo")
     bounds = build_entry_bounds(vanilla_body, key_size, offsets)
-    by_store, by_item, generic = _build_template_indexes(vanilla_body, bounds)
-    store_templates = by_store.get(WITCH_STORE_KEY)
-    if store_templates is None:
+    if WITCH_STORE_KEY not in bounds:
         raise ValueError("current vanilla Store_Her_Witch was not parsed")
+    start, end, _name, _name_end = bounds[WITCH_STORE_KEY]
+    witch_entry = parse_storeinfo_entry(vanilla_body[start:end], key_size)
+    current_items = {record.value.payload.body for record in witch_entry.stock_data_list}
+    store_templates = witch_entry.stock_data_list
 
     selected: list[dict] = []
     selected_keys: list[int] = []
@@ -62,18 +61,11 @@ def build_diagnostic_mod(
         if intent.get("field") != "stock_data_list" or intent.get("op") != "array_append":
             continue
         value = intent.get("value", intent.get("new"))
-        requested = _record_from_json(value)
-        replayed, replay_kind = _replay_current_stock_template(
-            requested,
-            WITCH_STORE_KEY,
-            store_templates,
-            by_item,
-            generic,
-        )
-        if replayed is None or replay_kind != "item":
+        requested = stock_record_from_json(value)
+        if requested.value.payload.body not in current_items:
             continue
         selected.append(deepcopy(intent))
-        selected_keys.append(requested.body)
+        selected_keys.append(requested.value.payload.body)
 
     if len(selected) != 13:
         raise ValueError(f"expected 13 current-item witch records, got {len(selected)}")
@@ -143,17 +135,18 @@ def inspect_snapshot(snapshot: Path) -> dict[str, object]:
     key_size, offsets = parse_pabgh_index(header, "storeinfo")
     bounds = build_entry_bounds(body, key_size, offsets)
     start, end, name, _name_end = bounds[WITCH_STORE_KEY]
-    count_offset, list_end, records = _locate_stock_list(body[start:end], WITCH_STORE_KEY)
-    buyable_count = struct.unpack_from("<I", body[start:end], count_offset - 9)[0]
-    if name != WITCH_STORE_NAME or list_end > end - start:
+    entry = parse_storeinfo_entry(body[start:end], key_size)
+    records = entry.stock_data_list
+    buyable_count = entry.buyable_stock_count
+    if name != WITCH_STORE_NAME:
         raise ValueError("witch StoreInfo entry boundary is invalid")
 
-    by_store, _by_item, _generic = _build_template_indexes(body, bounds)
     restore_stores: dict[int, set[int]] = defaultdict(set)
-    for store_key, store_records in by_store.items():
-        for record in store_records:
+    for store_key, (store_start, store_end, _n, _ne) in bounds.items():
+        store_entry = parse_storeinfo_entry(body[store_start:store_end], key_size)
+        for record in store_entry.stock_data_list:
             if record.is_restore_item:
-                restore_stores[record.body].add(store_key)
+                restore_stores[record.value.payload.body].add(store_key)
     duplicate_restore = {
         item_key: sorted(store_keys)
         for item_key, store_keys in restore_stores.items()
@@ -163,9 +156,9 @@ def inspect_snapshot(snapshot: Path) -> dict[str, object]:
         "entries": len(bounds),
         "witch_count": len(records),
         "witch_buyable_count": buyable_count,
-        "witch_unique_items": len({record.body for record in records}),
-        "witch_item_keys": [record.body for record in records],
-        "witch_discriminators": sorted({record.disc for record in records}),
+        "witch_unique_items": len({record.value.payload.body for record in records}),
+        "witch_item_keys": [record.value.payload.body for record in records],
+        "witch_discriminators": sorted({record.value.disc for record in records}),
         "duplicate_restore_items": len(duplicate_restore),
     }
 

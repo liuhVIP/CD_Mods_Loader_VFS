@@ -27,9 +27,22 @@ from cdmm.services.cdmod_converter import (
 )
 
 # 允许的语义操作，未知操作必须显式拒绝，不能静默跳过。
-# array_append 与 Format 3 内存路径、计划合并层、桥接层和表 writer 保持一致；
-# convert_format3_to_cdmod 会原样保留该 op，不能只支持内存路径而拒绝 cdmod 文件。
-SUPPORTED_CDMOD_OPERATIONS = frozenset({"set", "list_union", "array_append"})
+# 这些 op 与 Format 3 内存路径、计划合并层、桥接层和表 writer 保持一致；
+# convert_format3_to_cdmod 会原样保留 op，不能只支持内存路径而拒绝 cdmod 文件。
+# DMM Field JSON v3.1 的列表操作（list_union/list_append/list_merge）与
+# clone_record/new_record 必须同样放行，否则转换后的 cdmod 会比原 JSON 少一
+# 批操作却仍然加载成功。
+SUPPORTED_CDMOD_OPERATIONS = frozenset(
+    {
+        "set",
+        "list_union",
+        "list_append",
+        "list_merge",
+        "array_append",
+        "clone_record",
+        "new_record",
+    }
+)
 
 # 同一次 scan/apply 会在目标收集、JSON、语义、资源和 standalone 阶段重复读取包。
 # 以文件状态为键缓存严格解析结果，文件变化后自然失效。
@@ -244,6 +257,9 @@ class CdmodOperation:
     payload: Any
     conversion: str
     index: int
+    # DMM `list_merge` 的去重/合并字段名（例如 itemgroupinfo 的
+    # `item_info_list` 用 `merge_key: "key"`）。缺失时按元素值本身去重。
+    merge_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -256,6 +272,9 @@ class CdmodLocalizationChange:
     index: int
     op: str = "set"
     suffix: str | None = None
+    # `op="insert"`（DMM Format 3 paloc `new_record`）新增记录时必须给出
+    # category 字节，用于定位归属的拆分字符串表。
+    category: int | None = None
 
 
 @dataclass(frozen=True)
@@ -995,6 +1014,9 @@ def _parse_operation(
     payload = raw[payload_key]
     if op == "list_union" and not isinstance(payload, list):
         raise ValueError(f"{label}.values 必须是数组")
+    merge_key = raw.get("merge_key")
+    if merge_key is not None and not isinstance(merge_key, str):
+        raise ValueError(f"{label}.merge_key 必须是字符串")
     return CdmodOperation(
         target=target,
         selector=selector,
@@ -1003,6 +1025,7 @@ def _parse_operation(
         payload=payload,
         conversion=str(raw.get("conversion") or "native"),
         index=index,
+        merge_key=merge_key,
     )
 
 

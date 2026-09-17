@@ -116,7 +116,18 @@ GAME_EXECUTABLE_MTIME_STATE_KEY = "game_executable_mtime_ns"
 # v19 invalidates snapshots built before DMM ``autorelocate_disable`` and insert-only
 # byte patches were honored: the mod set fingerprint is unchanged but the produced
 # package content can differ, so an old snapshot would mask the fix.
-VFS_STATE_SCHEMA = 19
+# v20 invalidates snapshots built before characterinfo `character_reward_data_list` /
+# `equip_item_info_list[N].equip_item_info`、skill `buff_level_list[L][B].base.carray_u16`、
+# multichangeinfo / dropsetinfo clone_record 等 Format 3 语义补丁可用：模组指纹不变，
+# 但旧快照会把这些 intent 静默跳过，必须冷构建一次。
+# v21 invalidates snapshots built before cdmod 计划/桥接层保真传递
+# clone_record / list_append / list_merge / list_union：旧快照是在“所有操作被压成
+# set”的旧桥接下生成的，同源模组会缺 iteminfo 克隆物品、characterinfo 奖励追加、
+# itemgroupinfo 成员合并等结果，必须冷构建一次。
+# v22 invalidates snapshots built before the 2.02.00 storeinfo writer rewrite:
+# the old writer silently skipped every storeinfo intent, so the same mod set
+# produced snapshots without the store stock/count/reset-day patches.
+VFS_STATE_SCHEMA = 22
 
 # 活动快照物化模式写入状态，确保旧复制快照只冷构建一次后切换到硬链接。
 VFS_MATERIALIZATION_MODE = "hardlink"
@@ -128,7 +139,9 @@ VFS_EMPTY_MAPPING_WARNING = "没有生成 VFS overlay entry，已使用空映射
 # PAC_XML）恢复游戏原生加密标记。v5 修正 2.01/2.02 表头 companion
 # 定位后 Format 3 分包内容会变化，必须丢弃旧分包重建。v6 加入 DMM
 # 纯插入型 change 识别与 ``autorelocate_disable`` 字面 offset 语义。
-VFS_PACKAGE_BUILD_SCHEMA = 6
+# v7 让 2.02 storeinfo 的整表重写产物进入分包缓存并丢弃旧的“跳过 storeinfo”
+# 分包。
+VFS_PACKAGE_BUILD_SCHEMA = 7
 
 # 冷构建返回后只读取文件元数据确认稳定，不重复读取或哈希大型 PAZ。
 VFS_STABILITY_CHECK_INTERVAL_SECONDS = 0.1

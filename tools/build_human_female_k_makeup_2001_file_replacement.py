@@ -1,4 +1,9 @@
-"""把 2.0.01 Human Female loose 基底与 K-Makeup 合成单一 file-replacement cdmod。"""
+"""把某一游戏版本的 Human Female loose 基底与 K-Makeup 合成单一 file-replacement cdmod。
+
+``--version`` 决定 manifest 里的 id/name/version 与 source/report 的 format 标记，
+默认为最初制作时的 ``2.00.01``。作者更新基底（例如 2.02.00 的 7.10 loose 目录）后，
+用同一个工具换 source 即可重新出包，不要另建一份只改字面量的脚本。
+"""
 
 from __future__ import annotations
 
@@ -35,7 +40,15 @@ def _read_makeup_payloads(path: Path) -> tuple[bytes, bytes, str]:
     return diffuse, normal, hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def build(source_dir: Path, makeup_package: Path, output: Path) -> None:
+DEFAULT_VERSION = "2.00.01"
+
+
+def build(
+    source_dir: Path,
+    makeup_package: Path,
+    output: Path,
+    version: str = DEFAULT_VERSION,
+) -> None:
     source_dir = source_dir.resolve()
     makeup_package = makeup_package.resolve()
     output = output.resolve()
@@ -109,14 +122,14 @@ def build(source_dir: Path, makeup_package: Path, output: Path) -> None:
     documents[CDMOD_MANIFEST_PATH] = {
         "format": CDMOD_FORMAT_NAME,
         "format_version": CDMOD_FORMAT_VERSION,
-        "id": "human-female-k-makeup-2.00.01-file-replacement",
-        "name": "Human Female Five Witch Faces Hairstyles K-Makeup 2.00.01",
-        "version": "2.00.01",
+        "id": f"human-female-k-makeup-{version}-file-replacement",
+        "name": f"Human Female Five Witch Faces Hairstyles K-Makeup {version}",
+        "version": version,
         "author": "cdmm rebuild; K-Makeup textures by maru12259",
-        "description": "2.00.01-compatible Human Female face and hairstyle slots with K-Makeup.",
+        "description": f"{version}-compatible Human Female face and hairstyle slots with K-Makeup.",
         "dependencies": [],
         "source": {
-            "format": "2.00.01-loose-file-replacement",
+            "format": f"{version}-loose-file-replacement",
             "human_female_source": hashlib.sha256(
                 b"".join(
                     path.read_bytes()
@@ -136,7 +149,7 @@ def build(source_dir: Path, makeup_package: Path, output: Path) -> None:
     }
     documents[CDMOD_REPORT_PATH] = {
         "schema": 1,
-        "format": "2.00.01-file-replacement",
+        "format": f"{version}-file-replacement",
         "source_file_count": len(files) - len(makeup_targets),
         "makeup_target_count": len(makeup_targets),
         "standalone_removed": True,
@@ -152,8 +165,13 @@ def main() -> int:
     parser.add_argument("source_dir", type=Path)
     parser.add_argument("makeup_package", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument(
+        "--version",
+        default=DEFAULT_VERSION,
+        help="写入 manifest 的游戏版本标记，例如 2.02.00",
+    )
     args = parser.parse_args()
-    build(args.source_dir, args.makeup_package, args.output)
+    build(args.source_dir, args.makeup_package, args.output, args.version)
     return 0
 
 

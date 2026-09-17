@@ -19,16 +19,18 @@ from cdmm.services.format3_runtime import (
     Format3SkippedIntent,
 )
 from cdmm.services.iteminfo_native_parser import (
-    LANTERN_EQ_TYPE,
     _ITEM_FIELDS,
     _Reader,
-    _read_ItemInfoSharpnessData,
+    read_iteminfo_field,
 )
 
 # 本 writer 只声明 DMM 已验证的武器特效字段，避免误处理未知 ItemInfo 结构。
 ITEMINFO_RECORD_DIRECT_FIELDS = frozenset(
     {
         "cooltime",
+        "cooltime.a",
+        "cooltime.b",
+        "cooltime.c",
         "is_blocked",
         "max_endurance",
         "equipable_hash",
@@ -40,13 +42,34 @@ ITEMINFO_RECORD_DIRECT_FIELDS = frozenset(
         "gimmick_info",
         "item_charge_type",
         "max_charged_useable_count",
+        "max_charged_useable_count.a",
+        "max_charged_useable_count.b",
+        "max_charged_useable_count.c",
         "unk_post_max_charged_a",
         "unk_post_max_charged_b",
         "respawn_time_seconds",
     }
 )
 
-_DEFAULT_TO_DOCKING_FLAG_BACKTRACK = 34
+# 旧版 Field JSON 把 Cooltime{ a, b, c } 展开成三个平铺字段；这里保留
+# 旧名到结构体下标的映射，新旧模组走同一条写入路径。
+_COOLTIME_FIELD_INDEX = {
+    "cooltime": 0,
+    "cooltime.a": 0,
+    "unk_post_cooltime_a": 1,
+    "cooltime.b": 1,
+    "unk_post_cooltime_b": 2,
+    "cooltime.c": 2,
+}
+
+_MAX_CHARGED_FIELD_INDEX = {
+    "max_charged_useable_count": 0,
+    "max_charged_useable_count.a": 0,
+    "unk_post_max_charged_a": 1,
+    "max_charged_useable_count.b": 1,
+    "unk_post_max_charged_b": 2,
+    "max_charged_useable_count.c": 2,
+}
 
 
 def should_use_iteminfo_record_writer(intents: list[Format3Intent]) -> bool:
@@ -177,8 +200,8 @@ def _apply_record_intent(record: bytearray, intent: Format3Intent) -> tuple[bool
     if layout is None:
         return False, "iteminfo 武器尾部布局定位失败"
 
-    if field in {"cooltime", "unk_post_cooltime_a", "unk_post_cooltime_b"}:
-        index = ("cooltime", "unk_post_cooltime_a", "unk_post_cooltime_b").index(field)
+    if field in _COOLTIME_FIELD_INDEX:
+        index = _COOLTIME_FIELD_INDEX[field]
         packed = _pack_i64(intent.new)
         if packed is None:
             return False, f"{field} 的 new 值类型不合法"
@@ -190,24 +213,19 @@ def _apply_record_intent(record: bytearray, intent: Format3Intent) -> tuple[bool
             return False, "item_charge_type 的 new 值类型不合法"
         return _replace_fixed(record, layout["item_charge_type"], 1, packed), None
 
-    if field in {"max_charged_useable_count", "unk_post_max_charged_a", "unk_post_max_charged_b"}:
-        index = (
-            "max_charged_useable_count",
-            "unk_post_max_charged_a",
-            "unk_post_max_charged_b",
-        ).index(field)
+    if field in _MAX_CHARGED_FIELD_INDEX:
+        index = _MAX_CHARGED_FIELD_INDEX[field]
         packed = _pack_u32(intent.new)
         if packed is None:
             return False, f"{field} 的 new 值类型不合法"
         return _replace_fixed(record, layout["max_charged"] + index * 4, 4, packed), None
 
     if field == "respawn_time_seconds":
-        # DMM 1.4.9.1 对该 Field JSON 写入的是 4 字节秒数；后续 0xffff
-        # 片段属于相邻尾部字段，不能按旧 parser 的 i64 全覆盖。
-        packed = _pack_u32(intent.new)
+        # 当前 schema 的 respawn_time_seconds 是 i64；按 8 字节整字段写入。
+        packed = _pack_i64(intent.new)
         if packed is None:
             return False, "respawn_time_seconds 的 new 值类型不合法"
-        return _replace_fixed(record, layout["respawn_time_seconds"], 4, packed), None
+        return _replace_fixed(record, layout["respawn_time_seconds"], 8, packed), None
 
     if field == "docking_child_data":
         packed = _pack_docking_child_optional(intent.new)
@@ -245,161 +263,45 @@ def _locate_schema_field(record: bytes | bytearray, field_name: str) -> int | No
                 return reader.pos
             _consume_iteminfo_spec(reader, spec, parsed)
     except Exception:
-        # 1.16.04 的 ItemInfo 将 item_tag_list 计数收窄为 u16。旧 schema
-        # 仍需保留给已经验证的其它字段；这里只对本次实际需要的
-        # equipable_hash 做严格新版前缀回退，避免扩大未知布局的支持范围。
-        if field_name == "equipable_hash":
-            return _locate_equipable_hash_current_layout(bytes(record))
-        return None
-    return None
-
-
-def _locate_equipable_hash_current_layout(record: bytes) -> int | None:
-    """按当前 ItemInfo 前缀定位 equipable_hash。
-
-    当前版本只改变了 ``item_tag_list`` 的计数宽度，后续字段仍沿用
-    native parser 的定义。候选必须完整消费到 equipable_hash 且计数在
-    当前记录边界内，失败或越界时宁可跳过，不做模糊扫描。
-    """
-    reader = _Reader(record, 0, rec_end=len(record))
-    parsed: dict[str, Any] = {}
-    try:
-        for spec in _ITEM_FIELDS:
-            name = spec[0]
-            if name == "equipable_hash":
-                if reader.pos + 4 > len(record):
-                    return None
-                return reader.pos
-            if name == "item_tag_list":
-                count = reader.u16()
-                if count > 4096 or reader.pos + count * 4 > len(record):
-                    return None
-                parsed[name] = [reader.u32() for _ in range(count)]
-                continue
-            _consume_iteminfo_spec(reader, spec, parsed)
-    except (IndexError, struct.error, ValueError):
         return None
     return None
 
 
 def _consume_iteminfo_spec(reader: _Reader, spec: tuple, parsed: dict[str, Any]) -> None:
     """消费一个 ItemInfo 字段；只用于定位，不做完整语义校验。"""
-    name, kind = spec[0], spec[1]
-    if name == "item_desc" and parsed.get("equip_type_info") == LANTERN_EQ_TYPE:
-        reader.u32()
-        reader.u32()
-        reader.u32()
-
-    if kind == "u8":
-        parsed[name] = reader.u8()
-    elif kind == "u16":
-        parsed[name] = reader.u16()
-    elif kind == "u32":
-        parsed[name] = reader.u32()
-    elif kind == "u64":
-        parsed[name] = reader.u64()
-    elif kind == "i64":
-        parsed[name] = reader.i64()
-    elif kind == "f32":
-        parsed[name] = reader.f32()
-    elif kind == "cstring":
-        parsed[name] = reader.cstring()
-    elif kind == "localizable":
-        parsed[name] = reader.localizable()
-    elif kind == "carray_u32":
-        parsed[name] = reader.carray(_Reader.u32)
-    elif kind == "carray_u16":
-        parsed[name] = reader.carray(_Reader.u16)
-    elif kind == "carray_cstring":
-        parsed[name] = reader.carray(_Reader.cstring)
-    elif kind == "carray":
-        parsed[name] = reader.carray(spec[2])
-    elif kind == "struct":
-        parsed[name] = spec[2](reader)
-    elif kind == "optional":
-        flag = reader.u8()
-        parsed[name] = spec[2](reader) if flag else None
-    else:
-        raise ValueError(f"未知 ItemInfo 字段类型：{kind}")
+    parsed[spec[0]] = read_iteminfo_field(reader, spec)
 
 
 def _locate_tail_layout(record: bytes | bytearray) -> dict[str, int] | None:
-    """从武器记录尾部定位 default_sub_item 后的冷却、sharpness 和 max 字段。"""
+    """按 schema 顺序定位记录尾部字段的起始偏移。
+
+    2.02.00 的 ItemInfo 已经能整条解码（`.pabgh` 边界 + 整表恒等回环验证），
+    因此尾部字段不再需要按字节特征反向扫描，直接顺序走一遍字段定义即可。
+    """
     data = bytes(record)
-    candidates: list[dict[str, int]] = []
-    for default_offset in range(max(0, len(data) - 700), max(0, len(data) - 60)):
-        type_id = data[default_offset]
-        if type_id < 14:
-            default_size = 18
-        elif type_id < 32:
-            default_size = 1
-        else:
-            continue
-
-        cooltime = default_offset + default_size
-        item_charge_type = cooltime + 24
-        sharpness = item_charge_type + 1
-        try:
-            reader = _Reader(data, sharpness, rec_end=len(data))
-            _read_ItemInfoSharpnessData(reader)
-        except Exception:
-            continue
-        max_charged = reader.pos + 1
-        if max_charged + 12 > len(data):
-            continue
-        max_values = [
-            struct.unpack_from("<I", data, max_charged + index * 4)[0]
-            for index in range(3)
-        ]
-        if not all(value <= 100 for value in max_values):
-            continue
-        if type_id < 14:
-            continue
-        respawn = _locate_respawn_from_tail(data, max_charged)
-        if respawn is None:
-            continue
-        candidates.append(
-            {
-                "default_sub_item": default_offset,
-                "cooltime": cooltime,
-                "item_charge_type": item_charge_type,
-                "max_charged": max_charged,
-                "respawn_time_seconds": respawn,
-                "docking_child_data": default_offset - _DEFAULT_TO_DOCKING_FLAG_BACKTRACK,
-            }
-        )
-
-    non_zero_max = [
-        item
-        for item in candidates
-        if any(struct.unpack_from("<I", data, item["max_charged"] + index * 4)[0] > 0 for index in range(3))
-    ]
-    preferred = non_zero_max or candidates
-    if not preferred:
-        return None
-    # 真实武器记录的 default_sub_item type 通常是 17；若还有多个候选，取最靠后的非零 max。
-    type_17 = [item for item in preferred if data[item["default_sub_item"]] == 17]
-    selected = type_17 or preferred
-    return max(selected, key=lambda item: item["default_sub_item"])
-
-
-def _locate_respawn_from_tail(data: bytes, max_charged_offset: int) -> int | None:
-    """从 max_charged 后继续走尾部 schema，定位 respawn_time_seconds 起点。"""
-    field_names = [spec[0] for spec in _ITEM_FIELDS]
+    reader = _Reader(data, 0, rec_end=len(data))
+    wanted = {
+        "docking_child_data",
+        "default_sub_item",
+        "cooltime",
+        "item_charge_type",
+        "max_charged_useable_count",
+        "respawn_time_seconds",
+    }
+    offsets: dict[str, int] = {}
     try:
-        start_index = field_names.index("hackable_character_group_info_list")
-    except ValueError:
+        for spec in _ITEM_FIELDS:
+            name = spec[0]
+            if name in wanted:
+                offsets["max_charged" if name == "max_charged_useable_count" else name] = (
+                    reader.pos
+                )
+            read_iteminfo_field(reader, spec)
+    except (IndexError, struct.error, UnicodeError, ValueError):
         return None
-    reader = _Reader(data, max_charged_offset + 12, rec_end=len(data))
-    parsed: dict[str, Any] = {}
-    try:
-        for spec in _ITEM_FIELDS[start_index:]:
-            if spec[0] == "respawn_time_seconds":
-                return reader.pos
-            _consume_iteminfo_spec(reader, spec, parsed)
-    except Exception:
+    if len(offsets) != len(wanted):
         return None
-    return None
+    return offsets
 
 
 def _locate_existing_docking_child_data(record: bytes | bytearray) -> int | None:
@@ -562,22 +464,8 @@ def _locate_is_blocked(record: bytes | bytearray) -> int | None:
 
 
 def _locate_max_endurance(record: bytes | bytearray) -> int | None:
-    """定位当前 ItemInfo 尾部的 max_endurance u16。
-
-    2.00.01 在 respawn 字段与 max_endurance 之间保留 22 字节尾部布局；
-    旧布局的 8 字节候选仅作为兼容回退，并要求后续 repair count 为零，
-    避免把相邻字段中的重复 ``ffff`` 当成耐久值。
-    """
-    layout = _locate_tail_layout(record)
-    if layout is None:
-        return None
-    data = bytes(record)
-    base = layout["respawn_time_seconds"]
-    for delta in (22, 8):
-        offset = base + delta
-        if offset + 6 <= len(data) and data[offset + 2:offset + 6] == b"\x00" * 4:
-            return offset
-    return None
+    """按 schema 定位 ItemInfo 的 max_endurance u16。"""
+    return _locate_schema_field(record, "max_endurance")
 
 
 def _coerce_u16(value: object) -> int | None:

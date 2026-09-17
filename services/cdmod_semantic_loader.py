@@ -21,10 +21,13 @@ from cdmm.services.cdmod_file_loader import (
 from cdmm.services.cdmod_localization_loader import (
     build_localization_overlay_entries,
     collect_localization_pamt_targets,
+    detect_active_paloc_language,
 )
 from cdmm.services.cdmod_package import (
     CdmodOperation,
     CdmodPackage,
+    CdmodLocalizationChange,
+    CdmodLocalizationPatch,
     collect_cdmod_declared_targets,
     load_cdmod_package,
 )
@@ -34,7 +37,11 @@ from cdmm.services.cdmod_resource_loader import (
 )
 from cdmm.services.format3_loader import build_format3_overlay_entries
 from cdmm.services.format3_capabilities import partition_supported_intents
-from cdmm.services.format3_parser import parse_format3_file
+from cdmm.services.format3_parser import (
+    FORMAT3_PALOC_NEW_RECORD_OP,
+    Format3TargetSpec,
+    parse_format3_file,
+)
 from cdmm.services.pamt_index_service import (
     TABLE_BODY_SUFFIXES,
     table_body_target,
@@ -105,7 +112,7 @@ def build_semantic_overlay_entries(
     if not mods:
         return []
     initial_error_count = len(errors)
-    packages = _normalize_semantic_packages(mods, errors, warnings)
+    packages = _normalize_semantic_packages(mods, errors, warnings, game_dir=game_dir)
     # errors 是整条构建管线共享的列表。前序 file-replacement 可能记录了
     # 当前游戏已删除的资源目标，稍后会由 missing_target_policy 降级为
     # warning；不能因此跳过所有无关的 Format 3 表。这里只响应本阶段新
@@ -183,15 +190,24 @@ def _normalize_semantic_packages(
     mods: list[DiscoveredMod],
     errors: list[str],
     warnings: list[str] | None = None,
+    *,
+    game_dir: Path | None = None,
 ) -> list[CdmodPackage]:
     """保持扫描顺序，把两种语义来源标准化为同一包模型。"""
+    active_language = detect_active_paloc_language(game_dir) if game_dir is not None else None
     packages: list[CdmodPackage] = []
     for mod in mods:
         try:
             if mod.mod_type == MOD_TYPE_CDMOD:
                 packages.append(load_cdmod_package(mod.path))
             elif mod.mod_type == MOD_TYPE_FORMAT3:
-                packages.append(_format3_mod_to_package(mod, warnings))
+                packages.append(
+                    _format3_mod_to_package(
+                        mod,
+                        warnings,
+                        active_language=active_language,
+                    )
+                )
         except (OSError, ValueError) as exc:
             errors.append(f"{mod.name}: 语义模组解析失败：{exc}")
     return packages
@@ -200,10 +216,35 @@ def _normalize_semantic_packages(
 def _format3_mod_to_package(
     mod: DiscoveredMod,
     warnings: list[str] | None = None,
+    *,
+    active_language: str | None = None,
 ) -> CdmodPackage:
     """将旧Format 3内存标准化，不生成中间cdmod文件。"""
     operations: list[CdmodOperation] = []
+    localization_patches: list[CdmodLocalizationPatch] = []
+    skipped_languages: set[str] = set()
     for target_spec in parse_format3_file(mod.path):
+        paloc_intents = [
+            intent
+            for intent in target_spec.intents
+            if intent.op == FORMAT3_PALOC_NEW_RECORD_OP
+        ]
+        if paloc_intents:
+            language = _paloc_target_language(target_spec.target)
+            if active_language is None or language in (None, "*", active_language):
+                localization_patches.append(
+                    _build_paloc_patch(target_spec.target, language, paloc_intents)
+                )
+            else:
+                skipped_languages.add(language)
+            remaining = tuple(
+                intent
+                for intent in target_spec.intents
+                if intent.op != FORMAT3_PALOC_NEW_RECORD_OP
+            )
+            if not remaining:
+                continue
+            target_spec = Format3TargetSpec(target=target_spec.target, intents=remaining)
         table_name = Path(target_spec.target.replace("\\", "/")).stem.lower()
         supported, skipped = partition_supported_intents(table_name, list(target_spec.intents))
         if skipped:
@@ -224,8 +265,18 @@ def _format3_mod_to_package(
                     payload=_operation_payload(raw_operation),
                     conversion=str(raw_operation.get("conversion") or "legacy-format3"),
                     index=len(operations),
+                    merge_key=(
+                        raw_operation["merge_key"]
+                        if isinstance(raw_operation.get("merge_key"), str)
+                        else None
+                    ),
                 )
             )
+    if skipped_languages and warnings is not None:
+        warnings.append(
+            f"{mod.name}: 已跳过非当前语言的本地化目标 {len(skipped_languages)} 个："
+            + ", ".join(sorted(skipped_languages))
+        )
     return CdmodPackage(
         path=mod.path,
         mod_id=f"legacy-format3-{mod.fingerprint[:24]}",
@@ -233,9 +284,56 @@ def _format3_mod_to_package(
         version="legacy",
         dependencies=(),
         operations=tuple(operations),
+        localization_patches=tuple(localization_patches),
+    )
+
+
+def _paloc_target_language(target: str) -> str | None:
+    """从本地化目标名提取语言；拆分表或非本地化目标返回 None。"""
+    name = Path(target.replace("\\", "/")).name.lower()
+    if not name.startswith("localizationstring_"):
+        return None
+    if not name.endswith(".paloc"):
+        return None
+    return name[len("localizationstring_") : -len(".paloc")]
+
+
+def _build_paloc_patch(
+    target: str,
+    language: str | None,
+    intents,
+) -> CdmodLocalizationPatch:
+    """把 PALOC `new_record` intents 转成本地化插入补丁。"""
+    changes = tuple(
+        CdmodLocalizationChange(
+            key=intent.entry,
+            value=str(intent.new),
+            expect="",
+            index=index,
+            op="insert",
+            category=intent.key,
+        )
+        for index, intent in enumerate(intents)
+    )
+    return CdmodLocalizationPatch(
+        target=lower_game_rel_path(target),
+        language=language or "*",
+        changes=changes,
     )
 
 
 def _operation_payload(operation: dict[str, Any]) -> Any:
-    """读取转换后set/list_union的统一payload。"""
-    return operation["values"] if operation["op"] == "list_union" else operation["value"]
+    """读取转换后 set / list_union 的统一 payload。
+
+    兼容优化路径（equipslotinfo 哈希列表）会给出 `values`，而旧 Format 3 intent
+    经 `convert_format3_intent` 统一落在 `value`。两个键都必须识别，否则 skill
+    这类原生 `list_union` intent 会在目标收集阶段直接 KeyError。
+    """
+    if operation["op"] == "list_union":
+        payload = operation.get("values")
+        if payload is None:
+            payload = operation.get("value")
+        if not isinstance(payload, list):
+            raise ValueError("list_union payload 必须是数组")
+        return payload
+    return operation["value"]

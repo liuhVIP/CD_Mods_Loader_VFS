@@ -210,6 +210,8 @@ def convert_format3_intent(
     }
     if intent.old is not None:
         operation["expect"] = intent.old
+    if intent.merge_key is not None:
+        operation["merge_key"] = intent.merge_key
     return operation, False
 
 

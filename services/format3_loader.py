@@ -31,6 +31,7 @@ from cdmm.services.format3_dropset_writer import build_dropsetinfo_result
 from cdmm.services.format3_equipslotinfo_writer import build_equipslotinfo_result
 from cdmm.services.format3_interactioninfo_writer import build_interactioninfo_result
 from cdmm.services.format3_iteminfo_writer import build_iteminfo_prefab_result
+from cdmm.services.format3_itemgroupinfo_writer import build_itemgroupinfo_result
 from cdmm.services.format3_multichangeinfo_writer import build_multichangeinfo_result
 from cdmm.services.format3_skill_writer import build_skill_whole_table_result
 from cdmm.services.format3_stringinfo_writer import build_stringinfo_result
@@ -45,6 +46,7 @@ from cdmm.services.format3_runtime import (
     summarize_skip_reasons,
 )
 from cdmm.services.json_loader import (
+    _parse_int_like,
     apply_byte_patches,
     build_patch_overlay_entries,
     extract_plaintext,
@@ -100,6 +102,7 @@ _FORMAT3_WRITERS: dict[str, Format3Writer] = {
     "equipslotinfo": build_equipslotinfo_result,
     "interactioninfo": build_interactioninfo_result,
     "iteminfo": build_iteminfo_prefab_result,
+    "itemgroupinfo": build_itemgroupinfo_result,
     "multichangeinfo": build_multichangeinfo_result,
     "skill": build_skill_whole_table_result,
     "stringinfo": build_stringinfo_result,
@@ -376,7 +379,12 @@ def _apply_dynamic_body_changes(
         entry_bounds = build_entry_bounds(bytes(body), key_size, offsets) if offsets else {}
         name_offsets = _name_offsets_from_bounds(entry_bounds)
 
-    for change in changes:
+    # 同一条记录内可能有多个字段补丁（例如 characterinfo 的奖励列表和装备
+    # 字段）。长度变化会让该记录内更靠后字段的位置整体后移，而 entry 名称锚点
+    # 位于记录开头，无法反映记录内部的漂移。这里在同一条记录内按记录内偏移从
+    # 后往前应用：任何一次插入都不会让尚未应用的、更靠前字段的补丁失效。
+    ordered_changes = _order_dynamic_changes(changes, name_offsets)
+    for change in ordered_changes:
         local_inserts: list[tuple[int, int]] = []
         applied, mismatched, _relocated = apply_byte_patches(
             body,
@@ -392,6 +400,40 @@ def _apply_dynamic_body_changes(
                 _shift_name_offsets_after_inserts(name_offsets, local_inserts)
 
     return body, current_header, applied_total, mismatched_total
+
+
+def _order_dynamic_changes(
+    changes: list[dict],
+    name_offsets: dict[str, int] | None,
+) -> list[dict]:
+    """按“记录锚点升序 + 记录内偏移倒序”重排 entry-relative 补丁。"""
+    if name_offsets is None:
+        return list(changes)
+    indexed = list(enumerate(changes))
+    ordered = sorted(
+        indexed,
+        key=lambda item: _dynamic_change_order_key(item[1], name_offsets, item[0]),
+    )
+    return [change for _index, change in ordered]
+
+
+def _dynamic_change_order_key(
+    change: dict,
+    name_offsets: dict[str, int],
+    index: int,
+) -> tuple[int, int, int, int]:
+    """生成 entry-relative 补丁的确定性应用顺序键。"""
+    entry = change.get("entry")
+    if isinstance(entry, str):
+        anchor = name_offsets.get(entry)
+        if anchor is None:
+            anchor = name_offsets.get(entry.lower())
+        rel_offset = _parse_int_like(change.get("rel_offset"))
+        if anchor is not None and rel_offset is not None:
+            return (0, anchor, -rel_offset, index)
+    # 没有 entry 锚点的补丁（例如整表末尾追加）保持原有相对顺序，
+    # 并统一排在 entry-relative 补丁之后应用。
+    return (1, 0, 0, index)
 
 
 def _shift_name_offsets_after_inserts(
@@ -473,47 +515,18 @@ def _format3_intents_to_result(
         entry_bounds,
         intents,
     )
-    clone_skipped: tuple[Format3SkippedIntent, ...] = ()
-    if any(intent.op == "clone_record" for intent in intents):
-        clone_skipped = tuple(
-            Format3SkippedIntent(
-                intent=intent,
-                reason=(
-                    "clone_record 需要向 PABGB 追加新记录并同步 PABGH，"
-                    "当前尚未实现，已安全跳过该条 intent"
-                ),
-            )
-            for intent in intents
-            if intent.op == "clone_record"
-        )
-        intents = [intent for intent in intents if intent.op != "clone_record"]
     writer = _FORMAT3_WRITERS.get(table_name)
     if writer is None:
         skipped_result = _skip_all_intents(intents, f"目标表 {table_name} 暂无 writer")
         return Format3DispatchResult(
             changes=(),
-            skipped=match_skipped + clone_skipped + skipped_result.skipped,
+            skipped=match_skipped + skipped_result.skipped,
         )
     supported_intents, capability_skipped = partition_supported_intents(table_name, intents)
-    if capability_skipped:
-        guarded_skips = tuple(
-            Format3SkippedIntent(
-                intent=intent,
-                reason=(
-                    f"{table_name} 目标包含未支持字段，已跳过整个目标以避免半应用；"
-                    "请先实现完整 writer"
-                ),
-            )
-            for intent in supported_intents
-        )
-        return Format3DispatchResult(
-            changes=(),
-            skipped=match_skipped + clone_skipped + capability_skipped + guarded_skips,
-        )
     if not supported_intents:
         return Format3DispatchResult(
             changes=(),
-            skipped=match_skipped + clone_skipped + capability_skipped,
+            skipped=match_skipped + capability_skipped,
         )
     context = Format3RuntimeContext(
         game_file=game_file,
@@ -527,7 +540,7 @@ def _format3_intents_to_result(
     writer_result = writer(context, supported_intents)
     return Format3DispatchResult(
         changes=writer_result.changes,
-        skipped=match_skipped + clone_skipped + capability_skipped + writer_result.skipped,
+        skipped=match_skipped + capability_skipped + writer_result.skipped,
     )
 
 

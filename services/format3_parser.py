@@ -24,6 +24,21 @@ FORMAT3_NEW_RECORD_FIELD = "__new_record__"
 # 待改字段，运行层负责安全跳过并提示，避免整个模组被解析层拒绝。
 FORMAT3_CLONE_RECORD_FIELD = "__clone_record__"
 
+# `delete_record` 只按 key 定位，没有 field/new。给它一个内部字段名，让
+# 能力声明层按“不支持”显式跳过，而不是解析层直接报错拖垮整个模组。
+FORMAT3_DELETE_RECORD_FIELD = "__delete_record__"
+
+# DMM v3.1 中不需要 `new`/`value` 的操作（纯定位后删除/移除）。
+FORMAT3_NO_VALUE_OPS = frozenset({"list_remove", "delete_record"})
+
+# 2.01 起 PALOC 按逻辑表拆分，DMM 用 `new_record` + `entry` + `key(category)`
+# + `field="value"` 表达“给某个字符串表写入一条文本”。它和 PABGB 的
+# `new_record`（`new_key` + `template`）是同名不同形，必须在解析层区分开。
+FORMAT3_PALOC_VALUE_FIELD = "__paloc_value__"
+FORMAT3_PALOC_NEW_RECORD_OP = "paloc_new_record"
+
+_PALOC_TARGET_SUFFIX = ".paloc"
+
 # DMM 的 Intent 结构还带一组“调参器”字段（Typed Tuning / Mod Builder）。
 # 它们要求按 vanilla 现值做乘法、夹取与条件判断才能算出新值，cdmm 的
 # writer 目前不实现这套语义。这里显式识别并交给运行层按原因跳过，
@@ -31,7 +46,6 @@ FORMAT3_CLONE_RECORD_FIELD = "__clone_record__"
 FORMAT3_TUNER_INTENT_KEYS = (
     "where",
     "optional",
-    "merge_key",
     "factor",
     "clamp",
     "guard_min",
@@ -75,8 +89,13 @@ class Format3Intent:
     new: Any
     old: str | None = None
     match: dict[str, Any] | None = None
+    # DMM 列表合并操作的去重字段名（例如 itemgroupinfo 的 `item_info_list`
+    # 用 `merge_key: "key"` 声明按 key 去重）。
+    merge_key: str | None = None
     # 出现在原始 intent 里但当前 writer 不支持的 DMM 调参器字段。
     tuner_keys: tuple[str, ...] = ()
+    # DMM v3.1 per-intent `target`：覆盖文档级默认目标（多表混排）。
+    target: str | None = None
 
     def to_legacy_dict(self) -> dict[str, Any]:
         """转换为当前独立加载器 writer 仍在使用的 dict 结构。"""
@@ -119,15 +138,10 @@ def parse_format3_file(path: Path) -> list[Format3TargetSpec]:
 
     if has_single:
         target = _normalize_target_alias(_require_str(data.get("target"), "target"))
-        return [
-            Format3TargetSpec(
-                target=target,
-                intents=_normalize_intents_for_target(
-                    target,
-                    _parse_intents(data.get("intents"), "intents"),
-                ),
-            )
-        ]
+        return _split_intents_by_target(
+            target,
+            _parse_intents(data.get("intents"), "intents"),
+        )
 
     raw_targets = data.get("targets")
     if not isinstance(raw_targets, list):
@@ -138,16 +152,44 @@ def parse_format3_file(path: Path) -> list[Format3TargetSpec]:
         if not isinstance(raw_target, dict):
             raise ValueError(f"targets[{index}] 不是对象")
         target = _normalize_target_alias(_parse_target_file(raw_target, index))
-        specs.append(
-            Format3TargetSpec(
-                target=target,
-                intents=_normalize_intents_for_target(
-                    target,
-                    _parse_intents(raw_target.get("intents"), f"targets[{index}].intents"),
+        specs.extend(
+            _split_intents_by_target(
+                target,
+                _parse_intents(
+                    raw_target.get("intents"), f"targets[{index}].intents"
                 ),
             )
         )
     return specs
+
+
+def _split_intents_by_target(
+    default_target: str,
+    intents: tuple[Format3Intent, ...],
+) -> list[Format3TargetSpec]:
+    """按 intent 自带的 `target` 拆分目标，并保留首次出现顺序。
+
+    DMM v3.1 允许单目标文档里的 intent 用 `target` 覆盖文档级默认目标
+    （多表混排）。忽略它会把这些 intent 写到错误的表上，属于静默错误写入，
+    所以必须在解析层就完成分流。
+    """
+    grouped: dict[str, list[Format3Intent]] = {}
+    for intent in intents:
+        target = default_target
+        if intent.target:
+            target = _normalize_target_alias(intent.target)
+        grouped.setdefault(target, []).append(intent)
+    if not grouped:
+        # 空 intent 列表的目标仍要保留：PAMT 目标预注册依赖它，DMM 的
+        # flatten_targets 同样会保留空 intents 的目标条目。
+        return [Format3TargetSpec(target=default_target, intents=())]
+    return [
+        Format3TargetSpec(
+            target=target,
+            intents=_normalize_intents_for_target(target, tuple(group)),
+        )
+        for target, group in grouped.items()
+    ]
 
 
 def _parse_intents(raw_intents: object, label: str) -> tuple[Format3Intent, ...]:
@@ -162,13 +204,22 @@ def _parse_intents(raw_intents: object, label: str) -> tuple[Format3Intent, ...]
         intent_label = f"{label}[{index}]"
         raw_op = raw_intent.get("op", FORMAT3_DEFAULT_OP)
         if raw_op == "new_record":
-            intents.append(_parse_new_record_intent(raw_intent, intent_label))
+            intents.append(_parse_new_record_like_intent(raw_intent, intent_label))
             continue
         if raw_op == "clone_record":
             intents.append(_parse_clone_record_intent(raw_intent, intent_label))
             continue
+        op = str(raw_intent.get("op", FORMAT3_DEFAULT_OP))
         match_spec = _parse_match(raw_intent.get("match"), f"{label}[{index}].match")
         raw_key = raw_intent.get("key", 0)
+        raw_merge_key = raw_intent.get("merge_key")
+        if raw_merge_key is None and isinstance(raw_key, str):
+            # DMM v3.1 文档把 list_merge 的合并键写成 `key`（例如
+            # `{"field": "stat_list_static", "op": "list_merge", "key": "stat"}`）。
+            # 记录选择器的 `key` 是整数，两者同名；只有字符串形态才可能是
+            # 合并键，按合并键处理，避免整条模组解析失败。
+            raw_merge_key = raw_key
+            raw_key = 0
         if isinstance(raw_key, bool) or not isinstance(raw_key, int):
             raise ValueError(f"{label}[{index}].key 必须是整数")
         if "entry" in raw_intent:
@@ -179,21 +230,36 @@ def _parse_intents(raw_intents: object, label: str) -> tuple[Format3Intent, ...]
             entry = ""
         else:
             entry = _require_entry(raw_intent.get("entry"), f"{label}[{index}].entry")
-        field = _require_str(raw_intent.get("field"), f"{label}[{index}].field")
-        value = _read_intent_value(raw_intent, f"{label}[{index}]")
+        if "field" in raw_intent:
+            field = _require_str(raw_intent.get("field"), f"{label}[{index}].field")
+        elif op == "delete_record":
+            field = FORMAT3_DELETE_RECORD_FIELD
+        else:
+            field = _require_str(raw_intent.get("field"), f"{label}[{index}].field")
+        if op in FORMAT3_NO_VALUE_OPS:
+            value = raw_intent.get("new", raw_intent.get("value"))
+        else:
+            value = _read_intent_value(raw_intent, f"{label}[{index}]")
         raw_old = raw_intent.get("old")
         if raw_old is not None and not isinstance(raw_old, str):
             raise ValueError(f"{label}[{index}].old 必须是字符串")
+        if raw_merge_key is not None and not isinstance(raw_merge_key, str):
+            raise ValueError(f"{label}[{index}].merge_key 必须是字符串")
+        raw_target = raw_intent.get("target")
+        if raw_target is not None and (not isinstance(raw_target, str) or not raw_target):
+            raise ValueError(f"{label}[{index}].target 必须是非空字符串")
         intents.append(
             Format3Intent(
                 entry=entry,
                 key=raw_key,
                 field=field,
-                op=str(raw_intent.get("op", FORMAT3_DEFAULT_OP)),
+                op=op,
                 new=value,
                 old=raw_old,
                 match=match_spec,
+                merge_key=raw_merge_key,
                 tuner_keys=_collect_tuner_keys(raw_intent),
+                target=raw_target,
             )
         )
     return tuple(intents)
@@ -236,6 +302,50 @@ def _parse_new_record_intent(raw_intent: dict[str, Any], label: str) -> Format3I
         field=FORMAT3_NEW_RECORD_FIELD,
         op="new_record",
         new=template,
+    )
+
+
+def _parse_new_record_like_intent(
+    raw_intent: dict[str, Any],
+    label: str,
+) -> Format3Intent:
+    """区分 PABGB `new_key/template` 与 PALOC `entry/key(category)/value` 两种 new_record。"""
+    if "new_key" in raw_intent or "template" in raw_intent:
+        return _parse_new_record_intent(raw_intent, label)
+    if "entry" in raw_intent or "field" in raw_intent:
+        return _parse_paloc_value_intent(raw_intent, label)
+    return _parse_new_record_intent(raw_intent, label)
+
+
+def _parse_paloc_value_intent(
+    raw_intent: dict[str, Any],
+    label: str,
+) -> Format3Intent:
+    """解析 PALOC `entry` + `key(category)` + `field=value` 形态的 `new_record`。
+
+    DMM 语义（同 mount_log 提示）：`key` 是 category 字节（物品名/描述为 7），
+    `field` 只能是 `value`，`new` 必须是字符串，`entry` 是本地化字符串键。
+    """
+    entry = raw_intent.get("entry")
+    if not isinstance(entry, str) or not entry:
+        raise ValueError(f"{label}.entry 必须是非空字符串")
+    field = raw_intent.get("field")
+    if field != "value":
+        raise ValueError(f'{label}.field 只支持 "value"（收到 {field!r}）')
+    category = raw_intent.get("key")
+    if isinstance(category, bool) or not isinstance(category, int):
+        raise ValueError(f"{label}.key 必须是整数（category 字节，物品名/描述为 7）")
+    if not 0 <= category <= 0xFF:
+        raise ValueError(f"{label}.key 超出 u8 范围：{category}")
+    value = raw_intent.get("new")
+    if not isinstance(value, str):
+        raise ValueError(f"{label}.new 必须是字符串")
+    return Format3Intent(
+        entry=entry,
+        key=category,
+        field=FORMAT3_PALOC_VALUE_FIELD,
+        op=FORMAT3_PALOC_NEW_RECORD_OP,
+        new=value,
     )
 
 

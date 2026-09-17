@@ -139,10 +139,43 @@ cdloader/
 
 - 开发阶段先跑 `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning`
   实机确认，确认无误后才做正式打包；不要再在未确认前自行打包发布。
-- DMM 2.9.0（Tauri/Rust，无源码随包）认可的模组形态与 JSON 键已完整抽出，记录在
+- DMM 2.9.0（Tauri 2.10.3/Rust）认可的模组形态与 JSON 键已完整抽出，记录在
   `.codex/skills/crimson-desert-mod-loader/references/dmm-json-format-coverage.md`。
   抽取方法：在 `DMM.exe` 里定位 `b"struct ModFile"` 后按可打印 run 打印 serde 字段池，
   不要靠猜；日志/changelog 同样内嵌在 exe 里。
+- **更正**：`DMM.exe` 不是“只有字符串池、没有前端包”。它内嵌完整 Vite/React 前端
+  （167 个 brotli 压缩资源），已完整解出到 `.diagnostics/dmm_assets/`；解包工具是
+  `tools/dmm_asset_extractor.py`（PE 段表 → `/assets/` 明文串 → 指向它的 8 字节小端指针
+  定位资源表 `0x2583100` → 16 字节 `(ptr,len)` 成对切分 → brotli）。48 版内嵌 changelog
+  在 `.diagnostics/dmm_changelog_full.txt`。前端只有 UI 与帮助文案，**解析/应用语义仍在
+  Rust 原生代码里**，因此以后要核对格式，就同时看字符串池、changelog 与作者本人的
+  `dmm-parser` crate，不要指望从前端 JS 里读出生效逻辑。
+- Format 3 `op` 全集（从 Rust skip 文案逐条对齐，已写进上面那份 reference）：
+  `set`、`array_append`、`list_append`、`list_extend`、`list_union`、`list_merge`
+  （必需 `merge_key`）、`list_set`/`list_remove`（`where` 或 `index`，`optional: true`
+  时无命中不记 skip）、`clone_record`（`source_key`+`new_key`+`patches[]`）、
+  `new_record`（PABGB：`new_key`+`template`；PALOC：`entry`+`key`(category)+
+  `field="value"`+字符串 `new`）、`delete_record`（`key`）、`add_entry`
+  （DMM 原文：`add_entry mods are not supported by the v3 spec yet`）。
+  列表类 op 的 `new` 与 `value` 二选一都收；记录创建类 `new_key` 超出该表 key 位宽
+  （65535/255）时 DMM 直接拒绝该 intent，不允许静默写错记录。
+- 2.01+ PALOC 是按表拆分的多文件（简体中文 39 个 `*.paloc`），新增条目必须用
+  `key` 声明 category 字节（物品名/描述为 7），cdmm 按 category 归属到对应文件；
+  非当前活动语言的 PALOC 目标跳过并写 warning，不再当错误。
+- 仍未支持、必须显式报错或按原因跳过的项：调参器求解（`factor`/`clamp`/`guard_*`/
+  `where`/`value_type`）、`field_path`、`list_set`/`list_remove`/`list_extend`、
+  `delete_record`、`add_entry`。清单见上面那份 reference，扩实现前先读它。
+  更新（2026-09-17，见本文件“Format 3 语义轮次”一节）：`list_append`/`list_union`/
+  `list_merge`/`array_append` 与 `clone_record` **已实现**（clone_record 当前覆盖
+  iteminfo / dropsetinfo / multichangeinfo），不再属于“未支持”。
+- 2026-09-17 新增实测约束（Stormsteel 2.1 模组）：`services/dropset_writer.py::parse_dropset_record`
+  对当前 2.02 归档 **抽样 400/400 全部解析失败**（已比对确认读到的是当前归档字节，
+  与 `VanillaStore` 备份 sha256 一致，不是缓存过时）。也就是说 dropsetinfo 现有的
+  `set field=drops` 能力在当前版本上其实是坏的，只是当前模组集合里没有别的模组用它。
+  **该约束已于同轮解决**：新增 `services/dropsetinfo_native_parser.py`（2.02 wire 布局，
+  整表恒等回环验证通过），`format3_dropset_writer.py` 已改走它；旧的
+  `parse_dropset_record` 只留给历史 `drops`/`_blob_b64` 窄分支，**不要再用它解析 2.02 的
+  dropsetinfo 表**。
 - 范围纪律：cdmm 是加载器，唯一职责是“把模组挂载进游戏”。只对齐 DMM 的挂载逻辑
   （怎么识别模组文件、怎么把补丁写进表与 overlay），不对齐 DMM 的管理器功能
   （baseline/Establish、Steam 校验、ASI 管理、Mod Builder、预设、整合包、浏览器模组、
@@ -157,8 +190,8 @@ cdloader/
   - `dmm_offset` 仅作为 `offset` 缺失时的兼容别名，禁止反过来覆盖 `offset`。
   - Format 3 的 DMM 调参器字段（`where`/`optional`/`merge_key`/`factor`/`clamp`/
     `guard_min`/`guard_max`/`value_type`）当前只按原因跳过，绝不忽略后直接写 `new`。
-- 仍未支持、必须显式报错的项：调参器求解、`field_path`、`data`。
-  清单见上面那份 reference，扩实现前先读它。
+- 2026-09-17 本轮（PALOC `new_record` 语义 + 解析层分支修复）完整 `test/` 为
+  574 passed、`ruff check .` 通过。仍未做实机确认，也未重新打包。
 - 2026-09-17 字节级复验（真实 2.02.00 归档、12 个模组、强制冷构建）：Format 3 bridge
   `288 生成补丁 / 0 跳过`；`nppv3_stringinfo` 263/263、`nppsa` characterinfo 25/25、
   `nppgen` 的 `inventory.staticinfobody` 16/16 全部命中且与 vanilla 字节不同；
@@ -167,6 +200,28 @@ cdloader/
   删除 metadata 相关代码后完整 `test/` 为 561 passed（上一节写的 549 是当时那次
   修复的点位记录，不是当前值）、`ruff check .` 通过。
   这是构建与字节级记录，仍不等于实机确认。
+
+## 2026-09-17 VFS 启动日志被占用（WinError 32）导致启动中断修复
+
+- 症状：日志清理阶段直接抛出
+  `失败：[WinError 32] 另一个程序正在使用此文件，进程无法访问。:
+  '...\.cdloader\vfs_runtime\logs\vfs_runtime.log'`，按 Enter 退出，游戏未启动。
+- 根因：`tools/vfs_launcher.py::clear_native_runtime_logs()` 只用
+  `except FileNotFoundError` 包住 `unlink()`。日志被任何其他句柄持有（上一次会话残留的
+  `nppvfs_launcher.exe`、仍在注入中的 runtime、杀毒/索引器临时扫描）时 Windows 抛
+  `PermissionError`，直接冒泡到 `main()` 的兜底 handler 变成致命失败。
+- 注意：`ensure_no_running_target()` 只检查 `CrimsonDesert.exe`，且它在清理**之前**执行
+  （607 行 vs 620 行）。所以占用者**不是**游戏主进程，不能靠“游戏没在跑”排除这个问题。
+- 修复：清理改为三级降级——`unlink()` 成功即结束；被占用时先改名成
+  `vfs_runtime.log.prev`（保留上一次会话对照），再退化为截断 `open("wb")`；全部失败也只
+  告警并继续启动。日志清理只是诊断辅助，**不得再让它中断启动**。
+- 回归用例在 `test/test_vfs_launcher_command.py`：正常删除、目录缺失、以及“句柄仍打开时
+  必须降级且不抛异常”。用 Python 自己持有文件句柄就能在 Windows 上稳定复现 `WinError 32`，
+  不需要真实游戏进程，因此这条回归是确定性的，不是偶发复现。
+- 本次完整 `test/` 为 567 passed、`ruff check .` 通过。
+- 仍未做：还没定位“为什么句柄会留到下一次启动”。若频繁复现，可用重启管理器 API 反查持有
+  进程 PID；确认是残留 `nppvfs_launcher.exe` 后，再决定是否扩展 `ensure_no_running_target()`
+  去覆盖它，不要仅凭猜测就加进程拦截。
 
 ## 2026-09-17 冷构建目标解析 + PABGH 修正回归（Equip Everything 暴露的两处加载器 bug）
 
@@ -215,6 +270,105 @@ cdloader/
 - 诊断脚本陷阱：`verify_inventory.py` / `verify_snapshot.py` 曾按 PAMT 顺序取条目，
   同包多表时会取错表（表现为 inventory 0/16）。已改为按 basename 跨包查找；
   后续诊断脚本不要假设“一个包只有一张表”。
+
+## 2026-09-17 Format 3 语义轮次（cdmod 计划层/桥接层 op 保真，schema 21/3/3）
+
+- 触发：Stormsteel 2.1（`2 - Generous 5x Drop Rate.json`，46 MB，`format_minor 1`，
+  21 个 targets）在 v9.4.0 上冷构建 0 error、热构建命中缓存，但游戏内 iteminfo 无新增
+  物品、characterinfo 奖励追加丢失、itemgroupinfo 成员合并不生效。此前把“能解析 /
+  0 error”误当成“已生效”。
+- 根因：cdmod 计划层与桥接层把所有 Format 3 op 压成 `set`。`list_append` / `list_union` /
+  `list_merge` / `array_append` / `clone_record` 经过
+  `cdmod_package` → `cdmod_build_plan` → `cdmod_format3_bridge` 后语义丢失，到
+  `format3_loader` 时已退化为“整体 set”，所以运行层再正确也无效。
+- 诊断纪律：任何 Format 3 验证都必须走 `_format3_mod_to_package` →
+  `compile_cdmod_package_plan` → `build_format3_bridge_document` 的完整链路。只手工构造
+  intent 直接喂 `format3_loader` 的脚本会掩盖计划层/桥接层 bug，本轮就是这样被掩盖过一次。
+- 修复（全部为 cdmm 自研 Python，未移植 DMM 代码）：
+  - `services/cdmod_package.py`：`SUPPORTED_CDMOD_OPERATIONS` 扩为
+    `{set, list_union, list_append, list_merge, array_append, clone_record, new_record}`；
+    `CdmodOperation` 新增 `merge_key`。
+  - `services/cdmod_build_plan.py`：`CdmodPlannedOperation` 新增 `merge_key` 与 `order`
+    （首次出现的全局序号）；同类列表操作保序拼接，涉及 union/merge 时降级为 `list_merge`
+    并保序去重；`set(list)` 之后的追加叠加到 set 结果上；`_planned_operation_sort_key`
+    对非 storeinfo 表按 `(order, path)` 保留模组原始书写顺序（storeinfo 继续用
+    selector + 索引优先级）；`CDMOD_BUILD_PLAN_SCHEMA = 3`。
+  - `services/cdmod_format3_bridge.py`：新增 `_bridge_intents()`，保留原 op 名称；
+    `array_append` 逐元素展开；`clone_record` 还原成
+    `{op, source_key, new_key, patches}`；`CDMOD_FORMAT3_BRIDGE_VERSION = 3`。
+  - `services/format3_loader.py`：`_order_dynamic_changes()` 让同一条记录内的字段按
+    记录内偏移倒序应用，避免前一个字段的长度变化推走同一记录内更靠后的偏移。
+  - `services/equipslotinfo_writer.py`：接住 `list_union`/`list_merge`/`list_append`/
+    `array_append`，按保序去重合并进 `etl_hashes`；`set` 保留“新列表是当前列表超集”的
+    兼容规则。
+  - `services/format3_parser.py`：支持 v3.1 per-intent `target`（单文件多表混排）；
+    `list_merge` 的字符串 `key` 识别为 `merge_key`；`delete_record` 允许缺 `field`/`new`。
+  - `services/format3_capabilities.py`：新增
+    `FORMAT3_UNSUPPORTED_OPS = {list_set, list_remove, delete_record}` 显式按原因跳过，
+    禁止它们按字段名落到 `set` 分支被误写成整段数组替换。
+  - `services/dropsetinfo_native_parser.py`（新增）：2.02.00 wire 布局自研解析/序列化，
+    整表恒等回环验证通过，不确定记录退回 `_opaque` 原字节。
+    `services/format3_dropset_writer.py` 的 `clone_record`/`set` 改走“内存合成最终记录 →
+    输出整表或末尾追加”，不再依赖 `services/dropset_writer.py::parse_dropset_record`
+    （该函数在 2.02 上抽样 400/400 解析失败，旧的 `set field=drops` 能力本身就是坏的）。
+  - `services/format3_clone_record.py`（新增）：与表无关的 `clone_record` 骨架（`.pabgb`
+    末尾追加记录 + `.pabgh` 末尾追加 `(new_key, new_offset)`），字段写入由各表 writer
+    传入的 `patch_item` 回调完成。依据是实测六张表的 `.pabgh` 条目顺序就是 `.pabgb` 物理
+    布局顺序（offset 单调递增，key 本身不升序），所以“追加到末尾”与 vanilla 结构一致。
+    当前在 `format3_capabilities` 声明支持的是 iteminfo / dropsetinfo / multichangeinfo；
+    其他表遇到 clone_record 必须按表名报明确原因，不得静默丢。
+  - `VFS_STATE_SCHEMA` 20 → 21。改动“同输入不同产物”时必须同时升 state schema，否则热
+    启动复用修复前产物，症状是“已修但游戏内仍无效”。
+- 验证（预言机 = DMM 内嵌 parser 的 Python 绑定 `dmm_parser.apply_intents`，逐表逐字节；
+  脚本 `.diagnostics/ci_bridge_oracle.py`，快照读回 `.diagnostics/ci_snap.py`）：
+  - iteminfo body 6450232 → 18418424 与 oracle 逐字节一致；header 无法直接比，因为
+    oracle 对 iteminfo 返回 `pabgh=None`，改用记录级校验：12665 条记录 0 差异、
+    5852 个新增 key 全部可 resolve、`.pabgh` 自洽。
+  - dropsetinfo 2674034 → 3143108、multichangeinfo 4578225 → 4746806、skill 1267304 →
+    1267352，均与 oracle body 逐字节一致且 header 一致（606 / 650 / 3 applied）。
+  - characterinfo body/header 全等 28815517 / 58002（1704 applied / 0 skipped）：
+    oracle 的 `apply_intents` 不认 `list_append`（`unknown intent op`），先把 1311 条
+    append 累积成等价的 `set` 再逐字节比对。
+  - itemgroupinfo `list_merge` 131 条：oracle 同样不认 `list_merge`，改做语义等价校验
+    （131/131 合并正确、无重复、原成员全保留；用 oracle 重新解析重建后的 header，
+    1469 条未涉及记录全部未变）。**oracle 只实现部分 op，遇到 `unknown intent op`
+    先确认是 oracle 缺口，不要判定模组有问题。**
+  - 最终 VFS 快照读回：append 记录 1041 条全部正确（共 1311 次追加）、equipslot 集合
+    393/393 正确、`nppv3_iteminfo` 18384752 字节。
+- 真实冷构建（3 个模组，含 Stormsteel）40.8s：`Format 3 bridge: 处理 1 个模组、12 个目标，
+  4336 个生成补丁`、跳过 160 个 intent、0 error、24 个映射文件、6 个 overlay 包
+  （`nppv3_stringinfo`/`nppv3_equipslotinfo`/`nppv3_iteminfo`/`nppvoice`/`nppgen`/`nppsa`）
+  + standalone `0041`-`0045`。日志 `.diagnostics/ci_build4.log`。
+- 剩余跳过（均为尚未实现的窄边界，不是本轮回归）：
+  - iteminfo 110 个 intent：原因“目标字节已是期望值”（幂等 no-op，正常）。
+  - storeinfo 50 个 intent（3 个模组共 62 条）：旧原因是“当前原版没有非 RestoreItem 的
+    disc=0 / sub_data=True 的 stock 模板”。**2026-09-17 已定位为 cdmm writer 缺陷并修复**，
+    见本文档末尾“2026-09-17 Crimson Desert 2.02.00 storeinfo 布局与 writer 重写基线”。
+  - 2026-09-17 复查用户报告的 4 个“不生效”模组（全部为扁平结构：顶层
+    `target`(字符串) + 顶层 `intents`）：`Contribution Shop Prices`（iteminfo 2106 条 set）
+    的产物与 DMM 内嵌 parser **逐字节一致**；另外 3 个 storeinfo 模组
+    （`All Craft Material All Gear All Dye` 35 条、`Craft Materials Dyes Ingredients
+    Furniture` 12 条、`Reset Everyday` 15 条）被 cdmm **100% 跳过**，而 oracle 把这 62 条
+    全部 applied（body 892537 → 1393298 / 1011155 / 892537）。**结论：不是模组失效，是
+    cdmm storeinfo writer 的缺口**——(a) `stock_data_list` 依赖“非 RestoreItem 且
+    disc=0/sub_data=True”的原版模板，2.02 找不到就整条拒绝；(b) 连 `reset_day` 这种
+    标量 set 也被“stock list 未唯一定位，候选 0”连带跳过，属实现缺陷。
+    勘误：storeinfo 的 PABGH 实测为 `u16 count + count × (u16 key + u32 offset)`，本机
+    2.02.00 为 `2 + 436 × 6 = 2618` 字节，开头即 `count=436`、`key=3101 offset=0`，
+    **它保存 body 偏移**；body 变长必须重建 header（每条偏移固定 u32，重建后长度仍是
+    2618，极易误判成“没变”；实测 `All Craft Material` 改 1243 字节、`Craft Materials Dyes`
+    改 1079 字节，只有真正等长的 `Reset Everyday` header 才与原版逐字节相同）。
+    旧说法“不存 body 偏移 / body 变长不需要改 header / 654×u32 key 列表”**已作废**；
+    重建走 `services/storeinfo_writer.py::_rebuild_header`，不要照搬 dropsetinfo 的
+    `_append_pabgh_entry`（那是追加新 key 的语义）。
+  - 12 个 PALOC 目标因“category 高位非 0”布局变体跳过（bank/board/dyecolorgroup/
+    entitlement/factionoperationgroup/failmessage/house/housingobject/personality/socket/
+    sublevel/uisocialaction）。
+  - characterinfo 的 `list_append+list_append 自动合并` 是 WARNING 级正常信息，表示同一
+    坐标的多次追加被保序拼成一次写入，不是错误。
+- 回归基线：完整 `test/` 600 passed、`ruff check .` 通过。尚未实机验证；下一步是用户跑
+  `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning` 确认后再打包，
+  不要替用户提前打包。
 
 ## 项目定位
 
@@ -1851,6 +2005,18 @@ Thank you.
 - 当前修复包使用 2.0.01 loose 基底的 `file-replacement`，不含旧 standalone；脸部每个 MeshSet 的 `SkeletonVariation`、`MeshFileName`、`IconPath` 三处必须同步，发型目标槽与原生槽必须成对交换。槽位 6 原版为 `0005_tear` 特殊条目，迁移脸型时允许 file-replacement XML 载荷变长或变短。
 - 验收顺序固定为：理发师入口 -> 脸 `2/3/4/5/6` -> 发型 `2/3/4/5/7` -> 妆容 -> 应用保存 -> 返回主菜单重载存档 -> 重启游戏。
 
+### 2026-09-17 游戏 2.02.00 + 作者 7.10 基底重新出包
+
+- 作者把 Human Female 基底更新到 7.10：下载目录 `Character_Creator_837_7.10_2026-09-06T16-32Z_CuEZpVbCQ_Human Female/N20260917141029`，已安装为 `mods/N20260917141029`（与下载目录 413 个文件逐一致）。它与 2.00.01 旧包**资源路径完全同名（413/413，0 差异）**，是同一个包的两代，**不能同时安装**；`.cdmod` 新加入 `mods/` 会按规则排到 load_order 末尾从而覆盖新版。
+- 旧包 `...K-Makeup-2.00.01-fixed.cdmod` 只有三处落后：两份 `meshparam_example_{damian,kliff}.xml` 的槽位选择，以及 `barbershopview.html`。14 个非 DDS 文件里 11 个与 7.10 逐字节相同。
+- `barbershopview.html` 是**真过时**，不是风格差异：2.02.00 原版该文件 `class="` 出现 0 次、`css="` 168 次、无 `#SubTabbarHeader6-10`；旧包写回 10 个 `class=""`、5 个已不存在的 `#SubTabbarHeader6-10`，并注入 `임시 텍스트` 占位；作者 7.10 已全部对齐回原版写法。**判断这类界面文件是否过时，先按这几项属性出现次数对比原版，不要只看文件大小或“0 error”。**
+- 重新出包统一用 `tools/build_human_female_k_makeup_2001_file_replacement.py`（已新增 `--version`，manifest 的 id/name/version 与 source/report 的 format 标记全部由它派生，默认仍是 `2.00.01`）：
+  `python -m cdmm.tools.build_human_female_k_makeup_2001_file_replacement <7.10 loose 目录> "K-Makeup for Cordelia-1.0.cdmod" <输出>.cdmod --version 2.02.00`
+  工具会对两份 meshparam 施加 `DEFAULT_SLOT_MAPPINGS` + `DEFAULT_WITCH_HAIR_SLOT_MAPPINGS`；`barbershopview.html` 直接取基底版本，因此换基底后它自动变成新版写法。
+- 产物：`Human Female - Five Witch Faces and Hairstyles - K-Makeup-2.02.00.cdmod`，424 个 file-replacement，8,329,142 字节，SHA-256 `46d3fbf55982c2af3d680a475ebc2260160cbcb82107f56e7a73c6a8227f19fe`。核验：目标集合与前代完全一致（424/424）；`barbershopview.html` 与 7.10 逐字节相同；两份 meshparam 与前代逐字节相同（两代基底只差这些槽位）；头部槽位 `2/3/4/5/6 = 0139/0143/0141/0019/0046`，发型 `2/3/4/5/7 = 0504/0007_01/0006_04/0505/0018`。
+- 目标解析性（对照 2.02.00 原版 PAMT）：424 个目标命中 24、未命中 400（399 个 DDS + `decorationparam_player_oongka.xml`），与前代完全一致；未命中项属 `allow_new` 新增内容，不是目标丢失。
+- **尚未实机验证**。验收仍按上面固定顺序执行。
+
 ### 五女巫脸型与发型
 
 - 用户已实机确认 `ZZ - Full Human Female Five Witch Faces and Hairstyles 2-3-4-5-7-1.5-test.cdmod` 的五张脸与五个发型全部可正常使用。映射为：`2=Areciel/0139/0504`、`3=Bari/0143/0007_01`、`4=Elowen/0141/0006_04`、`5=Lyselia/0019/0505`、`7=White Crow/0046/0018`。
@@ -2097,3 +2263,42 @@ Thank you.
 - 用户实机确认：雷特商品完整且排序恢复正常，提娜服装店排序也正常。回归验证为
   完整 `test/` 528 passed、`ruff check .` 通过。后续 StoreInfo 更新验收必须同时核对
   数量、商品 key 序列和 `raw_d`，不得再以“商品都存在”或“链顺序一致”宣称排序正确。
+
+## 2026-09-17 Crimson Desert 2.02.00 storeinfo 布局与 writer 重写基线
+
+- 游戏 `2.02.00`（`meta/0.paver` = `020002000000585c92c8`）下，用户报告的
+  `All Craft Material All Gear All Dye.field.json`、`Craft Materials Dyes Ingredients Furniture.field.json`、
+  `Reset Everyday.field.json` 三个 storeinfo 模组 **0 生效**。用 DMM 内嵌 parser 作行为预言机
+  （只比对产物，不移植其实现源码）对照后确认：不是模组失效，而是 cdmm 的 storeinfo writer
+  缺口——旧模型要求“非 RestoreItem 且 disc=0 / sub_data=True”的 2.02 原版模板，找不到就整条
+  拒绝；连 `reset_day` 这类纯标量 set 也被“stock list 未唯一定位，候选 0”连带跳过。
+- 2.02.00 的 store entry / stock 记录 wire 布局由黑盒扰动法完整逆向，落到
+  `services/storeinfo_native_parser.py`（`StoreEntry`/`StockRecord`/`StockValue`/`StockSubData`/
+  `StockEffect`，`parse_storeinfo_entry`/`serialize_storeinfo_entry`/`read_stock_record`/
+  `write_stock_record`/`stock_record_from_json`）。stock 记录固定前缀 114 字节，整条记录
+  **127 字节（无 sub_data）/ 140 字节（带 13 字节 sub_data）**——旧的 119/132 常量只适用 1.18，
+  不得再当作当前版本长度。验收：436 entry / 6376 条 stock 记录整表恒等回环逐字节一致，
+  且逐字段与 oracle 导出的 JSON 完全一致。
+- `services/storeinfo_writer.py` 改为“整表解析 → 按 intent 路径（支持 `a.b[2].c`）逐字段写入 →
+  整表重序列化 → 重建 header”，删除模板重放与全部静默跳过分支；非法字段直接
+  `StoreinfoWriteRefused`。`_exchangeItemInfoListForSell` 与 `exchange_item_info_list_for_sell`
+  都别名到 `stock_data_list`，`key` 禁止 set。被删掉的旧私有 API
+  （`_build_template_indexes`/`_locate_stock_list`/`_record_from_json`/
+  `_replay_current_stock_template`）不得再被工具或测试引用。
+- `services/format3_capabilities.py` 的 storeinfo 能力规则改为“`stock_data_list`（含 `[N]` 与任意
+  嵌套子路径）+ `StoreEntry` 全部字段（含 `[N]` 下标）+ `_exchangeItemInfoListForSell`”，字段名由
+  dataclass 派生（`STOREINFO_ENTRY_FIELDS`）。`services/cdmod_build_plan.py` 删除 storeinfo 专用
+  “索引重排优先”排序，整表按模组文件内首次出现顺序输出 = DMM 逐条应用语义。
+- **storeinfo header 是 `u16 count + count × (u16 key + u32 offset)`**，本机 2.02.00 为
+  `2 + 436 × 6 = 2618` 字节，**保存 body 偏移**；body 变长必须重建 header。重建入口
+  `services/storeinfo_writer.py::_rebuild_header`，禁止照搬 dropsetinfo 的 `_append_pabgh_entry`。
+  “storeinfo PABGH 不存 body 偏移”的旧说法已作废。
+- 缓存失效：`VFS_STATE_SCHEMA` 21 -> 22、`VFS_PACKAGE_BUILD_SCHEMA` 6 -> 7。否则热启动会复用
+  “跳过 storeinfo”的旧快照与旧分包，症状是“代码已修，游戏内仍无效”。
+- 验收基线：三个模组单独与合并共 62 条 intent 的产物与 `dmm_parser.apply_intents`
+  body/header **逐字节一致**（892537 → 1393298 / 1011155 / 892537）；真实 VFS 冷构建里 writer
+  实际收到的 50 条 intent 同样逐字节一致（892537 → 1373613），快照回读 `Store_Her_Costume 670 /
+  Store_Her_Equipment 621 / Store_Her_Church 314 / Store_Cal_Costume 238 / Store_Her_Butcher 172 /
+  Store_Her_Witch 206` 全部命中。回归：完整 `test/` 600 passed、`ruff check .` 通过。
+- 本轮按用户要求**未打包**，保持开发状态，由用户用
+  `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning` 实机确认后再决定是否发布。

@@ -1,8 +1,9 @@
 """StoreInfo Format 3 writer 适配层。
 
-`storeinfo_writer.py` 负责安全改写 `stock_data_list`；本模块只负责接入
-独立版 Format 3 runtime/result 协议，并把 companion `.pabgh` change 路由
-给 `json_loader` 的 `_target_file` 机制。
+`storeinfo_writer.py` 按 2.02.00 布局逐字段改写 store entry 与 `stock_data_list`；
+本模块只负责接入独立版 Format 3 runtime/result 协议，并把 header
+（`.pabgb` 对应的 `.pabgh` / `.staticinfoheader`）change 路由给
+`json_loader` 的 `_target_file` 机制。
 """
 
 from __future__ import annotations
@@ -17,8 +18,9 @@ from cdmm.services.storeinfo_writer import StoreinfoWriteRefused, build_storeinf
 from cdmm.services.storeinfo_native_parser import StoreinfoParseError
 
 STOREINFO_SUPPORTED_FIELD_REASON = (
-    "storeinfo 当前支持库存列表、库存项窄替换、库存计数、reset_day、"
-    "sell_percents、raw_c 与贡献购买货币字段"
+    "storeinfo 当前支持库存列表整体替换/追加、库存记录任意字段（含 sub_data / "
+    "effect_list / value.* 嵌套路径）、store entry 标量（reset_day / sell_percents / "
+    "buyable_stock_count / reset_hour / store_type 等）与列表字段"
 )
 
 

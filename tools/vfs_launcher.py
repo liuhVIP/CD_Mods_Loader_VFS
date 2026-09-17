@@ -804,14 +804,54 @@ def configure_vfs_environment(args: argparse.Namespace) -> None:
 
 
 def clear_native_runtime_logs(runtime_dir: Path) -> None:
-    """清理上一次 VFS native runtime 日志，便于定位本次启动。"""
+    """清理上一次 VFS native runtime 日志，便于定位本次启动。
+
+    上一次会话的 VFS runtime 或游戏进程可能仍持有日志句柄，此时 Windows 会直接
+    拒绝删除并抛出 ``WinError 32``。日志清理只是诊断辅助，不能因为它失败就中断
+    启动，因此这里依次降级为改名、截断，全部失败也只告警。
+    """
     logs_dir = runtime_dir / VFS_RUNTIME_LOG_DIR_NAME
     logs_dir.mkdir(parents=True, exist_ok=True)
+    degraded: list[str] = []
     for file_name in (VFS_NATIVE_LAUNCHER_LOG_NAME, VFS_NATIVE_RUNTIME_LOG_NAME):
-        try:
-            (logs_dir / file_name).unlink()
-        except FileNotFoundError:
-            continue
+        outcome = _clear_native_runtime_log(logs_dir / file_name)
+        if outcome is not None:
+            degraded.append(f"{file_name}（{outcome}）")
+    if degraded:
+        message = "上一次 VFS runtime 日志仍被占用，已降级处理：" + "、".join(degraded)
+        logging.warning(message)
+        print(f"提示：{message}", file=sys.stderr)
+
+
+def _clear_native_runtime_log(path: Path) -> str | None:
+    """删除单个 runtime 日志；被占用时降级处理并返回说明。
+
+    返回 ``None`` 表示已删除或本就不存在，不需要向用户提示。改名优先于截断，
+    这样上一次会话的日志还能留作对照。
+    """
+    try:
+        path.unlink()
+        return None
+    except FileNotFoundError:
+        return None
+    except OSError:
+        pass
+    previous = path.with_name(f"{path.name}.prev")
+    try:
+        previous.unlink()
+    except OSError:
+        pass
+    try:
+        path.replace(previous)
+        return "已改名为 .prev"
+    except OSError:
+        pass
+    try:
+        with path.open("wb"):
+            pass
+        return "已截断"
+    except OSError as exc:
+        return f"无法清理：{exc}"
 
 
 def build_vfs_command(game_dir: Path, runtime_dir: Path, args: argparse.Namespace) -> list[str]:

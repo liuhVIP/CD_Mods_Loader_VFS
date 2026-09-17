@@ -8,12 +8,26 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 from cdmm.services.format3_parser import Format3Intent
 from cdmm.services.format3_runtime import Format3SkippedIntent
 from cdmm.services.format3_iteminfo_record_writer import ITEMINFO_RECORD_DIRECT_FIELDS
 from cdmm.services.format3_iteminfo_whole_writer import ITEMINFO_WHOLE_TABLE_DIRECT_FIELDS
+from cdmm.services.storeinfo_native_parser import StoreEntry
+
+
+# DMM v3.1 里需要按 `where` 条件或下标定位列表元素、并可能缩短表体的操作。
+# 当前 writer 还没有实现列表定位/删除，必须显式跳过；绝不能按字段名落到
+# `set` 分支，否则会把“删除/改单元素”误写成整段数组替换。
+# storeinfo entry 的标量/列表字段名直接来自解析器 dataclass，避免两处维护。
+STOREINFO_ENTRY_FIELDS = frozenset(item.name for item in fields(StoreEntry))
+
+FORMAT3_UNSUPPORTED_OPS: dict[str, str] = {
+    "list_set": "DMM 列表按条件替换（list_set + where）暂不支持",
+    "list_remove": "DMM 列表按条件删除（list_remove + where）暂不支持",
+    "delete_record": "DMM delete_record 暂不支持",
+}
 
 
 @dataclass(frozen=True)
@@ -75,6 +89,13 @@ _ITEMINFO_CAPABILITY = Format3TableCapability(
             reason_when_miss="iteminfo当前仅支持既有EnchantData的equip_buffs窄写入",
         ),
         Format3FieldRule(
+            pattern=re.compile(r"^__clone_record__$"),
+            reason_when_miss=(
+                "iteminfo clone_record 需要 source_key/new_key/patches 三件套，"
+                "且源记录与目标 key 必须能在当前表内唯一确定"
+            ),
+        ),
+        Format3FieldRule(
             pattern=re.compile(
                 r"^(price_list\[\d+]\."
                 r"(key|price\.(price|item_info_wrapper))|"
@@ -132,8 +153,15 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
         table_name="skill",
         field_rules=(
             Format3FieldRule(
-                pattern=re.compile(r"^(_useResourceStatList|_buffLevelList)$"),
-                reason_when_miss="skill 当前仅支持 _useResourceStatList、_buffLevelList",
+                pattern=re.compile(
+                    r"^(_useResourceStatList|_buffLevelList|"
+                    r"buff_level_list\[\d+]\[\d+]\.base\.carray_u16)$"
+                ),
+                reason_when_miss=(
+                    "skill 当前支持 _useResourceStatList、_buffLevelList，以及 "
+                    "buff_level_list[L][B].base.carray_u16 的 "
+                    "list_union / list_append / array_append / set"
+                ),
             ),
         ),
         supports_whole_table=True,
@@ -177,14 +205,16 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
                     r"lookup_22|lookup_24|skeleton_name|lookup_25|flag_c|"
                     r"appearance_name|character_prefab_path|"
                     r"default_action_action_index|character_weight|f36|"
-                    r"character_reward_data_list)$"
+                    r"character_reward_data_list|"
+                    r"equip_item_info_list\[\d+]\.equip_item_info)$"
                 ),
                 reason_when_miss=(
-                    "characterinfo 当前仅支持 upper_chart.group_lookup、lower_chart.group_lookup、"
+                    "characterinfo 当前支持 upper_chart.group_lookup、lower_chart.group_lookup、"
                     "lookup_22、lookup_24、skeleton_name、lookup_25、flag_c、"
                     "appearance_name、character_prefab_path、"
                     "default_action_action_index、character_weight、f36、"
-                    "character_reward_data_list"
+                    "character_reward_data_list（set / list_append / list_merge / "
+                    "list_union），以及 equip_item_info_list[N].equip_item_info 的 set"
                 ),
             ),
         ),
@@ -194,8 +224,33 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
         table_name="dropsetinfo",
         field_rules=(
             Format3FieldRule(
-                pattern=re.compile(r"^(drops|__new_record__)$"),
-                reason_when_miss="dropsetinfo 当前仅支持 drops 字段和 new_record 完整记录模板",
+                pattern=re.compile(
+                    r"^(drops|__new_record__|__clone_record__|string_key|"
+                    r"original_string|drop_roll_type|drop_roll_count|"
+                    r"total_drop_rate|list)$"
+                ),
+                reason_when_miss=(
+                    "dropsetinfo 当前支持 drops 字段、new_record 完整记录模板，"
+                    "以及 clone_record 复制记录与记录字段 set"
+                ),
+            ),
+        ),
+        supports_whole_table=False,
+    ),
+    "itemgroupinfo": Format3TableCapability(
+        table_name="itemgroupinfo",
+        field_rules=(
+            Format3FieldRule(
+                pattern=re.compile(
+                    r"^(item_group_info_list|item_info_list|category_type_list|"
+                    r"string_key|is_blocked|group_name|order_index|item_cage_type|"
+                    r"icon_path|is_show_category_string|is_group_item_lockable|"
+                    r"is_monster_only_equip|is_always_fold_item_group)$"
+                ),
+                reason_when_miss=(
+                    "itemgroupinfo 当前支持成员列表的 list_merge/list_union/"
+                    "list_append 与记录字段 set"
+                ),
             ),
         ),
         supports_whole_table=False,
@@ -215,11 +270,23 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
         field_rules=(
             Format3FieldRule(
                 pattern=re.compile(
-                    r"^fixed_material_data_list\[\d+\]\.(item_info|count)$"
+                    r"^(__clone_record__|string_key|is_blocked|craft_tool_info|"
+                    r"item_consume_type|condition_list|need_knowledge_info|craft_tag_name|"
+                    r"is_from_item_info|is_with_sealed_item|is_apply_enchant_level|"
+                    r"is_material_item_only_same_item_no|is_allow_material_item_self_same|"
+                    r"fixed_material_data_list|recipe_item_group_info_list|"
+                    r"elemental_status_info|elemental_material_state_list|name|description|"
+                    r"enchant_recipe_desc|group_string_info|sub_group_string_info|"
+                    r"complete_description|result_drop_info_list|additional_drop_info_list|"
+                    r"fixed_material_data_list\[\d+]\.(item_info|gimmick_info|"
+                    r"character_info|count|coupon_count|enchant_level)|"
+                    r"recipe_item_group_info_list\[\d+]\.(item_group_info|count|"
+                    r"enchant_level))$"
                 ),
                 reason_when_miss=(
-                    "multichangeinfo 当前仅支持 fixed_material_data_list[N].item_info "
-                    "和 fixed_material_data_list[N].count"
+                    "multichangeinfo 当前支持 clone_record 复制记录、记录字段 set，"
+                    "以及 fixed_material_data_list[N].<field> 与 "
+                    "recipe_item_group_info_list[N].<field> 下标写入"
                 ),
             ),
         ),
@@ -237,16 +304,23 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
     ),
     "storeinfo": Format3TableCapability(
         table_name="storeinfo",
+        # 2.02.00 起 stock 记录布局已完整解析，因此能力边界放到 entry 全部标量
+        # 字段 + stock_data_list（含 [N] 与任意嵌套子路径）。真正非法的字段由
+        # storeinfo writer 明确拒绝并给出原因，不再在这里静默丢。
         field_rules=(
             Format3FieldRule(
                 pattern=re.compile(
-                    r"^(stock_data_list|_exchangeItemInfoListForSell|"
-                    r"buyable_stock_count|sellable_stock_count|exchange_item_info_for_buy|"
-                    r"reset_day|sell_percents|stock_data_list\[\d+\](?:\.raw_c)?)$"
+                    r"^(stock_data_list(\[\d+])?(\..+)?|"
+                    r"_exchangeItemInfoListForSell|"
+                    + "|".join(
+                        re.escape(name) + r"(\[\d+])?"
+                        for name in sorted(STOREINFO_ENTRY_FIELDS)
+                    )
+                    + r")$"
                 ),
                 reason_when_miss=(
-                    "storeinfo 当前支持库存列表、库存项窄替换、库存计数、reset_day、"
-                    "sell_percents、raw_c 与贡献购买货币字段"
+                    "storeinfo 当前支持库存列表与库存记录任意字段、store entry 标量"
+                    "（reset_day / sell_percents / buyable_stock_count 等）与列表字段"
                 ),
             ),
         ),
@@ -310,6 +384,12 @@ def partition_supported_intents(
     supported: list[Format3Intent] = []
     skipped: list[Format3SkippedIntent] = list(tuner_skipped)
     for intent in intents:
+        unsupported_reason = FORMAT3_UNSUPPORTED_OPS.get(intent.op)
+        if unsupported_reason is not None:
+            skipped.append(
+                Format3SkippedIntent(intent=intent, reason=unsupported_reason)
+            )
+            continue
         if _matches_any_rule(intent, capability.field_rules):
             supported.append(intent)
             continue

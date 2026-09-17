@@ -17,7 +17,7 @@ from cdmm.services.format3_iteminfo_price_writer import is_iteminfo_price_field
 from cdmm.services.format3_iteminfo_record_writer import ITEMINFO_RECORD_DIRECT_FIELDS
 
 # 桥接文件格式版本，参与诊断但仍保持DMM Format 3兼容形态。
-CDMOD_FORMAT3_BRIDGE_VERSION = 2
+CDMOD_FORMAT3_BRIDGE_VERSION = 3
 
 # ItemInfo不同字段必须进入现有writer的正确分流，不能混成一个巨型目标。
 ITEMINFO_PREFAB_NARROW_PATTERN = re.compile(
@@ -51,15 +51,7 @@ def build_format3_bridge_document(plan: CdmodBuildPlan) -> dict[str, Any]:
                 visual_selectors,
             )
             batch = intent_batches.setdefault(family, [])
-            if operation.op == "array_append":
-                if not isinstance(operation.payload, list):
-                    raise ValueError("array_append 计划 payload 必须是列表")
-                for value in operation.payload:
-                    batch.append(
-                        _bridge_intent(selector, operation.path, "array_append", value)
-                    )
-            else:
-                batch.append(_bridge_intent(selector, operation.path, "set", operation.payload))
+            batch.extend(_bridge_intents(selector, operation))
         for family in _ordered_bridge_families(intent_batches):
             targets.append(
                 {
@@ -89,20 +81,77 @@ def build_format3_bridge_document(plan: CdmodBuildPlan) -> dict[str, Any]:
     }
 
 
+def _bridge_intents(
+    selector: dict[str, Any],
+    operation: Any,
+) -> list[dict[str, Any]]:
+    """把一条计划操作还原为 writer 可直接消费的 Format 3 intent。
+
+    计划层已经完成跨模组合并，但 `clone_record` 与列表操作族
+    （list_append/list_merge/list_union/array_append）无法用 `set` 表达：
+
+    * `clone_record` 需要 `source_key`/`new_key`/`patches` 三件套；
+    * 列表追加/并集需要保留 op 名称，否则 writer 会按“整体替换”处理，
+      静默丢掉原版成员和前序模组追加的内容。
+
+    因此这里保留原 op 名称，只做 `array_append` 的逐元素展开。
+    """
+    if operation.op == "array_append":
+        if not isinstance(operation.payload, list):
+            raise ValueError("array_append 计划 payload 必须是列表")
+        return [
+            _bridge_intent(selector, operation.path, "array_append", value)
+            for value in operation.payload
+        ]
+    if operation.op == "clone_record":
+        payload = operation.payload
+        if (
+            not isinstance(payload, dict)
+            or "source_key" not in payload
+            or "patches" not in payload
+        ):
+            raise ValueError("clone_record 计划 payload 必须携带 source_key/patches")
+        new_key = selector.get("key")
+        if isinstance(new_key, bool) or not isinstance(new_key, int):
+            raise ValueError("clone_record 计划缺少整数 new_key")
+        return [
+            {
+                "op": "clone_record",
+                "source_key": payload["source_key"],
+                "new_key": new_key,
+                "patches": payload["patches"],
+            }
+        ]
+    return [
+        _bridge_intent(
+            selector,
+            operation.path,
+            operation.op,
+            operation.payload,
+            merge_key=operation.merge_key,
+        )
+    ]
+
+
 def _bridge_intent(
     selector: dict[str, Any],
     path: str,
     op: str,
     value: Any,
+    *,
+    merge_key: str | None = None,
 ) -> dict[str, Any]:
     """Build one legacy Format 3 intent without losing append order."""
-    return {
+    intent = {
         "entry": str(selector.get("string_key") or ""),
         "key": selector.get("key", 0),
         "field": path,
         "op": op,
         "new": value,
     }
+    if merge_key is not None:
+        intent["merge_key"] = merge_key
+    return intent
 
 
 def _bridge_family(

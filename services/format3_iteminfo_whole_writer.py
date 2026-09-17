@@ -22,6 +22,7 @@ from cdmm.services.format3_runtime import (
     Format3SkippedIntent,
 )
 from cdmm.services.iteminfo_native_parser import (
+    _ITEM_FIELD_NAMES,
     parse_iteminfo_from_bytes,
     serialize_iteminfo,
 )
@@ -30,46 +31,35 @@ from cdmm.services.pabgh_rewrite import rewrite_pabgh_offsets
 logger = logging.getLogger(__name__)
 
 # 这些字段来自参考仓库当前已验证过的 iteminfo whole-table writer 能力。
-ITEMINFO_WHOLE_TABLE_DIRECT_FIELDS = frozenset(
-    {
-        "cooltime",
-        "unk_post_cooltime_a",
-        "unk_post_cooltime_b",
-        "max_charged_useable_count",
-        "unk_post_max_charged_a",
-        "unk_post_max_charged_b",
-        "docking_child_data",
-        "gimmick_info",
-        "item_charge_type",
-        "respawn_time_seconds",
-        "prefab_data_list",
-        "gimmick_visual_prefab_data_list",
-        "equip_passive_skill_list",
-        "occupied_equip_slot_data_list",
-        "item_tag_list",
-        "consumable_type_list",
-        "item_use_info_list",
-        "item_icon_list",
-        "sealable_item_info_list",
-        "sealable_character_info_list",
-        "sealable_gimmick_info_list",
-        "sealable_gimmick_tag_list",
-        "sealable_tribe_info_list",
-        "sealable_money_info_list",
-        "transmutation_material_gimmick_list",
-        "transmutation_material_item_list",
-        "transmutation_material_item_group_list",
-        "multi_change_info_list",
-        "gimmick_tag_list",
-    }
-)
+# 2.02.00 的 iteminfo schema 已经用 `.pabgh` 边界 + 整表恒等回环逐字段验证，
+# 因此不再维护"部分字段"白名单：除显式禁止项外，schema 里的顶层字段都可以
+# 走 whole-table 写回。
+ITEMINFO_UNWRITEABLE_FIELDS: frozenset[str] = frozenset()
+
+ITEMINFO_WHOLE_TABLE_DIRECT_FIELDS = frozenset(_ITEM_FIELD_NAMES)
 
 ITEMINFO_WHOLE_TABLE_NESTED_PREFIXES = (
     "prefab_data_list[",
     "drop_default_data.",
+    "enchant_data_list[",
+    "inspect_data_list[",
+    "price_list[",
 )
 
-ITEMINFO_UNWRITEABLE_FIELDS = frozenset({"enchant_data_list"})
+# 旧版 cdmm 使用过的字段名 -> 当前 schema 路径。已经发布过的老模组仍然要能
+# 加载，所以这里保留映射；新模组应直接使用 schema 字段名。
+ITEMINFO_LEGACY_FIELD_ALIASES: dict[str, str] = {
+    "unk_post_cooltime_a": "cooltime.b",
+    "unk_post_cooltime_b": "cooltime.c",
+    "unk_post_max_charged_a": "max_charged_useable_count.b",
+    "unk_post_max_charged_b": "max_charged_useable_count.c",
+}
+
+# 旧版是平铺标量、当前是结构体的字段：只有收到标量时按结构体首字段处理。
+ITEMINFO_LEGACY_SCALAR_STRUCT_ALIASES: dict[str, str] = {
+    "cooltime": "cooltime.a",
+    "max_charged_useable_count": "max_charged_useable_count.a",
+}
 
 _LIST_ELEMENT_KINDS: dict[str, type] = {
     "equip_passive_skill_list": dict,
@@ -90,7 +80,17 @@ _LIST_ELEMENT_KINDS: dict[str, type] = {
     "multi_change_info_list": int,
     "gimmick_tag_list": str,
     "prefab_data_list": dict,
-    "gimmick_visual_prefab_data_list": dict,
+    "enchant_data_list": dict,
+    "price_list": dict,
+    "fixed_page_data_list": dict,
+    "dynamic_page_data_list": dict,
+    "inspect_data_list": dict,
+    "item_bundle_data_list": dict,
+    "repair_data_list": dict,
+    "pattern_description_data_list": dict,
+    "reserve_slot_target_data_list": dict,
+    "hackable_character_group_info_list": int,
+    "item_group_info_list": int,
 }
 
 
@@ -147,68 +147,15 @@ def build_iteminfo_whole_table_result(
     skipped: list[Format3SkippedIntent] = []
     applied = 0
     for intent in intents:
-        if intent.field in ITEMINFO_UNWRITEABLE_FIELDS:
-            skipped.append(_skip_intent(intent, "iteminfo 当前未支持该字段的 whole-table 写回"))
-            continue
-        if intent.op != "set":
-            skipped.append(_skip_intent(intent, "iteminfo whole-table 当前仅支持 op=set"))
-            continue
         item = _resolve_item_record(intent, by_key, by_name, ambiguous_names)
         if item is None:
             skipped.append(_skip_intent(intent, "目标 entry key/名称 都未命中"))
             continue
-
-        if "." in intent.field or "[" in intent.field:
-            target = _resolve_path_target(item, intent.field)
-            if target is None:
-                skipped.append(_skip_intent(intent, "nested path 未命中"))
-                continue
-            parent, last_segment = target
-            try:
-                existing_nested = parent[last_segment]
-            except (KeyError, IndexError, TypeError):
-                existing_nested = None
-            if not shape_matches(existing_nested, intent.new):
-                skipped.append(_skip_intent(intent, "nested path 新值结构不匹配"))
-                continue
-            try:
-                parent[last_segment] = intent.new
-                applied += 1
-            except (KeyError, IndexError, TypeError):
-                skipped.append(_skip_intent(intent, "nested path 写入失败"))
+        reason = apply_iteminfo_intent_to_item(item, intent)
+        if reason is not None:
+            skipped.append(_skip_intent(intent, reason))
             continue
-
-        target_field = _resolve_field_name(intent.field, item)
-        if target_field is None:
-            if intent.field in ITEMINFO_WHOLE_TABLE_DIRECT_FIELDS:
-                target_field = intent.field
-            else:
-                skipped.append(_skip_intent(intent, "whole-table 不支持该平铺字段"))
-                continue
-
-        existing_value = item.get(target_field)
-        new_value, coerce_reason = _coerce_iteminfo_value(
-            target_field,
-            existing_value,
-            intent.new,
-        )
-        if coerce_reason is not None:
-            skipped.append(_skip_intent(intent, coerce_reason))
-            continue
-
-        shape_ok = shape_matches(existing_value, new_value)
-        if shape_ok and (existing_value is None or (isinstance(existing_value, list) and not existing_value)):
-            kind = _LIST_ELEMENT_KINDS.get(target_field)
-            if kind is not None:
-                shape_ok = isinstance(new_value, list) and _elements_match_kind(new_value, kind)
-        if not shape_ok:
-            skipped.append(_skip_intent(intent, "whole-table 新值结构不匹配"))
-            continue
-        try:
-            item[target_field] = new_value
-            applied += 1
-        except Exception as exc:  # pragma: no cover - 防御性分支
-            skipped.append(_skip_intent(intent, f"whole-table 写入失败：{exc}"))
+        applied += 1
 
     if applied == 0:
         return Format3DispatchResult(changes=(), skipped=tuple(skipped))
@@ -278,6 +225,72 @@ def _resolve_item_record(
     return by_key.get(intent.key)
 
 
+def apply_iteminfo_intent_to_item(item: dict, intent: Format3Intent) -> str | None:
+    """把单条 iteminfo `set` intent 写入已解析记录；失败时返回原因字符串。
+
+    whole-table writer 与 clone_record writer 共用同一套字段路径/别名/结构
+    校验规则，避免克隆记录走一条更宽松的写入路径。
+    """
+    if intent.field in ITEMINFO_UNWRITEABLE_FIELDS:
+        return "iteminfo 当前未支持该字段的 whole-table 写回"
+    if intent.op != "set":
+        return "iteminfo whole-table 当前仅支持 op=set"
+
+    field_path = intent.field
+    if (
+        field_path in ITEMINFO_LEGACY_SCALAR_STRUCT_ALIASES
+        and isinstance(intent.new, int)
+        and not isinstance(intent.new, bool)
+    ):
+        field_path = ITEMINFO_LEGACY_SCALAR_STRUCT_ALIASES[field_path]
+    field_path = ITEMINFO_LEGACY_FIELD_ALIASES.get(field_path, field_path)
+
+    if "." in field_path or "[" in field_path:
+        target = _resolve_path_target(item, field_path)
+        if target is None:
+            return "nested path 未命中"
+        parent, last_segment = target
+        try:
+            existing_nested = parent[last_segment]
+        except (KeyError, IndexError, TypeError):
+            existing_nested = None
+        if not shape_matches(existing_nested, intent.new):
+            return "nested path 新值结构不匹配"
+        try:
+            parent[last_segment] = intent.new
+        except (KeyError, IndexError, TypeError):
+            return "nested path 写入失败"
+        return None
+
+    target_field = _resolve_field_name(field_path, item)
+    if target_field is None or target_field not in _ITEM_FIELD_NAMES:
+        return "whole-table 不支持该字段"
+
+    existing_value = item.get(target_field)
+    new_value, coerce_reason = _coerce_iteminfo_value(
+        target_field,
+        existing_value,
+        intent.new,
+    )
+    if coerce_reason is not None:
+        return coerce_reason
+
+    shape_ok = shape_matches(existing_value, new_value)
+    if shape_ok and (
+        existing_value is None or (isinstance(existing_value, list) and not existing_value)
+    ):
+        kind = _LIST_ELEMENT_KINDS.get(target_field)
+        if kind is not None:
+            shape_ok = isinstance(new_value, list) and _elements_match_kind(new_value, kind)
+    if not shape_ok:
+        return "whole-table 新值结构不匹配"
+    try:
+        item[target_field] = new_value
+    except Exception as exc:  # pragma: no cover - 防御性分支
+        return f"whole-table 写入失败：{exc}"
+    return None
+
+
 def _elements_match_kind(values: list, kind: type) -> bool:
     """校验列表字段元素类型。"""
     if kind is int:
@@ -299,13 +312,25 @@ def _coerce_iteminfo_value(
 def _coerce_prefab_data_list(existing: object, new: object) -> tuple[object, str | None]:
     """适配 iteminfo `prefab_data_list` 的扁平 Format 3 导出格式。
 
-    真实游戏当前 `PrefabData` 里还有 `tag_name_hash` 和未完全解析的 tribe
-    opaque 块。DMM JSON 往往只表达 `prefab_names` 与 `tribe_gender_list`；
-    因此这里保留现有未知字段，只覆盖可确认的列表字段，避免 whole-table
-    serialize 时丢失或伪造未知二进制结构。
+    Field JSON 里的元素通常是"部分字段"导出（只给出要改的列表），因此以
+    同索引的现值为模板，只覆盖导出里出现的键；新增元素没有模板时用空
+    PrefabData 补齐 schema 必需字段，保证序列化字节形态合法。
     """
     if not isinstance(existing, list) or not isinstance(new, list):
         return new, None
+
+    int_list_fields = (
+        "prefab_names",
+        "animation_path_list",
+        "equip_slot_list",
+        "tribe_gender_list",
+    )
+    int_fields = (
+        "docking_prefab_switch_name",
+        "use_gimmick_prefab",
+        "is_craft_material",
+        "prefab_data_type",
+    )
 
     coerced: list[object] = []
     for index, incoming in enumerate(new):
@@ -313,68 +338,50 @@ def _coerce_prefab_data_list(existing: object, new: object) -> tuple[object, str
             return new, None
         base = existing[index] if index < len(existing) else None
         if base is None and existing and isinstance(existing[-1], dict):
-            # DMM 的扁平导出可能把 1 个 prefab 扩成多个，但新增元素没有
-            # tag_name_hash / tribe opaque 这类当前游戏 schema 必需字段。
-            # 用同记录最后一个已知 prefab 作为模板，只覆盖可确认字段。
+            # 扁平导出可能把 1 个 prefab 扩成多个，新增元素没有完整 schema
+            # 字段；用同记录最后一个已知 prefab 作为模板。
             base = existing[-1]
         if isinstance(base, dict):
             merged = dict(base)
-        elif "tag_name_hash" in incoming:
-            merged = _empty_prefab_template()
         else:
-            return new, "prefab_data_list 新增元素缺少 tag_name_hash，已安全跳过"
+            merged = _empty_prefab_template()
 
-        if "tag_name_hash" in incoming:
-            tag_name_hash = incoming["tag_name_hash"]
-            if not _is_int_list([tag_name_hash]):
-                return new, "prefab_data_list.tag_name_hash 类型不合法"
-            merged["tag_name_hash"] = tag_name_hash
-        elif "tag_name_hash" not in merged:
-            return new, "prefab_data_list 缺少可保留的 tag_name_hash"
-
-        for list_field in ("prefab_names", "equip_slot_list"):
+        for list_field in int_list_fields:
             if list_field in incoming:
                 values = incoming[list_field]
                 if not _is_int_list(values):
                     return new, f"prefab_data_list.{list_field} 类型不合法"
                 merged[list_field] = list(values)
 
-        # DMM 的旧/扁平导出把适用族群列表放在 tribe_gender_list；当前 native
-        # parser 中这一串 u32 落在 `equip_slot_list` 位置，而真正的 tribe
-        # 结构仍以 opaque 块保留，不能直接用 list[int] 覆盖。
-        if "tribe_gender_list" in incoming and _is_int_list(incoming["tribe_gender_list"]):
-            merged["equip_slot_list"] = list(incoming["tribe_gender_list"])
-        elif "tribe_gender_list" in incoming:
-            tribe_value = incoming["tribe_gender_list"]
-            if not (
-                isinstance(tribe_value, list)
-                and all(isinstance(item, dict) for item in tribe_value)
-            ):
-                return new, "prefab_data_list.tribe_gender_list 类型不合法"
-            merged["tribe_gender_list"] = tribe_value
-            merged["tribe_opaque"] = False
-            merged["tribe_count"] = len(tribe_value)
+        if "scale" in incoming:
+            scale = incoming["scale"]
+            if not _is_number_list(scale) or len(scale) != 3:
+                return new, "prefab_data_list.scale 类型不合法"
+            merged["scale"] = [float(value) for value in scale]
 
-        if "is_craft_material" in incoming:
-            craft_material = incoming["is_craft_material"]
-            if not isinstance(craft_material, int) or isinstance(craft_material, bool):
-                return new, "prefab_data_list.is_craft_material 类型不合法"
-            merged["is_craft_material"] = craft_material
+        for int_field in int_fields:
+            if int_field in incoming:
+                value = incoming[int_field]
+                if not isinstance(value, int) or isinstance(value, bool):
+                    return new, f"prefab_data_list.{int_field} 类型不合法"
+                merged[int_field] = value
 
         coerced.append(merged)
     return coerced, None
 
 
 def _empty_prefab_template() -> dict:
-    """构造无 tribe 限制的最小 PrefabData 默认值。"""
+    """构造字段完整、字节形态合法的 PrefabData 默认值。"""
     return {
-        "tag_name_hash": 0,
+        "scale": [1.0, 1.0, 1.0],
         "prefab_names": [],
+        "animation_path_list": [],
         "equip_slot_list": [],
-        "is_craft_material": 0,
-        "tribe_count": 0,
-        "tribe_opaque": False,
         "tribe_gender_list": [],
+        "docking_prefab_switch_name": 0,
+        "use_gimmick_prefab": 0,
+        "is_craft_material": 0,
+        "prefab_data_type": 0,
     }
 
 
@@ -382,6 +389,14 @@ def _is_int_list(value: object) -> bool:
     """判断值是否为非 bool 整数列表。"""
     return isinstance(value, list) and all(
         isinstance(item, int) and not isinstance(item, bool)
+        for item in value
+    )
+
+
+def _is_number_list(value: object) -> bool:
+    """判断值是否为非 bool 数字列表（int/float 混用允许）。"""
+    return isinstance(value, list) and all(
+        isinstance(item, (int, float)) and not isinstance(item, bool)
         for item in value
     )
 

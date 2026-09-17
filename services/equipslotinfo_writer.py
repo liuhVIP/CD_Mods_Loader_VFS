@@ -38,6 +38,13 @@ _FOOTER_ITEM = 20
 # entry 结束魔数，用于确认 parser 没有错位。
 _TERMINATOR = 0xB954D87C
 
+# `etl_hashes` 是 ETL hash 集合，重复值没有意义。追加/并集/合并都按
+# “保序去重合并”处理，`set` 保留原有的“子集写入视为兼容 no-op”兼容规则。
+_EQUIPSLOT_MERGE_OPS = frozenset(
+    {"list_union", "list_merge", "list_append", "array_append"}
+)
+_EQUIPSLOT_SUPPORTED_OPS = _EQUIPSLOT_MERGE_OPS | {"set"}
+
 # Format 3 字段路径：entries[record_index].etl_hashes。
 _FIELD_RE = re.compile(r"^entries\[(\d+)]\.etl_hashes$")
 
@@ -170,11 +177,9 @@ def build_equipslotinfo_changes(
         if match is None:
             logger.warning("equipslotinfo writer: 不支持字段 %r，已跳过", field)
             continue
-        if (getattr(intent, "op", "set") or "set") != "set":
-            logger.warning(
-                "equipslotinfo writer: 不支持 op %r，已跳过",
-                getattr(intent, "op", None),
-            )
+        operation = getattr(intent, "op", "set") or "set"
+        if operation not in _EQUIPSLOT_SUPPORTED_OPS:
+            logger.warning("equipslotinfo writer: 不支持 op %r，已跳过", operation)
             continue
         new = getattr(intent, "new", None)
         key = getattr(intent, "key", None)
@@ -198,7 +203,7 @@ def build_equipslotinfo_changes(
                     entry_name,
                 )
                 continue
-        per_key.setdefault(key, {})[int(match.group(1))] = new
+        per_key.setdefault(key, {})[int(match.group(1))] = (operation, new)
 
     if name_resolved:
         logger.info("equipslotinfo writer: %d 个 intent 通过 entry 名称解析", name_resolved)
@@ -211,13 +216,13 @@ def build_equipslotinfo_changes(
         entry_end = sorted_offsets[sorted_offsets.index(offset) + 1]
         _entry_id, _entry_name, payload = _parse_entry_header(vanilla_body, offset, key_size)
         unk, records, footer = parse_entry_records(vanilla_body, payload, entry_end)
-        for index, hashes in index_map.items():
+        for index, (operation, hashes) in index_map.items():
             if not (0 <= index < len(records)):
                 raise EquipslotWriteRefused(
                     f"entry {key}: record index {index} 越界，当前只有 {len(records)} 条"
                 )
             _count, old_hashes, fixed = records[index]
-            merged_hashes = _keep_expanded_hashes_if_new_value_is_subset(old_hashes, hashes)
+            merged_hashes = _merge_etl_hashes(old_hashes, hashes, operation)
             records[index] = (len(merged_hashes), merged_hashes, fixed)
         new_payload = serialize_entry_payload(unk, records, footer)
         replacements[key] = (payload, entry_end, new_payload)
@@ -268,6 +273,24 @@ def build_equipslotinfo_changes(
             "label": "equipslotinfo.pabgh offset rebuild",
         }
     return pabgb_changes, pabgh_change
+
+
+def _merge_etl_hashes(
+    old_hashes: list[int],
+    new_hashes: list[int],
+    operation: str,
+) -> list[int]:
+    """按 intent 语义计算新的 ETL hash 列表。"""
+    if operation == "set":
+        return _keep_expanded_hashes_if_new_value_is_subset(old_hashes, new_hashes)
+    merged = list(old_hashes)
+    seen = set(old_hashes)
+    for value in new_hashes:
+        if value in seen:
+            continue
+        seen.add(value)
+        merged.append(value)
+    return merged
 
 
 def _keep_expanded_hashes_if_new_value_is_subset(
