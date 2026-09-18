@@ -1,4 +1,4 @@
-// Trinity V1.3.2 VTweak 中文伴生 ASI：运行时内嵌翻译映射与 ImGui 中文字体注入。
+// Trinity V1.4.1 VTweak 中文伴生 ASI：运行时内嵌翻译映射与 ImGui 中文字体注入。
 #include <Windows.h>
 
 #include <algorithm>
@@ -13,6 +13,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "generated/catalog.generated.h"
@@ -20,62 +21,72 @@
 
 namespace trinity_cn {
 
-// 当前适配对象为 Trinity V1.3.2 VTweak（2.00.01 / Lian fork）；版本变化时必须重新确认函数入口和序言。
+// 当前适配对象为 Trinity V1.4.1 VTweak（2.02.00 / Lian fork）；版本变化时必须重新确认函数入口和序言。
 constexpr wchar_t kTargetModuleName[] = L"Trinity.asi";
 constexpr wchar_t kTargetProcessName[] = L"CrimsonDesert.exe";
-constexpr char kTargetVersion[] = "v1.3.2 (vTweak by Lian)";
-constexpr char kVersionLabel[] = "b站up 改名_汉化 v1.3.2";
-constexpr char kCompanionVersion[] = "0.7.3.0";
-constexpr std::uintptr_t kAddFontFromFileTtfRva = 0xA1C90;
-constexpr std::uintptr_t kVersionTextLeaRva = 0x55990;
-constexpr std::uintptr_t kCatalogLocStringRva = 0x34240;
-constexpr std::uintptr_t kItemTableGlobalRva = 0x1CE200;
-constexpr std::uintptr_t kGroupTableGlobalRva = 0x1CE208;
-constexpr std::uintptr_t kInventoryTableGlobalRva = 0x1CE218;
-constexpr std::uintptr_t kCatalogNamesHolderRva = 0x1CE220;
-constexpr std::uintptr_t kItemTableLoadRva = 0x24667;
-constexpr std::uintptr_t kGroupTableLoadRva = 0x25A34;
-constexpr std::uintptr_t kStringInfoTableLoadRva = 0x354E9;
-constexpr std::uintptr_t kDefinitionArrayLoadRva = 0x2DCFF;
+constexpr char kTargetVersion[] = "v1.4.1 (vTweak by Lian)";
+constexpr char kVersionLabel[] = "b站up 改名_汉化 v1.4.1";
+constexpr char kCompanionVersion[] = "0.9.0.0";
+constexpr std::uintptr_t kAddFontFromFileTtfRva = 0xCCCC0;
+constexpr std::uintptr_t kVersionTextLeaRva = 0x7E480;
+constexpr std::uintptr_t kCatalogLocStringRva = 0x457C0;
+constexpr std::uintptr_t kItemTableGlobalRva = 0x247370;
+constexpr std::uintptr_t kGroupTableGlobalRva = 0x247380;
+constexpr std::uintptr_t kInventoryTableGlobalRva = 0x247390;
+constexpr std::uintptr_t kCatalogNamesHolderRva = 0x247398;
+constexpr std::uintptr_t kItemTableLoadRva = 0x30778;
+constexpr std::uintptr_t kGroupTableLoadRva = 0x34654;
+constexpr std::uintptr_t kStringInfoTableLoadRva = 0x42169;
+constexpr std::uintptr_t kDefinitionArrayLoadRva = 0x409EF;
 constexpr std::uintptr_t kTableCountOffset = 0x08;
 constexpr std::uintptr_t kTableDefinitionsOffset = 0x58;
 constexpr std::uintptr_t kItemNameFieldOffset = 0x20;
 constexpr std::uintptr_t kGroupNameFieldOffset = 0x18;
 constexpr std::uintptr_t kInventoryNameFieldOffset = 0x70;
+// 0x40990 取 definitions 数组时先读 +0x58 的指针，指针无效再回退到 +0x50 的内联数组；
+// 两者都是 qword 指针数组。只认 +0x58 会把合法表误判成“建表失败”。
+constexpr std::uintptr_t kTableDefinitionsFallbackOffset = 0x50;
+// 运行时定义结构的记录名布局：definitions[row] + 0x08 指向名称持有者，其首字段即
+// PABGB 记录的 UTF-8 string_key。V1.4.1 VTweak 有两处独立代码这样读取记录名
+// （0x3070C 目录扫描与 0x3352F 英文回退），Trinity 更新后必须重新核对这两处。
+constexpr std::uintptr_t kDefinitionKeyHolderOffset = 0x08;
+constexpr std::size_t kRecordKeyProbeSize = 32;
+constexpr std::size_t kUnresolvedKeyLogLimit = 24;
 constexpr std::size_t kHookOverwriteSize = 17;
 constexpr std::size_t kCatalogHookOverwriteSize = 23;
 constexpr DWORD kModuleWaitMilliseconds = 60'000;
 constexpr DWORD kModuleWaitHeartbeatMilliseconds = 3'000;
 constexpr DWORD kModulePollMilliseconds = 10;
 
-// Trinity V1.3.2 VTweak 的 AddFontFromFileTTF 前 17 字节；不一致时拒绝安装 Hook。
+// Trinity V1.4.1 VTweak 的 AddFontFromFileTTF（0xCCCC0）前 17 字节；不一致时拒绝安装 Hook。
 constexpr std::array<std::uint8_t, kHookOverwriteSize> kExpectedFontFunctionPrologue{
     0x40, 0x55, 0x53, 0x56, 0x57, 0x41, 0x56, 0x41, 0x57,
     0x48, 0x8D, 0xAC, 0x24, 0x38, 0xFF, 0xFF, 0xFF,
 };
 
-// 唯一版本文本引用：lea rdi, [rip + v1.3.2 (vTweak by Lian)]。
+// 唯一版本文本引用：lea rdi, [rip + v1.4.1 (vTweak by Lian)]。
 constexpr std::array<std::uint8_t, 7> kExpectedVersionTextLea{
-    0x48, 0x8D, 0x3D, 0x39, 0x16, 0x12, 0x00,
+    0x48, 0x8D, 0x3D, 0xC9, 0xA6, 0x12, 0x00,
 };
 
-// Trinity V1.3.2 VTweak 的名称 getter（0x34240）前 23 字节：栈保存指令加上
-// 检查目录全局（0x1CE220）是否就绪的 cmp。覆盖长度必须结束在指令边界，
+// Trinity V1.4.1 VTweak 的名称 getter（0x457C0）前 23 字节：栈保存指令加上
+// 检查目录全局（0x247398）是否就绪的 cmp。覆盖长度必须结束在指令边界，
 // 且跳板需要重定位其中的 RIP 相对操作数。
 constexpr std::array<std::uint8_t, kCatalogHookOverwriteSize> kExpectedCatalogLocStringPrologue{
     0x48, 0x8B, 0xC4, 0x53, 0x55, 0x56, 0x57, 0x41, 0x56, 0x41, 0x57,
-    0x48, 0x83, 0xEC, 0x38, 0x48, 0x83, 0x3D, 0xC9, 0x9F, 0x19, 0x00, 0x00,
+    0x48, 0x83, 0xEC, 0x38, 0x48, 0x83, 0x3D, 0xC1, 0x1B, 0x20, 0x00, 0x00,
 };
 
-// 当前 ItemInfo / ItemGroupInfo / stringinfo 全局与 definitions(+0x58) 的固定引用特征。
+// 当前 ItemInfo / ItemGroupInfo / stringinfo 全局与 definitions(+0x58) 的固定引用特征；
+// 三条 mov 都是“载入表管理器后立刻 call 0x40990（按索引取定义）”的调用点。
 constexpr std::array<std::uint8_t, 7> kExpectedItemTableLoad{
-    0x48, 0x8B, 0x0D, 0x92, 0x9B, 0x1A, 0x00,
+    0x48, 0x8B, 0x0D, 0xF1, 0x6B, 0x21, 0x00,
 };
 constexpr std::array<std::uint8_t, 7> kExpectedGroupTableLoad{
-    0x48, 0x8B, 0x0D, 0xCD, 0x87, 0x1A, 0x00,
+    0x48, 0x8B, 0x0D, 0x25, 0x2D, 0x21, 0x00,
 };
 constexpr std::array<std::uint8_t, 7> kExpectedStringInfoTableLoad{
-    0x48, 0x8B, 0x0D, 0x28, 0x8D, 0x19, 0x00,
+    0x48, 0x8B, 0x0D, 0x18, 0x52, 0x20, 0x00,
 };
 constexpr std::array<std::uint8_t, 4> kExpectedDefinitionArrayLoad{
     0x48, 0x8D, 0x4B, 0x58,
@@ -108,7 +119,11 @@ bool g_itemCatalogFailureLogged{};
 bool g_groupCatalogFailureLogged{};
 bool g_inventoryCatalogFailureLogged{};
 bool g_catalogFallbackLogged{};
+bool g_catalogKeyLookupLogged{};
+bool g_catalogOriginalFallbackLogged{};
 std::unordered_map<std::uintptr_t, const char*> g_catalogTranslations;
+std::unordered_map<std::string_view, const char*> g_catalogKeyTranslations;
+std::unordered_set<std::string> g_unresolvedCatalogKeys;
 
 bool EqualsInsensitive(std::wstring_view left, std::wstring_view right) {
     if (left.size() != right.size()) {
@@ -467,6 +482,8 @@ bool ReadCurrentProcessMemory(std::uintptr_t address, void* output, std::size_t 
         bytesRead == size;
 }
 
+bool IsUserModePointer(std::uintptr_t value);
+
 bool BuildCatalogAddressTable(
     HMODULE trinityModule,
     std::uintptr_t trinityGlobalRva,
@@ -498,9 +515,18 @@ bool BuildCatalogAddressTable(
     if (!ReadCurrentProcessMemory(
             table + kTableDefinitionsOffset,
             &definitionsAddress,
-            sizeof(definitionsAddress)) ||
-        definitionsAddress == 0) {
-        return false;
+            sizeof(definitionsAddress))) {
+        definitionsAddress = 0;
+    }
+    if (!IsUserModePointer(definitionsAddress)) {
+        definitionsAddress = 0;
+        if (!ReadCurrentProcessMemory(
+                table + kTableDefinitionsFallbackOffset,
+                &definitionsAddress,
+                sizeof(definitionsAddress)) ||
+            !IsUserModePointer(definitionsAddress)) {
+            return false;
+        }
     }
 
     std::vector<std::uintptr_t> definitions(expectedRowCount);
@@ -595,6 +621,105 @@ const char* FindCatalogTranslation(std::uintptr_t structAddress) {
     return result;
 }
 
+// 与 Trinity 自身的 0x175b0/0x17580 安全检查保持一致：只接受用户态可读地址，
+// 避免把哨兵值或内核地址当作记录指针。
+bool IsUserModePointer(std::uintptr_t value) {
+    return value >= 0x10000000ULL && value < 0x8000000000000000ULL;
+}
+
+bool TryReadUserPointer(std::uintptr_t address, std::uintptr_t& output) {
+    output = 0;
+    if (!IsUserModePointer(address)) {
+        return false;
+    }
+    return ReadCurrentProcessMemory(address, &output, sizeof(output)) &&
+        IsUserModePointer(output);
+}
+
+// definitions[row] + 0x08 → 名称持有者；持有者 + 0x00 → UTF-8 string_key。
+// 定长读取后必须找到 NUL 且全部为可打印 ASCII，否则视为读取失败（跨页或脏指针）。
+bool TryReadCatalogRecordKey(
+    std::uintptr_t recordAddress,
+    std::array<char, kRecordKeyProbeSize>& buffer,
+    std::size_t& length) {
+    length = 0;
+    std::uintptr_t holder = 0;
+    if (!TryReadUserPointer(recordAddress + kDefinitionKeyHolderOffset, holder)) {
+        return false;
+    }
+    std::uintptr_t text = 0;
+    if (!TryReadUserPointer(holder, text)) {
+        return false;
+    }
+    buffer.fill('\0');
+    if (!ReadCurrentProcessMemory(text, buffer.data(), buffer.size())) {
+        return false;
+    }
+    std::size_t end = 0;
+    while (end < buffer.size() && buffer[end] != '\0') {
+        ++end;
+    }
+    if (end == 0 || end == buffer.size()) {
+        return false;
+    }
+    for (std::size_t index = 0; index < end; ++index) {
+        const unsigned char value = static_cast<unsigned char>(buffer[index]);
+        if (value <= 0x20 || value >= 0x7F) {
+            return false;
+        }
+    }
+    length = end;
+    return true;
+}
+
+// 官方简中缺失时，Trinity 会退回“内部名美化”（下划线转空格 + 驼峰拆词），也就是
+// 界面上残留的英文。这里按内部 string_key 命中作者提供的覆盖译名。
+const char* FindKeyCatalogTranslation(std::uintptr_t structAddress) {
+    if (g_catalogKeyTranslations.empty() || structAddress <= kItemNameFieldOffset) {
+        return nullptr;
+    }
+    std::array<char, kRecordKeyProbeSize> buffer{};
+    std::size_t length = 0;
+    if (!TryReadCatalogRecordKey(structAddress - kItemNameFieldOffset, buffer, length)) {
+        return nullptr;
+    }
+    const auto entry = g_catalogKeyTranslations.find(std::string_view(buffer.data(), length));
+    return entry == g_catalogKeyTranslations.end() ? nullptr : entry->second;
+}
+
+// 内嵌表与原函数都给不出中文时，把内部名称记入日志（有上限），便于补齐译名。
+void LogUnresolvedCatalogKey(std::uintptr_t structAddress) {
+    if (structAddress <= kItemNameFieldOffset) {
+        return;
+    }
+    std::array<char, kRecordKeyProbeSize> buffer{};
+    std::size_t length = 0;
+    if (!TryReadCatalogRecordKey(structAddress - kItemNameFieldOffset, buffer, length)) {
+        return;
+    }
+    std::string message;
+    AcquireSRWLockExclusive(&g_catalogTranslationLock);
+    if (g_unresolvedCatalogKeys.size() < kUnresolvedKeyLogLimit &&
+        g_unresolvedCatalogKeys.emplace(buffer.data(), length).second) {
+        message.assign("目录名称无可用中文（Trinity 会显示内部英文名）：");
+        message.append(buffer.data(), length);
+    }
+    ReleaseSRWLockExclusive(&g_catalogTranslationLock);
+    if (!message.empty()) {
+        DebugLog(message);
+    }
+}
+
+// 内部名称覆盖表在安装 Hook 之前一次性建好，之后只读，无需加锁。
+std::size_t BuildCatalogKeyTranslations() {
+    for (const auto& entry : generated_catalog::kItemKeyTranslations) {
+        g_catalogKeyTranslations.insert_or_assign(
+            std::string_view(entry.recordKey),
+            entry.translation);
+    }
+    return g_catalogKeyTranslations.size();
+}
+
 bool CopyCatalogTranslation(const char* translation, char* output, std::size_t capacity) {
     if (translation == nullptr || output == nullptr || capacity == 0) {
         return false;
@@ -613,27 +738,45 @@ bool HookedCatalogLocString(
     std::uintptr_t structAddress,
     char* output,
     std::size_t capacity) {
+    // V1.4.1 的 0x457C0 有 9 个调用点，全部按同一模式调用：
+    //   rcx = definitions[row] + 字段偏移（物品 0x20 / 分类 0x18 / 仓库 0x70）
+    //   rdx = 输出缓冲，r8 = 容量（物品与分类 0x40、仓库 0x60）
+    // 该函数只从 rcx/rdx/r8 取参；其余栈访问都是它自己的栈帧临时量
+    // （rsp+0x20 / +0x28 / +0x88，其中 +0x88 先写后读），所以直接调用跳板安全。
+    // 调用方拿到 al=0 时会退回“内部名美化”（下划线转空格 + 驼峰拆词），也就是英文，
+    // 因此任何未覆盖的请求都必须把原函数的真实结果透传出去。
     if (const char* translation = FindCatalogTranslation(structAddress)) {
         if (CopyCatalogTranslation(translation, output, capacity)) {
+            return true;
+        }
+    }
+    if (const char* translation = FindKeyCatalogTranslation(structAddress)) {
+        if (CopyCatalogTranslation(translation, output, capacity)) {
+            if (!g_catalogKeyLookupLogged) {
+                g_catalogKeyLookupLogged = true;
+                DebugLog("内部名称覆盖已首次命中。");
+            }
             return true;
         }
     }
     if (g_originalCatalogLocString == nullptr) {
         return false;
     }
-    // 名称池非空时，原 getter 会读取 Hook 声明中不存在的额外栈参数；此时不调用跳板，
-    // 避免读取脏栈。作者本地化表未加载时该全局为空，原 getter 的快速失败路径可安全调用。
-    std::uintptr_t namesHolder = 0;
-    HMODULE module = GetModuleHandleW(kTargetModuleName);
-    if (module != nullptr &&
-        ReadCurrentProcessMemory(
-            reinterpret_cast<std::uintptr_t>(module) + kCatalogNamesHolderRva,
-            &namesHolder,
-            sizeof(namesHolder)) &&
-        namesHolder != 0) {
-        return false;
+    // 0x457C0 只从 rcx/rdx/r8 读取参数（其余只写自己的栈帧），跳板复制的前 23 字节
+    // 与函数入口状态一致，因此可以直接调用原函数。回退后 Trinity 会给出当前语言的
+    // 官方名称；只有原函数也失败时，它才会退回内部英文名。
+    // 注意：绝不能再“未命中就返回 false”，那会让所有未被内嵌表覆盖的物品、分类都
+    // 退化成内部英文名的美化形式（历史版本就是这样造成大量英文的）。
+    const bool resolved = g_originalCatalogLocString(structAddress, output, capacity);
+    if (resolved) {
+        if (!g_catalogOriginalFallbackLogged) {
+            g_catalogOriginalFallbackLogged = true;
+            DebugLog("未命中内嵌表时已回退到原函数（不再阻断官方名称）。");
+        }
+    } else {
+        LogUnresolvedCatalogKey(structAddress);
     }
-    return g_originalCatalogLocString(structAddress, output, capacity);
+    return resolved;
 }
 
 bool ContainsInsensitive(std::string_view value, std::string_view needle) {
@@ -732,7 +875,7 @@ bool InstallFontHook(HMODULE module) {
 }
 
 bool InstallCatalogTranslationHook(HMODULE module) {
-    // V1.3.2 的 0x34240 序言包含一条 RIP 相对的 cmp（检查目录全局 0x1CE220），
+    // V1.4.1 的 0x457C0 序言包含一条 RIP 相对的 cmp（检查目录全局 0x247398），
     // 直接复制进跳板会读到跳板附近的未初始化内存。这里把 disp32 重定位到跳板自身，
     // 让回退调用仍然检查同一个绝对全局地址。
     auto* imageBase = reinterpret_cast<std::uint8_t*>(module);
@@ -746,7 +889,7 @@ bool InstallCatalogTranslationHook(HMODULE module) {
     }
     constexpr std::size_t jumpSize = 14;
     constexpr std::size_t trampolineSize = kCatalogHookOverwriteSize + jumpSize;
-    // 跳板内重定位的 cmp 用 RIP 相对寻址访问目录就绪全局（imageBase + 0x1CE220），
+    // 跳板内重定位的 cmp 用 RIP 相对寻址访问目录就绪全局（imageBase + 0x247398），
     // 跳板必须落在模块 ±2GB 内，否则 disp32 溢出。AllocateNearAddress 返回
     // PAGE_READWRITE，复制内容后需转成 PAGE_EXECUTE_READWRITE 才能执行。
     auto* trampoline = static_cast<std::uint8_t*>(AllocateNearAddress(
@@ -850,6 +993,10 @@ DWORD WINAPI InitializeLocalizationImpl(void*) {
         return 0;
     }
     progressLog("字体 Hook 已安装，安装动态目录中文 Hook");
+    const std::size_t keyTranslationCount = BuildCatalogKeyTranslations();
+    if (keyTranslationCount != 0) {
+        DebugLog("内部名称覆盖表已装载：" + std::to_string(keyTranslationCount) + " 条。");
+    }
     if (!InstallCatalogTranslationHook(trinityModule)) {
         DebugLog("安装 Trinity 动态目录中文 Hook 失败，物品与分类名称保持原样。");
     }

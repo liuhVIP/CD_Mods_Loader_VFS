@@ -54,8 +54,17 @@ def build_dropsetinfo_result(
     intents: list[Format3Intent],
 ) -> Format3DispatchResult:
     """把 dropsetinfo intents 转成传统 byte patch changes。"""
-    modern = [intent for intent in intents if intent.field not in _LEGACY_FIELDS]
-    legacy = [intent for intent in intents if intent.field in _LEGACY_FIELDS]
+    # `new_record` 有两代形态：DMM v3.1 导出完整字段 `template`，走现代整表合成
+    # 路径；只有旧包仍带 `_blob_b64` 时才退回窄 writer 的末尾追加分支。
+    modern: list[Format3Intent] = []
+    legacy: list[Format3Intent] = []
+    for intent in intents:
+        if intent.field == FORMAT3_NEW_RECORD_FIELD and not _has_record_blob(intent):
+            modern.append(intent)
+        elif intent.field in _LEGACY_FIELDS:
+            legacy.append(intent)
+        else:
+            modern.append(intent)
 
     changes: list[dict] = []
     skipped: list[Format3SkippedIntent] = []
@@ -99,6 +108,8 @@ def _build_modern_change(
                 by_key,
                 opaque_keys,
             )
+        elif intent.field == FORMAT3_NEW_RECORD_FIELD:
+            applied, reason = _apply_new_record(context, intent, records, by_key)
         else:
             applied, reason = _apply_set_intent(intent, by_key, opaque_keys)
         if reason is not None:
@@ -106,7 +117,7 @@ def _build_modern_change(
             continue
         if applied:
             changed = True
-        if applied and intent.field == FORMAT3_CLONE_RECORD_FIELD:
+        if applied and intent.field in (FORMAT3_CLONE_RECORD_FIELD, FORMAT3_NEW_RECORD_FIELD):
             appended_keys.append(intent.key)
 
     if not changed:
@@ -250,6 +261,34 @@ def _apply_clone_record(
 
     records.append(clone)
     by_key[intent.key] = clone
+    return True, None
+
+
+def _has_record_blob(intent: Format3Intent) -> bool:
+    """判断 `new_record` 是否使用旧包的 `_blob_b64` 整条记录形态。"""
+    return isinstance(intent.new, dict) and isinstance(intent.new.get("_blob_b64"), str)
+
+
+def _apply_new_record(
+    context: Format3RuntimeContext,
+    intent: Format3Intent,
+    records: list[dict],
+    by_key: dict[int, dict],
+) -> tuple[bool, str | None]:
+    """按 DMM v3.1 的完整字段模板新建一条记录并追加到表尾。"""
+    template = intent.new
+    if not isinstance(template, dict):
+        return False, "new_record template 必须是对象"
+    if intent.key in by_key:
+        return False, f"new_record key={intent.key} 已存在"
+    record = dict(template)
+    record["key"] = intent.key
+    try:
+        serialize_record(record, key_size=context.key_size)
+    except DropsetParseError as exc:
+        return False, f"new_record 序列化校验失败：{exc}"
+    records.append(record)
+    by_key[intent.key] = record
     return True, None
 
 

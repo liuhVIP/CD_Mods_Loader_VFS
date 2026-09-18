@@ -359,10 +359,34 @@ def _is_empty_directory(path: Path) -> bool:
     return not any(path.iterdir())
 
 
+def _is_bare_game_wrapper_dir(mod_dir: Path) -> bool:
+    """模组目录名与游戏根路径同名，且本身不带 files/ 容器。
+
+    这类目录（`mods/ui/...`、`mods/gamedata/...`）整棵子树按游戏根路径 loose 处理。
+    名字恰好叫 ui 但内部是 `files/0012/...` 的普通模组不受影响。
+    """
+    if mod_dir.name.lower() not in KNOWN_GAME_TOP_DIRS:
+        return False
+    files_dir = mod_dir / LOOSE_FILES_DIR_NAME
+    if files_dir.is_dir() and _has_loose_container_entries(files_dir):
+        return False
+    return _has_any_file(mod_dir)
+
+
 def _scan_deferred_components(mod_dir: Path, warnings: list[str]) -> set[str]:
     """识别目录型组件并返回组件类型，具体提示写入 warnings。"""
     reported: set[str] = set()
     component_types: set[str] = set()
+    if _is_bare_game_wrapper_dir(mod_dir):
+        # 模组内容和游戏根路径同名：用户 / 第三方管理器把模组直接展开成
+        # `mods/ui/...`、`mods/gamedata/...`。这种 wrapper 目录整棵子树都按游戏
+        # 根路径 loose 处理，不能只当成一个普通模组目录。
+        _append_once(
+            warnings,
+            reported,
+            f"发现游戏根路径 wrapper 组件（将尝试加载）：{mod_dir.name}（内容直接展开在 mods 下）",
+        )
+        component_types.add(MOD_TYPE_LOOSE_FILES)
     for child in sorted(mod_dir.iterdir(), key=lambda p: p.name.lower()):
         lower_name = child.name.lower()
         if child.is_dir() and lower_name in {LOOSE_FILES_DIR_NAME, GAME_FILES_DIR_NAME}:
@@ -462,6 +486,10 @@ def _scan_meta_dir(mod_dir: Path, meta_dir: Path, warnings: list[str], reported:
 def _detect_directory_component_types(mod_dir: Path) -> set[str]:
     """静默识别目录型模组组件类型，用于扫描汇总展示。"""
     component_types: set[str] = set()
+    if _is_bare_game_wrapper_dir(mod_dir):
+        # 目录名与游戏根路径同名（mods/ui、mods/gamedata ...）：整棵子树按游戏根路径
+        # loose 处理，汇总里必须显示成 loose_files，不能只报成 dds。
+        component_types.add(MOD_TYPE_LOOSE_FILES)
     for child in mod_dir.iterdir():
         lower_name = child.name.lower()
         if child.is_dir() and lower_name in {LOOSE_FILES_DIR_NAME, GAME_FILES_DIR_NAME}:

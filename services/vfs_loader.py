@@ -127,7 +127,7 @@ GAME_EXECUTABLE_MTIME_STATE_KEY = "game_executable_mtime_ns"
 # v22 invalidates snapshots built before the 2.02.00 storeinfo writer rewrite:
 # the old writer silently skipped every storeinfo intent, so the same mod set
 # produced snapshots without the store stock/count/reset-day patches.
-VFS_STATE_SCHEMA = 22
+VFS_STATE_SCHEMA = 24
 
 # 活动快照物化模式写入状态，确保旧复制快照只冷构建一次后切换到硬链接。
 VFS_MATERIALIZATION_MODE = "hardlink"
@@ -141,7 +141,7 @@ VFS_EMPTY_MAPPING_WARNING = "没有生成 VFS overlay entry，已使用空映射
 # 纯插入型 change 识别与 ``autorelocate_disable`` 字面 offset 语义。
 # v7 让 2.02 storeinfo 的整表重写产物进入分包缓存并丢弃旧的“跳过 storeinfo”
 # 分包。
-VFS_PACKAGE_BUILD_SCHEMA = 7
+VFS_PACKAGE_BUILD_SCHEMA = 9
 
 # 冷构建返回后只读取文件元数据确认稳定，不重复读取或哈希大型 PAZ。
 VFS_STABILITY_CHECK_INTERVAL_SECONDS = 0.1

@@ -370,6 +370,107 @@ cdloader/
   `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning` 确认后再打包，
   不要替用户提前打包。
 
+## 2026-09-17 OP Arsenal Lite 支持（DMM JSON 全形态：list_extend / new_record 模板 / add）
+
+- 目标模组：`OP Arsenal Lite - 30 ATK - 999 Copper v1.0.0.field.json`（Format 3 v3.1，20 个
+  target / 316 条 intent）。修复前的症状不是“部分不生效”，而是**整个加载器起不来**：
+  `语义模组解析失败：targets[0].intents[0].entry 必须是非空字符串` +
+  `VFS 构建失败：存在未处理错误，未启动游戏`。
+- `list_extend` 归一化：DMM 的 `list_extend` = “把 `new` 数组里的元素逐个并入列表”，与
+  itemgroupinfo 等表已实现的 `list_append` 语义完全等价。`services/format3_parser.py`
+  的 `_parse_intents_for_target()` 在解析层统一 `list_extend -> list_append`，计划层、桥接层、
+  writer 不再各认一套 op 名。本机 mod 里有 25 条 `list_extend`（itemgroupinfo）。
+- `new_record` 桥接保真：`services/cdmod_format3_bridge.py::_bridge_intents()` 必须把
+  `new_record` 回写成 DMM 原生 `{"op": "new_record", "new_key": N, "template": {...}}`。
+  此前落到通用分支变成 `entry/key/field/new`，`entry` 为空 → 回读时被
+  `_parse_new_record_like_intent` 当成 PALOC 形态 → 报错拖垮整个模组（一条坏 intent 让
+  316 条全部不生效）。**这是“解析失败必须只影响该 intent”原则的反例，不要回退。**
+- `new_record` 有两代 payload，两条路都必须保留：
+  - 旧包：`{"key": N, "_blob_b64": "<整条记录字节>"}` —— 窄 writer 末尾追加原始字节。
+  - DMM v3.1：`{"new_key": N, "template": {完整字段}}` —— 整表解析后 append + 覆写 key。
+  `format3_dropset_writer` / `format3_multichangeinfo_writer` 用 `_has_record_blob()` 分流，
+  新形态走 `_apply_new_record()`（`dict(template)` → `record["key"] = intent.key` →
+  `serialize_record` 预校验 → 追加 → PABGH 扩条目），模板非法时报
+  “new_record 序列化校验失败”，不得静默写出坏记录。
+- `storeinfo_writer` 新增 `op="add"`：DMM 语义是**相对当前值累加**（模组 label 原文
+  “6 more buyable row(s), relative to whatever is already there”）。当前只开放 entry 顶层
+  整数标量（`buyable_stock_count` 等），并显式拒绝 `key`、嵌套路径与非整数，避免把“加 N”
+  误写成整体覆盖。`Store_Her_Equipment` 原版 `buyable_stock_count=40`，`add 6` 后为 46。
+- 顶层 `modinfo` / `customEquipment` 是作者的声明块，**不是 intent**。`parse_format3_file`
+  只读 `format` / `format_minor` / `target` / `targets`，遇到它们直接忽略；不要为
+  `customEquipment` 之类实现任何逻辑（挂载信息已由 `targets[]` 展平）。
+- 缓存失效：`VFS_STATE_SCHEMA` 22 -> 23、`VFS_PACKAGE_BUILD_SCHEMA` 7 -> 8、
+  `CDMOD_FORMAT3_BRIDGE_VERSION` 3 -> 4（bridge 产物形态变了）、
+  `CDMOD_BUILD_PLAN_SCHEMA` 3 -> 4。bridge 产物形态变化时**必须**升 version，否则旧
+  bridge JSON 会被复用成“已修但仍报 entry 必须是非空字符串”。
+- 验收（oracle = `dmm_parser.apply_intents`，逐表逐字节）：iteminfo body 6450232 → 6458145、
+  dropsetinfo body 2674034 → 2682294 / header 117954 → 118354、
+  multichangeinfo body 4578225 → 4597950 / header 148610 → 149234 全部一致。新增 key 落地
+  dropsetinfo 50/50、multichangeinfo 78/78、iteminfo 5/5。
+- **oracle 绑定的 op 覆盖不完整**：本机 `dmm_parser` Python 绑定对 `list_extend`、`add`
+  直接抛 `unknown intent op`，而真实 DMM 显然支持（模组由 DMM 作者产出、oracle 之外的
+  表都能逐字节对齐）。因此这两类 op 只能用“语义核对 + 作者 label + 游戏内抽查”验证，
+  **不要用 oracle 报错反推“DMM 不支持该 op”**。
+- 真实冷构建验证用**沙箱镜像法**，不要直接改用户游戏目录：把真实游戏根目录用 junction
+  镜像到 `.diagnostics/probe_game_<时间戳>` 目录（跳过 `mods` 与 `.cdloader`），`mods` 用真实
+  目录（子目录 junction + 文件复制）并放入被验证模组，再复制用户的
+  `.cdloader/load_order.json` 保持加载顺序，然后跑
+  `python -m cdmm.tools.vfs_launcher --game-dir <沙箱> --build-only --allow-missing-targets
+  --no-build-vfs-demo`。本轮结果：92s / 0 error / 24 个映射文件 / 6 个 overlay 包 +
+  standalone `0041`-`0045`；从最终 PAZ 回读核验 dropsetinfo 50、multichangeinfo 78、
+  iteminfo 5 个新 key 全部存在，itemgroupinfo 17342/17351 含新增物品，
+  `Store_Her_Equipment` 末 6 条 = `[927071488, 845954304, 890094144, 929371008, 949374144,
+  1000372]`、`buyable_stock_count=46`，`gamedata/stringtable/binary__/zho-cn/ui/item.paloc`
+  含 `Dandelion OP` / `White Wind Rapier OP`。
+- 沙箱清理纪律（有删真实游戏目录的风险，必须照做）：先枚举
+  `Get-ChildItem -Recurse -Directory -Attributes ReparsePoint`，**逐个 `Remove-Item` 且不带
+  `-Recurse`**（只删 junction 本身），确认重解析点残留为 0 后，才删除沙箱根目录。直接对含
+  junction 的目录跑 `Remove-Item -Recurse` 在旧 PowerShell 上有跟随链接删除真实游戏的可能。
+- 回归基线：完整 `test/` 610 passed、`ruff check .` 通过。**尚未实机验证**；先让用户跑
+  `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning` 确认后再打包。
+
+## 2026-09-18 裸游戏根路径 wrapper 支持（DMM texture 模组 `mods/ui/...`）
+
+- 目标模组：`Damiane Portrait Changer 3437 1 ...\Damiane Portrait changer`，内容只有
+  `modinfo.json` + `README.txt` + `ui/texture/image/portraitimage/cd_portraitimage_chracter_demian.dds`
+  （87536 字节）。作者 README 说明它属于 DMM 的 **texture 模组**（放进 DMM 的 `mods/_textures/`），
+  不是 cdmm 的目录型模组。用户 / N++ 把它复制进 cdmm 的 `mods` 后，实际形态是**裸的游戏根路径
+  wrapper**：`mods/ui/texture/...`（没有模组子目录，也没有 `files/` 包装）。**该模组本身不需要更新。**
+- 症状是**完全静默失效**：`mods/ui` 被当成普通模组目录，`_iter_root_game_path_loose_files()` 只看它的
+  **直接子目录** `texture`，而 `texture` 不在 `KNOWN_GAME_TOP_DIRS`，于是枚举出 0 个文件；扫描阶段
+  依旧打印“发现 DDS 文件（将尝试更新 PATHC）”，用户会以为已经生效。DMM 对同类情况会打印
+  `[BROWSER] <name>: SKIPPED — 0 files collected.`，cdmm 此前连告警都没有。
+- 修复：`services/loose_file_service.py` 新增 `is_game_wrapper_dir_name()` / `_iter_wrapper_loose_files()`；
+  `_iter_loose_files()` 在**模组目录名本身**命中 `KNOWN_GAME_TOP_DIRS` 时，把**整棵子树**枚举为游戏
+  根路径 loose（目标路径**保留 wrapper 目录名**，如 `ui/texture/image/portraitimage/xxx.dds`），
+  不再只看一层。`services/scanner.py` 的 `_scan_deferred_components()` 与
+  `_detect_directory_component_types()` 同步把这类目录报成 `loose_files`（此前只报 `dds`，会误导成
+  “贴图组件”而不是“路径没被识别”）。
+- 新增 `_append_unloaded_dds_mod_warnings()`：某模组目录含 DDS 却产出 0 个 overlay entry 时输出明确
+  warning（含修复建议），对齐 DMM 的 “0 files collected”。**这是静默失效的兜底面，不要删。**
+- 防回归保护：`_has_loose_files_container()` / `scanner._is_bare_game_wrapper_dir()`——目录名虽然
+  叫 `ui`/`gamedata`，但内部带真实 `files/` 容器时仍按**普通模组目录**处理
+  （`mods/ui/files/0012/...` 不能被 wrapper 分支抢走，否则会产出 `ui/files/0012/...` 这种游戏里
+  不存在的路径）。只有“裸 wrapper”才走整棵子树枚举。
+- 兼容边界：正规安装形态 `mods/<模组名>/ui/...` 本来就能工作；本次只补裸 wrapper 形态。编号目录 loose
+  （`mods/<模组名>/0012/...`、`mods/<模组名>/files/0012/...`）走 `_iter_numbered_loose_dirs`，
+  **不受本次改动影响，不要顺手改**。该 DDS 在原版 PAMT 中登记为
+  `ui/cd_portraitimage_chracter_demian.dds` + `resolved_dir_path=ui/texture/image/portraitimage`，
+  文件名拼写错误（`chracter` 不是 `character`）必须原样保留。
+- 缓存失效：`VFS_STATE_SCHEMA` 23 -> 24、`VFS_PACKAGE_BUILD_SCHEMA` 8 -> 9（loose 枚举产物变了）。
+  不升 schema 会让热启动复用“该 DDS 不在映射里”的旧快照。
+- 验证（沙箱镜像法 + 真实 2.02.00 归档）：`scan_mods` 报 `ui | loose_files+dds` + wrapper 提示；
+  `build_loose_overlay_entries` 产出 `ui/cd_portraitimage_chracter_demian.dds | pamt_dir=0012 |
+  resolved=ui/texture/image/portraitimage | size=87536`，与模组文件字节一致；完整冷构建 88s / 0 error /
+  24 个映射文件 / 6 个 overlay 包，回读 `nppsa/0.pamt` 得该 entry `orig_size=87536`，
+  `meta/0.pathc` 中 `/ui/texture/image/portraitimage/cd_portraitimage_chracter_demian.dds` 的 DDS record
+  = 模组 DDS 头 148 字节 + 原版 last4（记录 offset 124），逐字节一致。
+- 回归基线：完整 `test/` 616 passed、`ruff check .` 通过（新增
+  `test/test_dmm_texture_wrapper_loose.py` 6 项）。**尚未实机验证**；先让用户跑
+  `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning` 确认后再打包。
+- 补丁注意：`services/loose_file_service.py` 是 CRLF/LF **混行**文件（同一函数内混用），后续修改
+  请用字节级锚点定位，不要整文件重写。
+
 ## 项目定位
 
 - 当前目录：`T:\python_pro\cdmm`
@@ -2300,5 +2401,94 @@ Thank you.
   实际收到的 50 条 intent 同样逐字节一致（892537 → 1373613），快照回读 `Store_Her_Costume 670 /
   Store_Her_Equipment 621 / Store_Her_Church 314 / Store_Cal_Costume 238 / Store_Her_Butcher 172 /
   Store_Her_Witch 206` 全部命中。回归：完整 `test/` 600 passed、`ruff check .` 通过。
-- 本轮按用户要求**未打包**，保持开发状态，由用户用
-  `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning` 实机确认后再决定是否发布。
+- 实机确认（2026-09-17）：用户用 `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo
+  -KeepRunning` 进游戏后反馈“确实可以了”——3 个 storeinfo 模组的商店库存扩充与 `reset_day`
+  改动在游戏内已生效。属实机初步确认；尚未逐店核对全部 16 家商店，不得表述为“全量验证通过”。
+- 同商店多模组冲突是加载顺序的预期结果：两个模组都对同一 store 整条替换 `stock_data_list` 时，
+  `.cdloader/load_order.json` 中**后加载者整条覆盖**（构建日志写“按加载顺序由 … 覆盖”）。
+  本机 `Craft Materials Dyes Ingredients Furniture`(28) 晚于 `All Craft Material`(26)，因此
+  `Store_Her_Butcher 601`/`Store_Her_Furniture 4002`/`Store_Her_Grocery 701` 由前者胜出。
+  要换谁生效就调 `load_order.json`，不要改 writer 的合并逻辑。
+- 本轮按用户要求**未打包**，保持开发状态；是否打包由用户确认后另行决定。
+
+## 2026-09-18 无限冷却/耐久/耐力/精神模组 2.02.00 重建（ItemInfo 语义 + Symbol 字节补丁分离）
+
+- 症状：`Infinite Cooldown Durability Stamina Spirit 2.00.01 Semantic.cdmod` 在 2.02.00 上
+  “0.1 秒冷却、无限耐久”仍然生效，但**无限耐力/精神失效**。构建日志给出根因：
+  `gamedata/skill.staticinfobody` 341 条字节补丁里 `applied=138 / mismatched=203`，
+  `gamedata/buffinfo.staticinfobody` 100 条里 `6 未匹配 / 94 偏移重定位`。这不是加载器
+  bug，而是**绝对偏移字节补丁必须随表重建**的固有性质：2.02.00 的 skill 表比 2.00.01 长，
+  旧偏移整体错位，重定位只在 8 字节原值全局唯一时才能命中（`-10000` 这类值重复度高，
+  所以大面积未匹配）。
+- 关键判断依据：ItemInfo 语义部分**没有失效**，不要一起改。语义 `semantic-patch` 按
+  `string_key + key` 定位记录，实测 411/411 全部落点正确（`cooltime` 三元组
+  `(100,100,100)`、`max_endurance=65535`、`is_blocked=0`）；其中 110 条 `is_blocked`
+  因当前值已是 0 而被安全跳过，属于预期日志。诊断脚本读 `unk_post_cooltime_a/b` 时不要
+  用 `is_blocked` 的偏移（字段在 `cooltime + 8/16`），否则会误报 120 条“失效”。
+- 修复方式沿用 2.00.01 已验证的模型，只重建 stamina/spirit 字节补丁：
+  `rebuild_infinite_resources_mod.py`（针对当前表）→ `build_infinite_resources_semantic_mod.py`
+  （合成 cdmod）。后者新增 `--source-json`：重建源同时提供 ItemInfo 意图与
+  BuffInfo/Skill 补丁，无需再依赖旧包的 `patches/legacy.json`；混入 ItemInfo 之外的表会
+  直接报错，防止把 ItemInfo 字节补丁与语义补丁叠加两遍。manifest 的
+  `id/name/description/source.legacy_reference` 现在全部由 `--version` 派生，禁止再硬编码版本。
+- 2.02.00 重建结果：ItemInfo 语义意图 **411 条（与 2.00.01 逐条一致，已核对 key/path/value）**；
+  BuffInfo **100 条**（体力/精神各 50 级梯度，原值 `-2000×level` / `-200×level`）；
+  Skill **345 条**（体力 206 + 精神 139，比 2.00.01 多 4 条精神技能）。全部对当前原版表
+  逐字节命中，`mismatch=0 / overlap=0`，无需任何偏移重定位。
+- 端到端复验（真实 2.02.00 归档、冷构建）：ItemInfo 411/411 生效；Skill 256 条体力匹配中
+  206 条负消耗全部置 `-1`、142 条精神匹配中 139 条全部置 `-1`，残留负消耗 0 条；
+  BuffInfo 100/100 写入 `-1`，50 级旧梯度模式在最终表中已不存在。冷构建日志不再出现
+  `未匹配` / `偏移重定位`，也无新增 error。
+- 产物：`Infinite Cooldown Durability Stamina Spirit 2.02.00 Semantic.cdmod`，
+  7573 字节，SHA-256 `6496a0a7587182aaff6ca985f6d40d1378979e8ded2add34cc733a680c0bcb20`；
+  源 JSON `dist/mod_sources/Infinite Resources 2.02.00.source.json`。失效的 2.00.01 包已从
+  game `mods` 移出（备份在 `.work/broken_2.00.01_backup/`），**不要两个包同时启用**：
+  旧包的 137 条重定位写入仍会落到其它体力/精神条目上。
+- 教训：`legacy-byte-patch` 的功能每次游戏更新后都必须重建并逐字节复验；只跑“构建成功 +
+  0 error”不足以证明生效，必须回读最终 overlay 字节或实机确认。
+- 本轮未打包、未实机验证。回归：见文末测试结果。
+
+## 2026-09-18 Direct Attack Speed x4（1.13.01）“失效”诊断：包未安装，包本身在 2.02.00 上正确
+
+- 症状：用户报告 `G:\NppMODdown\crimsondesert\Direct Attack Speed x4-1.13.01\Direct Attack
+  Speed x4-1.13.01.cdmod` 在 2.02.00 上失效。该文件 1730 字节，SHA-256
+  `3e1ba313978543d75570f5b315dff22e6fde8e4694ce748cab9542bfaff0498c`，与仓库
+  `nexusmods/18-direct-attack-speed-1.13.01-cdmod/` 里的发布副本逐字节一致。
+- 结论：**不是模组失效，也不是加载器 bug——该 `.cdmod` 根本不在游戏 `mods` 目录里**。
+  放回 `mods` 后同一份字节即可正常构建；包内容与 2.02.00 原版表完全对得上。
+- “到底装没装”取证法（可复用，不必猜）：
+  - `.cdloader/vfs_package_cache/` 里 `nppv3_statusinfo-*` 只存在一个目录，创建时间
+    2026-09-18 01:05:52；同一缓存里 2026-09-17 15:31 起就有其它模组的构建产物，说明用户
+    报告失效的 2.02.00 时间窗内**从未构建过 statusinfo overlay**。
+  - `.cdloader/pamt_target_cache.json` 是“逻辑目标表 -> 原版 entry”的累积缓存。
+    2026-09-17 18:06 的快照 `pamt_target_cache.json.bak-20260917` 中，
+    `iteminfo/characterinfo/storeinfo/stringinfo/skill/buffinfo/equipslotinfo` 各 1 条，
+    `statusinfo` **0 条**。对照可自证：被模组命中过的表都有条目；未命中的表同样为 0
+    （如 `interactioninfo`，Fast_Pickup 整目标被跳过，因此也没有条目）。
+  - 加载器没有删除 `mods` 内文件的代码路径：全部 `rmtree` 只作用于 staging、`vfs_active`
+    快照与 standalone/npp 输出目录，且都被 `_looks_like_*_archive_dir`（只含 PAZ/PAMT）
+    约束；`mods` 只读。
+- 包与加载器在 2.02.00 上逐字节正确（本轮未改任何代码，只做复验）：
+  - 包结构：单个 `semantic-patch` 组件、16 条 `set`、目标 `statusinfo.pabgb`，
+    selector `{key: 1000010, string_key: "AttackSpeedRate"}`，路径
+    `stat_level_data[0..15]`，值全为 `1000000000`。
+  - 当前原版：`statusinfo` 在 `0008`，`gamedata/statusinfo.staticinfobody`(11946) +
+    `.staticinfoheader`(674)；PABGH 解出 84 条记录，`key=1000010 name='AttackSpeedRate'`
+    size=247，唯一 `u32 count + u64[count]` 数组在记录内 rel 90，原版 16 级值为
+    `0, 29000000, …, 250000000`。这与 1.13 时代的曲线完全一致（`1000000000` = 4 ×
+    `250000000`），所以该语义包**不随版本漂移**，不能因为版本号写着 1.13.01 就判定过期。
+  - 真实冷构建（无 `pamt_target_cache.json`、绕过整包复用）：`Format 3 bridge: 处理 1 个
+    模组、15 个目标，4357 个生成补丁`；包不在时是 14 个目标 / 4341 个补丁，差值正好是这个
+    包的 16 条。日志另有 `已识别为 cdmod，apply 时将执行严格语义合并`，该包 0 error、0 skip。
+  - 最终 overlay：`nppv3_statusinfo` 进入 mapped_files，`AttackSpeedRate` 的 16 个 u64 全为
+    `1000000000`，与原版差异 60 字节（原址 u64 覆写；16 个值里有 3 个的低位字节本来就与目标
+    相同，所以不是 64）。`vfs_mapping_tree.json` 中 `nppv3_statusinfo/0.paz|0.pamt` 为
+    `enabled: true, is_active: true`，PAPGT 里排在原版 `0008` 之前。
+- 处置：`.cdmod` 已放回游戏 `mods`（未改名、未重打包、未改字节），`load_order.json` 由加载器
+  追加到末尾。本机没有任何其它模组修改 `statusinfo`，末尾位置不影响结果。
+- 教训：用户说“某模组失效”时，第一步先确认它**在不在 `mods`**，并用包缓存 / 目标缓存的时间线
+  取证；第二步再区分包的类型——`semantic-patch` 只要 selector + path 命中当前表就与游戏版本
+  无关，只有 `legacy-byte-patch`（Infinite Resources 那种绝对偏移包）才必须随表重建。不要一律
+  按“版本漂移”处理，也不要据此重打包。
+- 本轮**未实机验证**（需用户用 `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo
+  -KeepRunning` 重新进游戏确认），也未重新打包。

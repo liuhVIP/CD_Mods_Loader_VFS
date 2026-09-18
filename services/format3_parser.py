@@ -210,6 +210,11 @@ def _parse_intents(raw_intents: object, label: str) -> tuple[Format3Intent, ...]
             intents.append(_parse_clone_record_intent(raw_intent, intent_label))
             continue
         op = str(raw_intent.get("op", FORMAT3_DEFAULT_OP))
+        if op == "list_extend":
+            # DMM 的 `list_extend` = “把数组里的元素逐个并入列表”，与 itemgroupinfo
+            # 等表已实现的 `list_append`（值本身是数组）语义一致。在解析层统一归一化，
+            # 计划层合并、桥接与 writer 就不必各认一套 op 名。
+            op = "list_append"
         match_spec = _parse_match(raw_intent.get("match"), f"{label}[{index}].match")
         raw_key = raw_intent.get("key", 0)
         raw_merge_key = raw_intent.get("merge_key")

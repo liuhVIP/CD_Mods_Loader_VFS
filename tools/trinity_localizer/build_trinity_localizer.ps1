@@ -3,7 +3,7 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [string]$TrinitySample = 'G:\NppMODdown\crimsondesert\Trinity V1.3.2 VTweak (2.00.01) 3289 1.3.2 2026-08-31T06-32Z lwFT830Co\Trinity.asi',
+    [string]$TrinitySample = 'G:\NppMODdown\crimsondesert\Trinity V1.4.1 VTweak (2.02.00) 3289 1.4.1 2026-09-16T15-36Z Aq02rz2MC\Trinity.asi',
     [string]$GameDir = 'G:\SteamLibrary\steamapps\common\Crimson Desert'
 )
 
@@ -22,9 +22,9 @@ $sourceAsi = Join-Path $buildDirectory "$Configuration\TrinityCN.asi"
 $releaseAsi = Join-Path $releaseDirectory 'TrinityCN.asi'
 $projectPython = Join-Path $projectRoot '.venv\Scripts\python.exe'
 
-# Trinity V1.3.2 VTweak 的开发样本仅用于构建时核对英文条目，不会进入发布目录。
-$expectedTrinityVersion = 'v1.3.2 (vTweak by Lian)'
-$expectedTrinitySha256 = '87E0D9322866F5D399B11E1CC240BA42A97F76E46B729EC86D1D4FB26483F266'
+# Trinity V1.4.1 VTweak 的开发样本仅用于构建时核对英文条目，不会进入发布目录。
+$expectedTrinityVersion = 'v1.4.1 (vTweak by Lian)'
+$expectedTrinitySha256 = '54D518FB2C26C1ACCCFF3421DC20C123E27049B90F8D98B545E9513B29A92772'
 
 function ConvertTo-CppByteLiteral {
     param([Parameter(Mandatory)][string]$Value)
@@ -156,7 +156,7 @@ foreach ($entry in $translations) {
         throw "格式占位符不一致：$original"
     }
     if ($null -ne $sampleAscii -and -not $sampleAscii.Contains("$original`0", [System.StringComparison]::Ordinal)) {
-        throw "Trinity V1.3.2 VTweak 样本中不存在英文条目：$original"
+        throw "Trinity V1.4.1 VTweak 样本中不存在英文条目：$original"
     }
     $rva = if ($null -ne $entry.rva) { [uint32]$entry.rva } else { [uint32]0 }
     if ($null -ne $sampleBytes -and $rva -ne 0) {
@@ -177,7 +177,7 @@ foreach ($entry in $translations) {
             -SampleAscii $sampleAscii `
             -Original $original `
             -Capacity $capacity)) {
-        throw "Trinity V1.3.2 VTweak 样本中的字符串槽容量不足：$original ($capacity)"
+        throw "Trinity V1.4.1 VTweak 样本中的字符串槽容量不足：$original ($capacity)"
     }
     foreach ($rune in $translation.EnumerateRunes()) {
         if ($rune.Value -gt 0xFFFF) {

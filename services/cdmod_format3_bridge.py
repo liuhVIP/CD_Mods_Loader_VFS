@@ -15,9 +15,10 @@ from typing import Any
 from cdmm.services.cdmod_build_plan import CDMOD_PLAN_VALID, CdmodBuildPlan
 from cdmm.services.format3_iteminfo_price_writer import is_iteminfo_price_field
 from cdmm.services.format3_iteminfo_record_writer import ITEMINFO_RECORD_DIRECT_FIELDS
+from cdmm.services.format3_parser import FORMAT3_NEW_RECORD_FIELD
 
 # 桥接文件格式版本，参与诊断但仍保持DMM Format 3兼容形态。
-CDMOD_FORMAT3_BRIDGE_VERSION = 3
+CDMOD_FORMAT3_BRIDGE_VERSION = 4
 
 # ItemInfo不同字段必须进入现有writer的正确分流，不能混成一个巨型目标。
 ITEMINFO_PREFAB_NARROW_PATTERN = re.compile(
@@ -120,6 +121,20 @@ def _bridge_intents(
                 "source_key": payload["source_key"],
                 "new_key": new_key,
                 "patches": payload["patches"],
+            }
+        ]
+    if operation.op == "new_record" or operation.path == FORMAT3_NEW_RECORD_FIELD:
+        # `new_record` 必须按 DMM 原生形态回写：`new_key` + `template`。
+        # 如果按通用分支写成 `entry/key/field/new`，回读时会被当成 PALOC 的
+        # `new_record` 而报 “entry 必须是非空字符串”，把整个目标连带丢掉。
+        new_key = selector.get("key")
+        if isinstance(new_key, bool) or not isinstance(new_key, int):
+            raise ValueError("new_record 计划缺少整数 new_key")
+        return [
+            {
+                "op": "new_record",
+                "new_key": new_key,
+                "template": operation.payload,
             }
         ]
     return [

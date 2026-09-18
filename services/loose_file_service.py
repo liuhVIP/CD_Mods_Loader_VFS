@@ -73,6 +73,7 @@ def build_loose_overlay_entries(
     root_match_cache, root_sibling_hints = _prepare_root_loose_matches(game_dir, loose_files)
 
     entries: list[OverlayInputEntry] = []
+    mods_with_entries: set[Path] = set()
     match_seconds = perf_counter() - root_match_started
     build_seconds = 0.0
     skipped = 0
@@ -135,11 +136,13 @@ def build_loose_overlay_entries(
                     warnings,
                 )
             )
+            mods_with_entries.add(mod_dir)
             build_seconds += perf_counter() - build_started
         except Exception as exc:
             prefix = pamt_dir if pamt_dir is not None else "root"
             errors.append(f"{mod_dir.name}: {prefix}/{target_path} 加载失败：{exc}")
     _append_loose_summary_warnings(warnings, raw_path_writes, pathc_inferred_writes, root_skips)
+    _append_unloaded_dds_mod_warnings(warnings, mods_dir, ordered_mods, mods_with_entries)
     _log_loose_match_summary(
         exact_matches,
         basename_matches,
@@ -242,9 +245,18 @@ def _iter_loose_files(
     mods_dir: Path,
     ordered_mods: list[DiscoveredMod] | None = None,
 ) -> list[tuple[Path, str | None, Path, Path]]:
-    """按模组目录顺序枚举 files/NNNN 与根部 NNNN 下的实际文件。"""
+    """按模组目录顺序枚举 files/NNNN、根部 NNNN 与游戏根路径 wrapper 下的实际文件。"""
     result: list[tuple[Path, str | None, Path, Path]] = []
     for mod_dir in _iter_ordered_mod_dirs(mods_dir, ordered_mods):
+        if is_game_wrapper_dir_name(mod_dir.name) and not _has_loose_files_container(
+            mod_dir
+        ):
+            # 模组目录本身就是游戏根路径 wrapper：用户 / N++ 把模组内容直接展开到
+            # `mods/ui/...`、`mods/gamedata/...` 时，整棵子树仍按游戏根路径 loose
+            # 处理（目标路径保留 wrapper 目录名）。旧逻辑把 `mods/ui` 当普通模组目录，
+            # 里面的 `texture/...` 不被识别，文件被静默丢弃且没有任何提示。
+            result.extend(_iter_wrapper_loose_files(mod_dir))
+            continue
         files_dir = mod_dir / LOOSE_FILES_DIR_NAME
         if files_dir.is_dir():
             result.extend(_iter_numbered_loose_dirs(mod_dir, files_dir))
@@ -300,6 +312,43 @@ def _iter_numbered_loose_dirs(
         ):
             result.append((root_mod_dir, numbered_dir.name, path.relative_to(numbered_dir), path))
     return result
+
+
+def is_game_wrapper_dir_name(name: str) -> bool:
+    """判断目录名是否为游戏根路径 wrapper（ui / gamedata / character ...）。"""
+    return name.lower() in KNOWN_GAME_TOP_DIRS
+
+
+def _has_loose_files_container(mod_dir: Path) -> bool:
+    """目录自带 files/ 容器时按普通模组目录处理，不当作裸 wrapper。
+
+    `mods/ui/files/0012/...` 这种名字恰好叫 ui 的普通模组不能被 wrapper 分支抢走，
+    否则会产出 `ui/files/0012/...` 这类游戏里不存在的路径。
+    """
+    container = mod_dir / LOOSE_FILES_DIR_NAME
+    if not container.is_dir():
+        return False
+    return any(item.is_file() for item in container.rglob("*"))
+
+
+def _iter_wrapper_loose_files(wrapper_dir: Path) -> list[tuple[Path, str | None, Path, Path]]:
+    """把 wrapper 目录整棵子树枚举成游戏根路径 loose，目标路径带 wrapper 目录名。"""
+    return [
+        (
+            wrapper_dir,
+            None,
+            Path(wrapper_dir.name) / path.relative_to(wrapper_dir),
+            path,
+        )
+        for path in sorted(
+            (
+                item
+                for item in wrapper_dir.rglob("*")
+                if item.is_file() and not _is_ignored_loose_file(item)
+            ),
+            key=_path_sort_key,
+        )
+    ]
 
 
 def _iter_root_game_path_loose_files(
@@ -395,6 +444,38 @@ def _append_loose_summary_warnings(
         warnings.append(f"{mod_name}: {count} 个文件未在 {pamt_dir}/0.pamt 中找到，已按原始路径写入")
     for mod_name, count in sorted(root_skips.items()):
         warnings.append(f"{mod_name}: {count} 个 root loose 文件未在唯一 vanilla PAMT 中命中，已跳过")
+
+
+def _append_unloaded_dds_mod_warnings(
+    warnings: list[str],
+    mods_dir: Path,
+    ordered_mods: list[DiscoveredMod] | None,
+    mods_with_entries: set[Path],
+) -> None:
+    """目录里有 DDS 却一个 overlay entry 都没生成时给出明确警告。
+
+    这类“目录层级没被识别”的情况以前完全静默：扫描阶段已经打印
+    “发现 DDS 文件（将尝试更新 PATHC）”，用户会以为生效，实际一个文件都没进 overlay。
+    DMM 对同类情况会打印 `[BROWSER] <name>: SKIPPED — 0 files collected.`，这里对齐。
+    """
+    for mod_dir in _iter_ordered_mod_dirs(mods_dir, ordered_mods):
+        if mod_dir in mods_with_entries:
+            continue
+        try:
+            dds_files = [
+                path
+                for path in mod_dir.rglob(f"*{DDS_SUFFIX}")
+                if path.is_file() and not _is_ignored_loose_file(path)
+            ]
+        except OSError:
+            continue
+        if not dds_files:
+            continue
+        warnings.append(
+            f"{mod_dir.name}: 发现 {len(dds_files)} 个 DDS 文件但未生成任何 overlay entry，已全部跳过；"
+            f"请把资源放在模组目录下的游戏根路径（如 {mod_dir.name}/ui/...），"
+            f"或直接使用游戏根路径 wrapper 目录（如 mods/ui/...）"
+        )
 
 
 def _log_loose_match_summary(

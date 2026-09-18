@@ -30,7 +30,7 @@ CDMOD_PLAN_VALID = "VALID"
 CDMOD_PLAN_REJECTED = "REJECTED"
 
 # 构建计划schema，参与整体哈希，结构变化时必须提升。
-CDMOD_BUILD_PLAN_SCHEMA = 3
+CDMOD_BUILD_PLAN_SCHEMA = 4
 
 _STORE_STOCK_RAW_C_PATH = re.compile(r"^stock_data_list\[\d+]\.raw_c$")
 _STORE_STOCK_INDEX_PATH = re.compile(r"^stock_data_list\[(\d+)]$")

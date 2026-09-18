@@ -16,7 +16,11 @@ from __future__ import annotations
 import copy
 
 from cdmm.services.format3_clone_record import append_pabgh_entries, build_append_body_change
-from cdmm.services.format3_parser import FORMAT3_CLONE_RECORD_FIELD, Format3Intent
+from cdmm.services.format3_parser import (
+    FORMAT3_CLONE_RECORD_FIELD,
+    FORMAT3_NEW_RECORD_FIELD,
+    Format3Intent,
+)
 from cdmm.services.format3_runtime import (
     Format3DispatchResult,
     Format3RuntimeContext,
@@ -86,6 +90,10 @@ def build_multichangeinfo_result(
     for intent in intents:
         if intent.field == FORMAT3_CLONE_RECORD_FIELD:
             applied, reason = _apply_clone_record(intent, records, by_key, opaque_keys)
+            if applied:
+                appended_keys.append(intent.key)
+        elif intent.field == FORMAT3_NEW_RECORD_FIELD:
+            applied, reason = _apply_new_record(intent, records, by_key)
             if applied:
                 appended_keys.append(intent.key)
         else:
@@ -346,6 +354,28 @@ def _apply_clone_record(
 
     records.append(clone)
     by_key[intent.key] = clone
+    return True, None
+
+
+def _apply_new_record(
+    intent: Format3Intent,
+    records: list[dict],
+    by_key: dict[int, dict],
+) -> tuple[bool, str | None]:
+    """按 DMM v3.1 的完整字段模板新建一条记录并追加到表尾。"""
+    template = intent.new
+    if not isinstance(template, dict):
+        return False, "new_record template 必须是对象"
+    if intent.key in by_key:
+        return False, f"new_record key={intent.key} 已存在"
+    record = dict(template)
+    record["key"] = intent.key
+    try:
+        serialize_record(record)
+    except MultichangeParseError as exc:
+        return False, f"new_record 序列化校验失败：{exc}"
+    records.append(record)
+    by_key[intent.key] = record
     return True, None
 
 

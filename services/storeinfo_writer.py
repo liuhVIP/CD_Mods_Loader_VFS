@@ -45,6 +45,9 @@ _ENTRY_LIST_FIELDS = frozenset(
 
 # 数组整体替换 / 追加的别名：旧 Format 3 导出把 sell 列表写成
 # ``_exchangeItemInfoListForSell``，语义上等同于 stock_data_list 的写法。
+# StoreEntry 的全部字段名；`add` 只允许作用在这些整数标量上。
+_ENTRY_FIELDS = frozenset(item.name for item in fields(StoreEntry))
+
 _STOCK_LIST_FIELDS = frozenset(
     {"stock_data_list", "exchange_item_info_list_for_sell", "_exchangeItemInfoListForSell"}
 )
@@ -173,6 +176,9 @@ def _apply_intent(entry: StoreEntry, intent: Any, store_key: int) -> None:
             f"store entry {store_key}: {field} 不支持 op={op!r} / "
             f"value={type(value).__name__}"
         )
+    if op == "add":
+        _add_entry_field(entry, field, value, store_key)
+        return
     if op != "set":
         raise StoreinfoWriteRefused(
             f"store entry {store_key}: 字段 {field!r} 不支持 op={op!r}"
@@ -182,6 +188,37 @@ def _apply_intent(entry: StoreEntry, intent: Any, store_key: int) -> None:
             f"store entry {store_key}: key 是记录身份，不能用 set 改写"
         )
     _set_entry_path(entry, field, value, store_key)
+
+
+def _add_entry_field(entry: StoreEntry, field: str, value: object, store_key: int) -> None:
+    """按 DMM `add` 语义做相对当前值的数值累加。
+
+    只支持 entry 顶层整数标量（例如 `buyable_stock_count`）；嵌套路径与非整数
+    先明确拒绝，避免把“加 N”误写成整体覆盖。
+    """
+    if "." in field or "[" in field:
+        raise StoreinfoWriteRefused(
+            f"store entry {store_key}: op=add 暂不支持嵌套字段 {field!r}"
+        )
+    if field == "key":
+        raise StoreinfoWriteRefused(
+            f"store entry {store_key}: key 是记录身份，不能用 add 累加"
+        )
+    if field not in _ENTRY_FIELDS:
+        raise StoreinfoWriteRefused(
+            f"store entry {store_key}: schema 中不存在字段 {field!r}"
+        )
+    current = getattr(entry, field, None)
+    if isinstance(current, bool) or not isinstance(current, int):
+        raise StoreinfoWriteRefused(
+            f"store entry {store_key}: op=add 只支持整数标量字段"
+            f"（{field!r} 当前是 {type(current).__name__}）"
+        )
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise StoreinfoWriteRefused(
+            f"store entry {store_key}: op=add 的新值必须是整数（收到 {type(value).__name__}）"
+        )
+    setattr(entry, field, current + value)
 
 
 def _stock_record(value: object, store_key: int) -> StockRecord:

@@ -3,4338 +3,5484 @@
     "original": "Unpacked Trade Goods",
     "translation": "未包装贸易品",
     "capacity": 24,
-    "rva": 1056768
+    "rva": 1251632
   },
   {
     "original": "Packed Trade Goods",
     "translation": "包装贸易品",
     "capacity": 24,
-    "rva": 1056792
+    "rva": 1251656
   },
   {
     "original": "Animal Items",
     "translation": "动物物品",
     "capacity": 16,
-    "rva": 1056816
+    "rva": 1251680
   },
   {
     "original": "Trade Goods",
     "translation": "贸易品",
     "capacity": 16,
-    "rva": 1056832
+    "rva": 1251696
   },
   {
     "original": "One-Handed Weapons",
     "translation": "单手武器",
     "capacity": 24,
-    "rva": 1056848
+    "rva": 1251712
   },
   {
     "original": "Shields",
     "translation": "盾牌",
     "capacity": 8,
-    "rva": 1056872
+    "rva": 1251736
   },
   {
     "original": "Two-Handed Weapons",
     "translation": "双手武器",
     "capacity": 24,
-    "rva": 1056880
+    "rva": 1251744
   },
   {
     "original": "Ranged Weapons",
     "translation": "远程武器",
     "capacity": 16,
-    "rva": 1056904
+    "rva": 1251768
   },
   {
     "original": "Daggers",
     "translation": "匕首",
     "capacity": 8,
-    "rva": 1056920
+    "rva": 1251784
   },
   {
     "original": "Helmets",
     "translation": "头盔",
     "capacity": 8,
-    "rva": 1056928
-  },
-  {
-    "original": "Armor",
-    "translation": "防具",
-    "capacity": 8,
-    "rva": 1056936
+    "rva": 1251792
   },
   {
     "original": "Cloaks",
     "translation": "披风",
     "capacity": 8,
-    "rva": 1056944
-  },
-  {
-    "original": "Gloves",
-    "translation": "手套",
-    "capacity": 8,
-    "rva": 1056952
-  },
-  {
-    "original": "Boots",
-    "translation": "鞋子",
-    "capacity": 8,
-    "rva": 1056960
+    "rva": 1251808
   },
   {
     "original": "Necklaces",
     "translation": "项链",
     "capacity": 12,
-    "rva": 1056968
+    "rva": 1251832
   },
   {
     "original": "Rings",
     "translation": "戒指",
     "capacity": 12,
-    "rva": 1056980
-  },
-  {
-    "original": "Glasses",
-    "translation": "眼镜",
-    "capacity": 8,
-    "rva": 1056992
+    "rva": 1251844
   },
   {
     "original": "Masks",
     "translation": "面罩",
     "capacity": 8,
-    "rva": 1057000
+    "rva": 1251864
   },
   {
     "original": "Backpacks",
     "translation": "背囊",
     "capacity": 16,
-    "rva": 1057008
+    "rva": 1251872
   },
   {
     "original": "Riding Gear",
     "translation": "坐骑装备",
     "capacity": 16,
-    "rva": 1057024
+    "rva": 1251888
   },
   {
     "original": "Pet Armor",
     "translation": "宠物装备",
     "capacity": 16,
-    "rva": 1057040
+    "rva": 1251904
   },
   {
     "original": "Special Vehicles",
     "translation": "特殊载具",
     "capacity": 24,
-    "rva": 1057056
+    "rva": 1251920
   },
   {
     "original": "Korean Food",
     "translation": "韩国料理",
     "capacity": 16,
-    "rva": 1057080
+    "rva": 1251944
   },
   {
     "original": "Potions",
     "translation": "药剂",
     "capacity": 8,
-    "rva": 1057096
+    "rva": 1251960
   },
   {
     "original": "Horse Food",
     "translation": "马匹饲料",
     "capacity": 16,
-    "rva": 1057104
+    "rva": 1251968
   },
   {
     "original": "Food Materials",
     "translation": "食材",
     "capacity": 16,
-    "rva": 1057120
+    "rva": 1251984
   },
   {
     "original": "Books",
     "translation": "书籍",
     "capacity": 8,
-    "rva": 1057136
+    "rva": 1252032
   },
   {
     "original": "Recipe Books",
     "translation": "配方书",
     "capacity": 16,
-    "rva": 1057144
+    "rva": 1252040
   },
   {
     "original": "Crafting Recipes",
     "translation": "制作配方",
     "capacity": 24,
-    "rva": 1057160
+    "rva": 1252056
   },
   {
     "original": "Treasure Maps",
     "translation": "藏宝图",
     "capacity": 16,
-    "rva": 1057184
+    "rva": 1252080
   },
   {
     "original": "Documents",
     "translation": "文件",
     "capacity": 16,
-    "rva": 1057200
+    "rva": 1252096
   },
   {
     "original": "Wall Documents",
     "translation": "墙面文件",
     "capacity": 16,
-    "rva": 1057216
+    "rva": 1252112
   },
   {
     "original": "Wanted Posters",
     "translation": "通缉令",
     "capacity": 16,
-    "rva": 1057232
+    "rva": 1252128
   },
   {
     "original": "Tools",
     "translation": "工具",
     "capacity": 8,
-    "rva": 1057248
-  },
-  {
-    "original": "Money",
-    "translation": "钱币",
-    "capacity": 8,
-    "rva": 1057256
-  },
-  {
-    "original": "Currency",
-    "translation": "货币",
-    "capacity": 16,
-    "rva": 1057264
+    "rva": 1252144
   },
   {
     "original": "Quest Memories",
     "translation": "任务记忆",
     "capacity": 16,
-    "rva": 1057280
+    "rva": 1252176
   },
   {
     "original": "Special Boss Quest Equipment",
     "translation": "首领任务特殊装备",
     "capacity": 32,
-    "rva": 1057296
+    "rva": 1252192
   },
   {
     "original": "Keys",
     "translation": "钥匙",
     "capacity": 8,
-    "rva": 1057328
+    "rva": 1252224
   },
   {
     "original": "Sealed Artifacts",
     "translation": "封印神器",
     "capacity": 24,
-    "rva": 1057336
+    "rva": 1252232
   },
   {
     "original": "Controls",
     "translation": "控制器",
     "capacity": 16,
-    "rva": 1057360
+    "rva": 1252256
   },
   {
     "original": "Abyss Gear",
-    "translation": "深渊装备",
+    "translation": "深渊装",
     "capacity": 12,
-    "rva": 1057376
-  },
-  {
-    "original": "Quest",
-    "translation": "任务",
-    "capacity": 12,
-    "rva": 1057388
-  },
-  {
-    "original": "Collection",
-    "translation": "收藏品",
-    "capacity": 16,
-    "rva": 1057400
-  },
-  {
-    "original": "Housing",
-    "translation": "家园",
-    "capacity": 8,
-    "rva": 1059112
+    "rva": 1252272
   },
   {
     "original": "Equip Accessory Earring",
     "translation": "装备耳环",
     "capacity": 24,
-    "rva": 1057416
+    "rva": 1252312
   },
   {
     "original": "Metarial Medical",
     "translation": "药用材料",
     "capacity": 24,
-    "rva": 1057440
+    "rva": 1252336
   },
   {
     "original": "Metarial Object",
     "translation": "物品材料",
     "capacity": 16,
-    "rva": 1057464
+    "rva": 1252368
   },
   {
     "original": "PLAYER",
     "translation": "角色",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739408
   },
   {
     "original": "TRAVEL",
     "translation": "旅行",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739416
   },
   {
     "original": "INVENTORY",
     "translation": "物品",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1739424
   },
   {
     "original": "WORLD",
     "translation": "世界",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739436
   },
   {
     "original": "SYSTEM",
     "translation": "系统",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739444
   },
   {
     "original": "Select",
     "translation": "选择",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739452
   },
   {
     "original": "Toggle",
     "translation": "切换",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739460
   },
   {
     "original": "Adjust",
     "translation": "调整",
-    "capacity": 8
-  },
-  {
-    "original": "pick",
-    "translation": "选择",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739468
   },
   {
     "original": "Reset",
     "translation": "重置",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739476
   },
   {
     "original": "Open",
     "translation": "打开",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739484
   },
   {
     "original": "Type",
     "translation": "输入",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739492
   },
   {
     "original": "Clear",
     "translation": "清空",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739500
   },
   {
     "original": "Done",
     "translation": "完成",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739508
   },
   {
     "original": "Erase",
     "translation": "删除",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739516
   },
   {
     "original": "Apply",
     "translation": "应用",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739524
   },
   {
     "original": "Amount",
     "translation": "数量",
-    "capacity": 10
+    "capacity": 8,
+    "rva": 1739532
   },
   {
     "original": "Remove",
     "translation": "移除",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739540
   },
   {
     "original": "Add",
     "translation": "加",
-    "capacity": 10
-  },
-  {
-    "original": "Pick",
-    "translation": "选择",
-    "capacity": 8
+    "capacity": 4,
+    "rva": 1739548
   },
   {
     "original": "Rebind",
     "translation": "绑定",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739552
   },
   {
     "original": "Close",
     "translation": "关闭",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739568
   },
   {
     "original": "Back",
     "translation": "返回",
-    "capacity": 9
+    "capacity": 8,
+    "rva": 1739576
   },
   {
     "original": "Tab",
     "translation": "页签",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739584
   },
   {
     "original": "Search",
     "translation": "搜索",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1741320
   },
   {
     "original": "A to type",
     "translation": "按A输入",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1741328
   },
   {
     "original": "Enter to type",
     "translation": "回车输入",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1741344
   },
   {
     "original": "Uncategorised",
     "translation": "未分类",
     "capacity": 16,
-    "rva": 1059424
+    "rva": 1252384
   },
   {
     "original": "Recolor your equipped gear.",
     "translation": "b站up 改名_汉化",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1864800
   },
   {
     "original": "Recolor your equipped gear. Load into the world first.",
     "translation": "给装备染色，请先进入游戏世界。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1864832
   },
   {
     "original": "Dye Equipment",
     "translation": "装备染色",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1864888
   },
   {
     "original": "Refine your gear and socket abyss gears into it.",
     "translation": "精炼装备并镶嵌深渊装备。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1864904
   },
   {
     "original": "Refine and socket your gear. Load into the world first.",
     "translation": "精炼并镶嵌装备，请先进入游戏世界。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1864960
   },
   {
     "original": "Edit Equipment",
     "translation": "装备编辑",
-    "capacity": 16
+    "capacity": 24,
+    "rva": 1865032
   },
   {
     "original": "Keeps your health full. Load into the game world first.",
     "translation": "保持生命值全满，请先进入游戏。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1863728
   },
   {
     "original": "God Mode",
     "translation": "无敌",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1863784
   },
   {
     "original": "Infinite Spirit",
     "translation": "无限精神",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1864208
   },
   {
     "original": "Move faster than normal.",
     "translation": "提高移动速度。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1865144
   },
   {
     "original": "Super Run",
     "translation": "疾跑",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1865176
   },
   {
     "original": "Jump higher than normal.",
     "translation": "提高跳跃高度。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1865192
   },
   {
     "original": "Super Jump",
     "translation": "高跳",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1865224
   },
   {
     "original": "While airborne, hold Caps Lock / RB to rise or Ctrl / Right Trigger to sink. Let go and normal physics resume - jumps and aerial attacks are untouched.",
     "translation": "在空中按住大写锁定键或RB上升，按住Ctrl或右扳机下降；松开后恢复正常物理，不影响跳跃和空中攻击。",
-    "capacity": 152
+    "capacity": 152,
+    "rva": 1865248
   },
   {
     "original": "Free Flight",
     "translation": "自由飞行",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1865408
   },
   {
     "original": "Gifting NPCs or feeding animals builds trust faster.",
     "translation": "送礼或喂食时更快提升信赖度。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1865424
   },
   {
     "original": "Gifting NPCs or feeding animals builds trust faster. Unavailable right now.",
     "translation": "送礼或喂食时更快提升信赖度，当前不可用。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1865488
   },
   {
     "original": "Trust Multiplier",
     "translation": "信赖倍率",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1865568
   },
   {
     "original": "Outgoing Damage",
     "translation": "输出伤害",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1864640
   },
   {
     "original": "Incoming Damage",
     "translation": "承受伤害",
-    "capacity": 16
-  },
-  {
-    "original": "Dye applied",
-    "translation": "已染色",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1864704
   },
   {
     "original": "Could not dye that - see the log",
     "translation": "染色失败，请查看日志",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1865864
   },
   {
     "original": "Applying dye...",
     "translation": "正在染色…",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1866064
   },
   {
     "original": "Load into the world - if this persists, change any equipment piece once so the mod can see your gear.",
     "translation": "请进入游戏；若仍无效，请更换一次装备。",
-    "capacity": 104
+    "capacity": 104,
+    "rva": 1866784
   },
   {
     "original": "Waiting for your equipment...",
     "translation": "正在等待装备数据…",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1866888
   },
   {
     "original": "Recolor this piece.",
     "translation": "此装备染色。",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1867568
   },
   {
     "original": "Equip some gear first.",
     "translation": "请先装备物品。",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1867616
   },
   {
     "original": "Nothing equipped",
     "translation": "没有装备",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1867640
   },
   {
     "original": "None of these pieces can be dyed.",
     "translation": "这些装备均不可染色。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1867664
   },
   {
     "original": "Nothing dyeable equipped",
     "translation": "未装备可染色物品",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1867704
   },
   {
     "original": "Can't be dyed: %d piece%s",
     "translation": "不可染色：%d件%s",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1867736
   },
   {
     "original": "All zones",
     "translation": "全区域",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1869512
   },
   {
     "original": "Zone 1",
     "translation": "区1",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1869524
   },
   {
     "original": "Zone 2",
     "translation": "区2",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1869532
   },
   {
     "original": "Zone 3",
     "translation": "区3",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1869540
   },
   {
     "original": "Zone 4",
     "translation": "区4",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1869548
   },
   {
     "original": "Zone 5",
     "translation": "区5",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1869556
   },
   {
     "original": "Zone 6",
     "translation": "区6",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1869564
   },
   {
     "original": "Zone 7",
     "translation": "区7",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1869572
   },
   {
     "original": "Zone 8",
     "translation": "区8",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1869580
   },
   {
     "original": "Zone 9",
     "translation": "区9",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1869588
   },
   {
     "original": "Zone 10",
     "translation": "区10",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1869600
   },
   {
     "original": "Zone 11",
     "translation": "区11",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1869608
   },
   {
     "original": "Zone 12",
     "translation": "区12",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1869616
   },
   {
     "original": "Dye Zone",
     "translation": "区域",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1869768
   },
   {
     "original": "Pick a color family to browse its shades below.",
     "translation": "选择色系并浏览下方色调。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1869784
   },
   {
     "original": "Color Family",
     "translation": "色系",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1869832
   },
   {
     "original": "Pick a tone, or the first swatch to remove the dye.",
     "translation": "选择色调；首个色块可移除染色。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1869848
   },
   {
     "original": "Pick a color to dye it right away.",
     "translation": "选择颜色并立即染色。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1869904
   },
   {
     "original": "Removing dye...",
     "translation": "移除染色…",
-    "capacity": 16
+    "capacity": 24,
+    "rva": 1869944
   },
   {
     "original": "Mix your own color instead of a preset.",
     "translation": "自定义颜色，不使用预设。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1870128
   },
   {
     "original": "Custom Color",
     "translation": "自定义色",
-    "capacity": 24
-  },
-  {
-    "original": "Swap the fabric or metal look. 0 keeps it natural.",
-    "translation": "调整布料或金属质感，0为自然。",
-    "capacity": 64
+    "capacity": 24,
+    "rva": 1870168
   },
   {
     "original": "Material",
     "translation": "材质",
-    "capacity": 16
-  },
-  {
-    "original": "How worn the piece looks. 100 is pristine, 0 is battle-scarred.",
-    "translation": "调整磨损程度，100崭新，0严重磨损。",
-    "capacity": 64
+    "capacity": 16,
+    "rva": 1267656
   },
   {
     "original": "Condition %",
     "translation": "成色 %",
-    "capacity": 16
+    "capacity": 24,
+    "rva": 1870536
   },
   {
     "original": "Red 0-255.",
     "translation": "红 0-255",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1870640
   },
   {
     "original": "Green 0-255.",
     "translation": "绿 0-255",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1870656
   },
   {
     "original": "Blue 0-255.",
     "translation": "蓝 0-255",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1870672
   },
   {
     "original": "Dye it with this exact color.",
     "translation": "使用此颜色染色。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1870688
   },
   {
     "original": "Apply This Color",
     "translation": "应用此颜色",
-    "capacity": 24
+    "capacity": 32,
+    "rva": 1870720
   },
   {
     "original": "Load the zone's current color.",
     "translation": "读取此区域当前颜色。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1870904
   },
   {
     "original": "Load Current",
     "translation": "读取当前",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1870936
   },
   {
     "original": "Loaded zone %d",
     "translation": "区域%d已读",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1870952
   },
   {
     "original": "That zone has no dye yet",
     "translation": "该区域尚未染色",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1870968
   },
   {
     "original": "Load into the world first.",
     "translation": "请先进入世界。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1871168
   },
   {
     "original": "Refine this piece and edit its abyss-gear sockets.",
     "translation": "精炼此装备并编辑深渊插槽。",
-    "capacity": 56
-  },
-  {
-    "original": "This piece is no longer equipped.",
-    "translation": "该物品已不在装备中。",
-    "capacity": 40
-  },
-  {
-    "original": "Not equipped",
-    "translation": "未装备",
-    "capacity": 16
+    "capacity": 56,
+    "rva": 1872096
   },
   {
     "original": "Unlock all sockets",
     "translation": "解锁全部插槽",
-    "capacity": 24
-  },
-  {
-    "original": "All sockets unlocked",
-    "translation": "插槽全解锁",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1872240
   },
   {
     "original": "Could not unlock - see the log",
     "translation": "解锁失败，请查看日志",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1872288
   },
   {
     "original": "Removes every abyss gear from this piece, leaving the sockets open.",
     "translation": "移除该物品全部深渊装备并保留插槽。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1872320
   },
   {
     "original": "Clear all sockets",
     "translation": "清空插槽",
-    "capacity": 24
-  },
-  {
-    "original": "All sockets cleared",
-    "translation": "插槽已全清空",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1872392
   },
   {
     "original": "Could not clear - see the log",
     "translation": "清空失败，请看日志",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1872440
   },
   {
     "original": "Refine this piece from 0 to 10.",
     "translation": "设置精炼等级0-10。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1872472
   },
   {
     "original": "Refinement",
-    "translation": "精炼等级",
-    "capacity": 12
+    "translation": "精炼",
+    "capacity": 12,
+    "rva": 1740800
   },
   {
     "original": "Could not set refinement - see the log",
     "translation": "精炼失败，请查看日志",
-    "capacity": 40
-  },
-  {
-    "original": "Your save is still loading - gear edits apply visually but revert on reload until this clears.",
-    "translation": "存档仍在加载；当前修改重载后可能还原。",
-    "capacity": 96
-  },
-  {
-    "original": "Note: not saving yet",
-    "translation": "注意：未保存",
-    "capacity": 24
+    "capacity": 40,
+    "rva": 1872536
   },
   {
     "original": "Empty",
     "translation": "空",
-    "capacity": 12
+    "capacity": 8,
+    "rva": 1873120
   },
   {
     "original": "Change or remove this abyss gear.",
     "translation": "更换或移除此深渊装备。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1873128
   },
   {
     "original": "Add an abyss gear to this socket.",
     "translation": "向此插槽添加深渊装备。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1873168
   },
   {
     "original": "%s - Socket %d",
     "translation": "%s - 插槽%d",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1873976
   },
   {
     "original": "Remove whatever gear is in this socket.",
     "translation": "移除此插槽中的装备。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1874120
   },
   {
     "original": "- Empty this socket -",
     "translation": "- 清空此插槽 -",
-    "capacity": 24
-  },
-  {
-    "original": "Socket cleared",
-    "translation": "插槽清空",
-    "capacity": 16
-  },
-  {
-    "original": "Socket cleared (this session)",
-    "translation": "本次会话已清空插槽",
-    "capacity": 32
+    "capacity": 24,
+    "rva": 1874160
   },
   {
     "original": "The game's Abyss Gear catalog did not resolve.",
     "translation": "无法读取游戏的深渊装备目录。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1874184
   },
   {
     "original": "No abyss gears found",
     "translation": "无深渊装备",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1874232
   },
   {
     "original": "Find an abyss gear by name.",
     "translation": "按名称查找装备。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1874256
   },
   {
     "original": "Socket this abyss gear.",
     "translation": "镶嵌此装备。",
-    "capacity": 24
-  },
-  {
-    "original": "Socketed %s",
-    "translation": "已装%s",
-    "capacity": 16
-  },
-  {
-    "original": "Socketed %s (this session)",
-    "translation": "本次已镶嵌 %s",
-    "capacity": 32
+    "capacity": 24,
+    "rva": 1741272
   },
   {
     "original": "Could not socket that - see the log",
     "translation": "镶嵌失败，请查看日志",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1874312
   },
   {
     "original": "No abyss gear is called that.",
     "translation": "无此深渊装备。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1874352
   },
   {
     "original": "No matches",
     "translation": "无匹配",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1873888
   },
   {
     "original": "Only the first 200 are listed - keep typing to narrow it down.",
     "translation": "仅显示前200项，请继续输入以缩小范围。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1874384
   },
   {
     "original": "More matches...",
     "translation": "更多结果…",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1873960
   },
   {
     "original": "Speeds up or slows down the game.",
     "translation": "加快或减慢游戏速度。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1876552
   },
   {
     "original": "Speeds up or slows down the game. Unavailable right now.",
     "translation": "加快或减慢游戏速度，当前不可用。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1876592
   },
   {
     "original": "Game Speed",
     "translation": "倍速",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1876656
   },
   {
     "original": "Holds the clock at the current time; the world keeps running normally.",
     "translation": "将时钟冻结在当前时间，游戏世界仍会正常运行。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1876672
   },
   {
     "original": "Holds the clock in place. Unavailable right now.",
     "translation": "冻结时钟，当前不可用。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1876744
   },
   {
     "original": "Freeze Time of Day",
     "translation": "冻结时间",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1876800
   },
   {
     "original": "Skips the clock forward by this many hours; time keeps flowing after.",
     "translation": "将时钟向前推进指定小时，之后时间继续流动。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1876832
   },
   {
     "original": "Skips the clock forward. Unavailable right now.",
     "translation": "推进时钟，当前不可用。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1876904
   },
   {
     "original": "Copy these coordinates to the clipboard.",
     "translation": "复制坐标到剪贴板。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1877416
   },
   {
     "original": "Coordinates copied to clipboard",
     "translation": "坐标已复制",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1877464
   },
   {
     "original": "Load into the world and take a step first.",
     "translation": "请先进入游戏并移动一步。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1877496
   },
   {
     "original": "No position yet",
     "translation": "尚无位置",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1877544
   },
   {
     "original": "Warp to any location on the map.",
     "translation": "传送到地图任意地点。",
-    "capacity": 36
+    "capacity": 36,
+    "rva": 1877984
   },
   {
     "original": "Fast Travel",
     "translation": "传送",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1878032
   },
   {
     "original": "Abyss Nexus (Land)",
     "translation": "深渊枢纽(陆地)",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1243704
   },
   {
     "original": "Abyss Nexus (Abyss)",
     "translation": "深渊枢纽(深渊)",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1243752
   },
   {
     "original": "Abyss Gate",
     "translation": "深渊之门",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1243832
   },
   {
     "original": "Abyss Cresset",
     "translation": "深渊火盆",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1243872
   },
   {
     "original": "Sealed Artifact",
     "translation": "封印遗物",
-    "capacity": 16
-  },
-  {
-    "original": "Bells",
-    "translation": "钟楼",
-    "capacity": 12
+    "capacity": 16,
+    "rva": 1243944
   },
   {
     "original": "Boss Rematch",
     "translation": "首领重战",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1244024
   },
   {
     "original": "Vision Memories",
     "translation": "幻视记忆",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1244080
   },
   {
     "original": "Treasure Box",
     "translation": "宝箱",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1244144
   },
   {
     "original": "A.T.A.G. Repair Shop",
     "translation": "A.T.A.G.修理店",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1244208
   },
   {
     "original": "Teleportation Gate",
     "translation": "传送门",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1244352
   },
   {
     "original": "Shop",
     "translation": "商店",
-    "capacity": 9
+    "capacity": 8,
+    "rva": 1244632
   },
   {
     "original": "Azurite Mine",
     "translation": "蓝铜矿",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1244664
   },
   {
     "original": "Copper Mine",
     "translation": "铜矿",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1244744
   },
   {
     "original": "Diamond Mine",
     "translation": "钻石矿",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1244808
   },
   {
     "original": "Epidote Mine",
     "translation": "绿帘石矿",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1244880
   },
   {
     "original": "Iron Mine",
     "translation": "铁矿",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1244960
   },
   {
     "original": "Bloodstone Mine",
     "translation": "血石矿",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1245024
   },
   {
     "original": "Garnet Mine",
     "translation": "石榴石矿",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1245072
   },
   {
     "original": "Scolecite Mine",
     "translation": "钙沸石矿",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1245144
   },
   {
     "original": "Bismuth Mine",
     "translation": "铋矿",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1245224
   },
   {
     "original": "Sulfur Mine",
     "translation": "硫磺矿",
-    "capacity": 16
-  },
-  {
-    "original": "Mercury",
-    "translation": "水银",
-    "capacity": 14
-  },
-  {
-    "original": "Rubber",
-    "translation": "橡胶",
-    "capacity": 14
+    "capacity": 16,
+    "rva": 1245288
   },
   {
     "original": "Palmar Leaf",
     "translation": "棕榈叶",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1245384
   },
   {
     "original": "Prickly Pear",
     "translation": "仙人果",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1245408
   },
   {
     "original": "Chaya",
     "translation": "茶树",
-    "capacity": 12
+    "capacity": 8,
+    "rva": 1245424
   },
   {
     "original": "Enset",
     "translation": "芭蕉",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1245440
   },
   {
     "original": "Green Algae",
     "translation": "绿藻",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1245464
   },
   {
     "original": "Red Seaweed",
     "translation": "红海藻",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1245488
   },
   {
     "original": "Amaranth",
     "translation": "苋菜",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1245504
   },
   {
     "original": "Taro",
     "translation": "芋头",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1245516
   },
   {
     "original": "Gold Mine",
     "translation": "金矿",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1245568
   },
   {
     "original": "Silver Mine",
     "translation": "银矿",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1246032
   },
   {
     "original": "Loading - if this persists, load into the world first.",
     "translation": "正在加载；若持续如此，请先进入游戏。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1878064
   },
   {
     "original": "Building destination list...",
     "translation": "生成目的地列表…",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1878120
   },
   {
     "original": "Browse and warp to this category's locations.",
     "translation": "浏览并传送到此分类地点。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1878152
   },
   {
     "original": "Fast travel to %s at %.0f, %.0f, %.0f.",
     "translation": "传送至%s：%.0f, %.0f, %.0f",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1878208
   },
   {
     "original": "Warping to %s",
     "translation": "传送至%s",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1878248
   },
   {
     "original": "Nothing to warp to in this category.",
     "translation": "此分类没有可传送地点。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1878264
   },
   {
     "original": "No locations",
     "translation": "没有地点",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1878304
   },
   {
     "original": "No locations match this search.",
     "translation": "没有符合搜索的地点。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1878320
   },
   {
     "original": "Search this list by name.",
     "translation": "按名称搜索。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1878352
   },
   {
     "original": "Editing is locked until your save finishes loading.",
     "translation": "存档加载完成前无法编辑。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1879480
   },
   {
     "original": "%s, in %s.",
     "translation": "%s在%s",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1879536
   },
   {
     "original": "Change how many you have, or remove it.",
     "translation": "修改持有数量或移除。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1879552
   },
   {
     "original": "Removed %s",
     "translation": "移除%s",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1879592
   },
   {
     "original": "Add any item in the game to your inventory.",
     "translation": "向背包添加任意游戏物品。",
-    "capacity": 44
+    "capacity": 44,
+    "rva": 1879824
   },
   {
     "original": "Add Item",
     "translation": "添加",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1879880
   },
   {
     "original": "Browse and edit what you're carrying.",
     "translation": "浏览并编辑携带的物品。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1880040
   },
   {
     "original": "Item Editor",
     "translation": "物品",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1880088
   },
   {
     "original": "Slot Size",
     "translation": "格数",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1880184
   },
   {
     "original": "Max Stack Size",
     "translation": "堆叠上限",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1880304
   },
   {
     "original": "Reading your items - if this persists, open your in-game inventory once and come back here.",
     "translation": "正在读取物品；若持续如此，请打开一次游戏背包。",
-    "capacity": 96
+    "capacity": 96,
+    "rva": 1880448
   },
   {
     "original": "Loading inventory...",
     "translation": "加载背包…",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1880544
   },
   {
     "original": "Browse and edit what is kept in this storage.",
     "translation": "浏览并编辑此仓库中的物品。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1880568
   },
   {
     "original": "Reloads your inventory from the game.",
     "translation": "从游戏重新读取背包。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1880632
   },
   {
     "original": "Refresh",
     "translation": "刷新",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1880672
   },
   {
     "original": "Inventory refreshed",
     "translation": "背包已刷新",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1880680
   },
   {
     "original": "Nothing in this storage right now.",
     "translation": "此仓库当前为空。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1880704
   },
   {
     "original": "Find an item anywhere in this storage, whatever category it is in.",
     "translation": "在此仓库全部分类中查找物品。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1880752
   },
   {
     "original": "Browse and edit items in this category.",
     "translation": "浏览并编辑此分类物品。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1880824
   },
   {
     "original": "Nothing in this storage is called that.",
     "translation": "仓库中没有该名称的物品。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1880864
   },
   {
     "original": "Nothing here to set.",
     "translation": "无可设置项。",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1880904
   },
   {
     "original": "Set All",
     "translation": "全设",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1881032
   },
   {
     "original": "Nothing in this category right now.",
     "translation": "此分类当前为空。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1881064
   },
   {
     "original": "Narrow this category down by name.",
     "translation": "按名称筛选此分类。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1881104
   },
   {
     "original": "Nothing in this category is called that.",
     "translation": "此分类中没有该名称的物品。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1881144
   },
   {
     "original": "Item added",
     "translation": "已添加",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1881192
   },
   {
     "original": "Could not add that item - see the log",
     "translation": "添加失败，请查看日志",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1881208
   },
   {
     "original": "Adding is locked until your save finishes loading.",
     "translation": "存档加载完成前无法添加。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1881296
   },
   {
     "original": "Set how many, then add it.",
     "translation": "设置数量后添加。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1881352
   },
   {
     "original": "Adding %lld x %s...",
     "translation": "添加%lldx%s…",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1881384
   },
   {
     "original": "Could not add %s",
     "translation": "无法添加%s",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1881408
   },
   {
     "original": "The game's item table did not resolve, so there is nothing to add from.",
     "translation": "无法读取游戏物品表，暂时无法添加。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1881440
   },
   {
     "original": "Catalog unavailable",
     "translation": "目录不可用",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1881512
   },
   {
     "original": "Find any item in the game by name, whatever category it is in.",
     "translation": "按名称查找游戏中的任意物品。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1881536
   },
   {
     "original": "Add any item from this category.",
     "translation": "添加此分类任意物品。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1881600
   },
   {
     "original": "No item in the game is called that.",
     "translation": "游戏中无该物品。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1881656
   },
   {
     "original": "Nothing here to add.",
     "translation": "无可添加物品",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1881696
   },
   {
     "original": "Add All",
     "translation": "全加",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1881816
   },
   {
     "original": "Still adding the last batch - let it finish first",
     "translation": "上一批仍在添加，请等待完成。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1881856
   },
   {
     "original": "Nothing in this category.",
     "translation": "此分类为空。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1881912
   },
   {
     "original": "Insert",
     "translation": "插入",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1889340
   },
   {
     "original": "Delete",
     "translation": "删除",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1739560
   },
   {
     "original": "Home",
     "translation": "起始",
-    "capacity": 11
+    "capacity": 8,
+    "rva": 1889348
   },
   {
     "original": "Page Up",
     "translation": "上页",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1889360
   },
   {
     "original": "Page Down",
     "translation": "下翻页",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1889368
   },
   {
     "original": "Up Arrow",
     "translation": "上方向键",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1889384
   },
   {
     "original": "Down Arrow",
     "translation": "下方向键",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1889400
   },
   {
     "original": "Left Arrow",
     "translation": "左方向键",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1889416
   },
   {
     "original": "Right Arrow",
     "translation": "右方向键",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1889432
   },
   {
     "original": "Num Lock",
     "translation": "数字锁定",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1889448
   },
   {
     "original": "Print Screen",
     "translation": "截屏键",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1889464
   },
   {
     "original": "D-Pad Up",
     "translation": "十字键上",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1889768
   },
   {
     "original": "D-Pad Down",
     "translation": "十字键下",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1889784
   },
   {
     "original": "D-Pad Left",
     "translation": "十字键左",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1889800
   },
   {
     "original": "D-Pad Right",
     "translation": "十字右",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1889816
   },
   {
     "original": "Start",
     "translation": "开始",
-    "capacity": 9
+    "capacity": 8,
+    "rva": 1889840
   },
   {
     "original": "press a key...",
     "translation": "请按键…",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1889872
   },
   {
     "original": "press a button...",
     "translation": "请按按钮…",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1889888
   },
   {
     "original": "Press the key you want to bind, or Esc to cancel.",
     "translation": "按下要绑定的键，或按Esc取消。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1889912
   },
   {
     "original": "Press the button or combo you want to bind, or Esc to cancel.",
     "translation": "按下要绑定的按钮或组合键，或按Esc取消。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1889968
   },
   {
     "original": "%s keyboard bind reset to %s",
     "translation": "%s键盘绑定重置为%s",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1890032
   },
   {
     "original": "%s controller bind reset to %s",
     "translation": "%s手柄绑定重置为%s",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1890064
   },
   {
     "original": "Menu key",
     "translation": "菜单键",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1890096
   },
   {
     "original": "Menu button",
     "translation": "菜单按钮",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1890112
   },
   {
     "original": "Fly Up key",
     "translation": "上升键",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1890176
   },
   {
     "original": "Fly Up button",
     "translation": "上升按钮",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1890192
   },
   {
     "original": "Fly Down key",
     "translation": "下降键",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1890208
   },
   {
     "original": "Fly Down button",
     "translation": "下降按钮",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1890224
   },
   {
     "original": "%s set to %s",
     "translation": "%s设为%s",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1890240
   },
   {
     "original": "Opens and closes this menu.",
     "translation": "打开或关闭此菜单。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1890256
   },
   {
     "original": "Open Menu",
     "translation": "打开菜单",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1890288
   },
   {
     "original": "While Free Flight is on and you're airborne, hold this to rise.",
     "translation": "启用自由飞行并处于空中时，按住此键上升。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1890400
   },
   {
     "original": "Fly Up",
     "translation": "上升",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1890464
   },
   {
     "original": "While Free Flight is on and you're airborne, hold this to sink.",
     "translation": "启用自由飞行并处于空中时，按住此键下降。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1890480
   },
   {
     "original": "Fly Down",
     "translation": "下降",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1890544
   },
   {
     "original": "Resets every keyboard and controller bind on this page to its default.",
     "translation": "将本页全部键盘和手柄绑定恢复默认。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1890560
   },
   {
     "original": "Reset All Keybinds",
     "translation": "重置全部按键",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1890632
   },
   {
     "original": "Keybinds reset to defaults",
     "translation": "按键绑定已恢复默认",
-    "capacity": 28
+    "capacity": 28,
+    "rva": 1890656
   },
   {
     "original": "Set the keyboard and controller binds for opening the menu and Free Flight.",
     "translation": "设置打开菜单和自由飞行使用的键盘及手柄按键。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1891376
   },
   {
     "original": "Keybinds",
     "translation": "按键绑定",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1891472
   },
   {
     "original": "Shows your FPS in the corner of the screen.",
     "translation": "在屏幕角落显示帧率。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1891976
   },
   {
     "original": "Show FPS Counter",
     "translation": "显示帧率",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1892024
   },
   {
     "original": "Saves your settings automatically and restores them next time.",
     "translation": "自动保存设置并在下次恢复。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1892344
   },
   {
     "original": "Auto Save Features",
     "translation": "自动保存功能",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1892408
   },
   {
     "original": "Resets every feature to its default.",
     "translation": "将全部功能恢复默认值。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1892432
   },
   {
     "original": "Reset All to Default",
     "translation": "全部恢复默认",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1892472
   },
   {
     "original": "All features reset to defaults",
     "translation": "全部功能已恢复默认",
-    "capacity": 35
+    "capacity": 32,
+    "rva": 1892496
   },
   {
     "original": "Natural",
     "translation": "自然",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1740392
   },
   {
     "original": "Velvet",
     "translation": "绒面",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1740400
   },
   {
     "original": "Brass",
     "translation": "黄铜",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1740408
   },
   {
     "original": "Enamel",
     "translation": "珐琅",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1740416
   },
   {
     "original": "A select",
     "translation": "A 选择",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1739648
   },
   {
     "original": "A toggle",
     "translation": "A 切换",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1739664
   },
   {
     "original": "A toggle   < > adjust   X reset",
     "translation": "A 切换  < > 调整  X 重置",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1739680
   },
   {
     "original": "< > adjust   X reset",
     "translation": "< > 调整  X 重置",
-    "capacity": 21
+    "capacity": 24,
+    "rva": 1739712
   },
   {
     "original": "< > pick",
     "translation": "< > 选择",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1739736
   },
   {
     "original": "A open",
     "translation": "A 打开",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1739748
   },
   {
     "original": "A type   X clear",
     "translation": "A 输入  X 清除",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1739760
   },
   {
     "original": "A done   B erase",
     "translation": "A 完成  B 删除",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1739784
   },
   {
     "original": "A apply   B erase",
     "translation": "A 应用  B 删除",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1739808
   },
   {
     "original": "< > amount   X remove",
     "translation": "< > 数量  X 移除",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1739832
   },
   {
     "original": "< > amount   A add",
     "translation": "< > 数量  A 添加",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1739856
   },
   {
     "original": "< > amount   A apply   X reset",
     "translation": "< > 数量  A 应用  X 重置",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1739880
   },
   {
     "original": "< > pick   A rebind   X reset",
     "translation": "< > 选择  A 重绑  X 重置",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1739912
   },
   {
     "original": "Enter select",
     "translation": "Enter 选择",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1739944
   },
   {
     "original": "Enter toggle",
     "translation": "Enter 切换",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1739960
   },
   {
     "original": "Enter toggle   < > adjust   Del reset",
     "translation": "Enter 切换  < > 调整  Del 重置",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1739976
   },
   {
     "original": "< > adjust   Enter type   Del reset",
     "translation": "< > 调整  Enter 输入  Del 重置",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1740016
   },
   {
     "original": "Enter open",
     "translation": "Enter 打开",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1740056
   },
   {
     "original": "Enter type   Del clear",
-    "translation": "Enter 输入  Del 清除",
-    "capacity": 24
+    "translation": "Enter 输入 Del 清除",
+    "capacity": 24,
+    "rva": 1740072
   },
   {
     "original": "Enter done   Bksp erase",
     "translation": "Enter 完成 Bksp 删",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1740096
   },
   {
     "original": "Enter apply   Bksp erase",
     "translation": "Enter 应用  Bksp 删除",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1740120
   },
   {
     "original": "< > amount   Enter type   Del remove",
     "translation": "< > 数量  Enter 输入  Del 移除",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1740152
   },
   {
     "original": "< > amount   Enter add",
-    "translation": "< > 数量  Enter 添加",
-    "capacity": 24
+    "translation": "< > 数量 Enter 添加",
+    "capacity": 24,
+    "rva": 1740192
   },
   {
     "original": "< > amount   Enter type   Del reset",
     "translation": "< > 数量  Enter 输入  Del 重置",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1740216
   },
   {
     "original": "< > pick   Enter rebind   Del reset",
     "translation": "< > 选择  Enter 重绑  Del 重置",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1740256
   },
   {
     "original": "B close   LB/RB tab",
     "translation": "B 关闭  LB/RB 标签",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1740424
   },
   {
     "original": "B back   LB/RB tab",
     "translation": "B 返回  LB/RB 标签",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1740448
   },
   {
     "original": "Bksp close   Q/E tab",
     "translation": "Bksp 关闭  Q/E 标签",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1740472
   },
   {
     "original": "Bksp back   Q/E tab",
     "translation": "Bksp 返回  Q/E 标签",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1740496
   },
   {
     "original": "HEX: #%02X%02X%02X",
     "translation": "HEX #%02X%02X%02X",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1740520
   },
   {
     "original": "RGB: (%d, %d, %d)",
     "translation": "RGB：(%d, %d, %d)",
-    "capacity": 20
+    "capacity": 20,
+    "rva": 1740544
   },
   {
     "original": "Custom",
     "translation": "自定义",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1740564
   },
   {
     "original": "Mat: %s (%d%%)",
     "translation": "材质:%s(%d%%)",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1740576
   },
   {
     "original": "Outfit Zone Palette (1-12)",
     "translation": "区域调色板（1-12）",
-    "capacity": 28
+    "capacity": 28,
+    "rva": 1740592
   },
   {
     "original": "Instant Live Dye Preview",
     "translation": "即时染色预览",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1740624
   },
   {
     "original": "Socket Stat Effect",
     "translation": "孔位属性效果",
-    "capacity": 20
+    "capacity": 20,
+    "rva": 1740656
   },
   {
     "original": "Attack",
     "translation": "攻击",
-    "capacity": 8
+    "capacity": 12,
+    "rva": 1740676
   },
   {
     "original": "Defense",
     "translation": "防御",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1740688
   },
   {
     "original": "Durability %d%%",
     "translation": "耐久度 %d%%",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1740696
   },
   {
     "original": "Reinforcement  %d/100",
     "translation": "强化  %d/100",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1740712
   },
   {
     "original": "Reinforcement: Attack +%d",
     "translation": "强化：攻击 +%d",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1740736
   },
   {
     "original": "Reinforcement: Defense +%d",
     "translation": "强化：防御 +%d",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1740768
   },
   {
     "original": "%d / %d Sockets",
     "translation": "%d/%d孔位",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1740816
   },
   {
     "original": "Refine +%d",
     "translation": "精炼 +%d",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1740832
   },
   {
     "original": "Refine +0",
     "translation": "精炼 +0",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1740848
   },
   {
     "original": "Sockets: %d / %d used",
     "translation": "孔位：%d / %d 已用",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1740864
   },
   {
     "original": "No Sockets",
     "translation": "无孔位",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1740888
   },
   {
     "original": "%d Abyss Socket%s",
-    "translation": "%d 个深渊孔位%s",
-    "capacity": 24
+    "translation": "%d 深渊孔位%s",
+    "capacity": 20,
+    "rva": 1740904
   },
   {
     "original": "Abyss Gears",
     "translation": "深渊装备",
-    "capacity": 12
+    "capacity": 16,
+    "rva": 1305680
   },
   {
     "original": "%d. %s",
     "translation": "%d、%s",
-    "capacity": 12
-  },
-  {
-    "original": "Damage Reduction",
-    "translation": "伤害减免",
-    "capacity": 24
-  },
-  {
-    "original": "Abyss Damage",
-    "translation": "深渊伤害",
-    "capacity": 16
-  },
-  {
-    "original": "Critical",
-    "translation": "暴击",
-    "capacity": 12
-  },
-  {
-    "original": "Speed",
-    "translation": "速度",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1740924
   },
   {
     "original": "%d. (Empty Socket)",
     "translation": "%d、（空孔位）",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1741000
   },
   {
     "original": "%d. (Locked)",
     "translation": "%d.（锁定）",
-    "capacity": 18
+    "capacity": 18,
+    "rva": 1741024
   },
   {
     "original": "%s  [Effect: %s]",
     "translation": "%s  [效果：%s]",
-    "capacity": 20
+    "capacity": 20,
+    "rva": 1741296
   },
   {
     "original": "A to edit",
     "translation": "A 编辑",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1741360
   },
   {
     "original": "Enter to edit",
     "translation": "Enter 编辑",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1741376
   },
   {
     "original": "Remove %s for good? This cannot be undone - press %s again to confirm, or move away to keep it.",
     "translation": "永久移除 %s？此操作无法撤销；再次按 %s 确认，移开则保留。",
-    "capacity": 96
+    "capacity": 96,
+    "rva": 1741424
   },
   {
     "original": "Remove?",
     "translation": "移除?",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1741520
   },
   {
     "original": "Keyboard",
     "translation": "键盘",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1741528
   },
   {
     "original": "Mount & Horse Options",
     "translation": "坐骑与马匹选项",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1863416
   },
   {
     "original": "Recolor and customize equipment on your active horse or mount.",
     "translation": "为当前马匹或坐骑装备重新染色和定制。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1863440
   },
   {
     "original": "Mount Equipment Dye",
     "translation": "坐骑装备染色",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1863520
   },
   {
     "original": "Combat & Gameplay Options",
     "translation": "战斗与玩法选项",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1863544
   },
   {
     "original": "Instantly eliminates any enemy or boss with a single strike (1,000x damage multiplier).",
     "translation": "一击消灭任意敌人或首领（1000 倍伤害）。",
-    "capacity": 88
+    "capacity": 88,
+    "rva": 1863584
   },
   {
     "original": "One-Hit Kill",
     "translation": "一击必杀",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1863672
   },
   {
     "original": "Keeps your health full constantly.",
     "translation": "持续保持生命值全满。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1863688
   },
   {
     "original": "Equipped weapons, shields, and armor never degrade (permanently locked at 100% max durability).",
     "translation": "武器、盾牌和防具永不损耗（耐久度永久锁定为 100%）。",
-    "capacity": 96
+    "capacity": 96,
+    "rva": 1863808
   },
   {
     "original": "Infinite Item Durability",
     "translation": "无限物品耐久",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1863904
   },
   {
     "original": "Completely negates fall damage from high drops, cliffs, and Sky Arrival teleport.",
     "translation": "完全免疫高空、悬崖坠落和天空降落传送的伤害。",
-    "capacity": 88
+    "capacity": 88,
+    "rva": 1863936
   },
   {
     "original": "No Fall Damage",
     "translation": "免疫坠落伤害",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1864024
   },
   {
     "original": "Sprint, dodge, climb, and gallop on horses/mounts with unlimited stamina.",
     "translation": "冲刺、闪避、攀爬及骑乘时体力无限。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1864048
   },
   {
     "original": "Infinite Stamina & Mount",
     "translation": "无限体力与坐骑",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1864128
   },
   {
     "original": "Keeps your spirit / special ability gauge full.",
-    "translation": "持续保持精神力／特殊能力槽全满。",
-    "capacity": 48
+    "translation": "保持精神力／特殊能力槽全满。",
+    "capacity": 48,
+    "rva": 1864160
   },
   {
     "original": "Adjusts how much damage you deal to enemies.",
     "translation": "调整对敌人造成的伤害。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1864584
   },
   {
     "original": "Adjusts how much damage you take from attacks.",
     "translation": "调整受到攻击时的伤害。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1864656
   },
   {
     "original": "One-Hit Kill, God Mode, Durability, and damage multipliers.",
     "translation": "一击必杀、无敌、耐久和伤害倍率。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1864720
   },
   {
     "original": "Stamina, gear customization, and summon options for mounts and horses.",
     "translation": "坐骑与马匹的体力、装备定制和召唤选项。",
-    "capacity": 72
-  },
-  {
-    "original": "Dye applied to %s",
-    "translation": "已为 %s 染色",
-    "capacity": 24
+    "capacity": 72,
+    "rva": 1865056
   },
   {
     "original": "Dye Preview",
     "translation": "染色预览",
-    "capacity": 19
-  },
-  {
-    "original": "  All Zones",
-    "translation": "  全部区域",
-    "capacity": 17
-  },
-  {
-    "original": "  Zone %d",
-    "translation": "  区域 %d",
-    "capacity": 17
-  },
-  {
-    "original": "Active Mount",
-    "translation": "当前坐骑",
-    "capacity": 16
-  },
-  {
-    "original": "Mount 2",
-    "translation": "坐骑 2",
-    "capacity": 8
-  },
-  {
-    "original": "Mount 3",
-    "translation": "坐骑 3",
-    "capacity": 8
-  },
-  {
-    "original": "Mount 4",
-    "translation": "坐骑 4",
-    "capacity": 8
+    "capacity": 16,
+    "rva": 1866176
   },
   {
     "original": "Select active horse or mount to dye.",
     "translation": "选择当前坐骑染色",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1866312
   },
   {
     "original": "Target Mount",
     "translation": "目标坐骑",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1866352
   },
   {
     "original": "Select which character's armor to dye.",
     "translation": "选择要染色的角色装备。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1866368
   },
   {
     "original": "This mount is not currently spawned or present in the game world.",
     "translation": "该坐骑当前未在游戏世界中生成。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1866512
   },
   {
     "original": "Mount Not Detected in World",
     "translation": "世界中未检测到坐骑",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1866584
   },
   {
     "original": "Please summon or mount a horse in the game world first.",
     "translation": "请先在游戏世界召唤或骑上马匹。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1866616
   },
   {
     "original": "No Active Mount Detected",
     "translation": "未检测到当前坐骑",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1866672
   },
   {
     "original": "This companion is not currently loaded in memory.",
     "translation": "该同伴当前未加载到内存。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1866704
   },
   {
     "original": "Character not loaded",
     "translation": "角色尚未加载",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1866760
   },
   {
     "original": "Persist all current dye colors directly into the active save data so they remain intact even without mods.",
     "translation": "将当前染色直接写入存档，移除模组后仍会保留。",
-    "capacity": 112
+    "capacity": 112,
+    "rva": 1866928
   },
   {
     "original": "Inject All Dyes to Save Data",
     "translation": "将全部染色写入存档",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1867040
   },
   {
     "original": "All dyes injected into save data",
     "translation": "全部染色已写入存档",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1867072
   },
   {
     "original": "Dye save injection completed",
     "translation": "染色存档写入完成",
-    "capacity": 32
+    "capacity": 40,
+    "rva": 1867112
   },
   {
     "original": "zones dyed",
     "translation": "区域已染色",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1867496
   },
   {
     "original": "zones",
     "translation": "个区域",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1867532
   },
   {
     "original": "Which zone of the item to color (Supports Zones 1-12).",
     "translation": "选择染色区域（1-12）",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1869712
   },
   {
     "original": "Clears all dye from this piece back to its natural default color.",
     "translation": "清除该部件的全部染色并恢复默认颜色。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1870192
   },
   {
     "original": "Remove All Dye (Reset)",
     "translation": "清除全部染色",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1870264
   },
   {
     "original": "All dye removed",
     "translation": "已清除染色",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1870288
   },
   {
     "original": "Select which character's equipment to view and edit.",
     "translation": "选择要查看和编辑装备的角色。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1871032
   },
   {
     "original": "Restores durability to 100% on all equipped weapons and armor.",
     "translation": "将所有已装备武器和防具的耐久恢复至 100%。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1871200
   },
   {
     "original": "Repair All Gear",
     "translation": "修装备",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1871264
   },
   {
     "original": "Repaired %d equipped piece%s",
     "translation": "已修复 %d 件装备%s",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1871280
   },
   {
     "original": "No equipped gear to repair",
     "translation": "没有可修复的装备",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1871312
   },
   {
     "original": "Sets all equipped gear to refinement level +10.",
     "translation": "将所有已装备物品强化至 +10。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1871344
   },
   {
     "original": "Max Refine All (+10)",
     "translation": "全部强化至 +10",
-    "capacity": 24
-  },
-  {
-    "original": "Refined %d piece%s to +10",
-    "translation": "已强化%d件%s至+10",
-    "capacity": 32
+    "capacity": 24,
+    "rva": 1871392
   },
   {
     "original": "No equipped gear to refine",
     "translation": "没有可强化的装备",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1871456
   },
   {
     "original": "Opens all 5 abyss sockets on all equipped weapons and armor.",
     "translation": "解锁所有已装备武器和防具的 5 个深渊孔位。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1871488
   },
   {
     "original": "Unlock All Sockets",
     "translation": "解锁全部孔位",
-    "capacity": 24
-  },
-  {
-    "original": "Unlocked sockets on %d piece%s",
-    "translation": "已解锁%d件%s孔位",
-    "capacity": 32
+    "capacity": 24,
+    "rva": 1871552
   },
   {
     "original": "No equipped gear found",
     "translation": "未找到已装备物品",
-    "capacity": 24
+    "capacity": 32,
+    "rva": 1871616
   },
   {
     "original": "sockets used",
     "translation": "已用孔位",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1872040
   },
   {
     "original": "no sockets",
     "translation": "无孔位",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1872080
   },
   {
     "original": "Opens every socket on this piece",
     "translation": "解锁该装备的全部孔位",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1872184
   },
   {
     "original": "%s (%d).",
     "translation": "%s（%d）。",
-    "capacity": 16
-  },
-  {
-    "original": "Refinement set",
-    "translation": "已设强化",
-    "capacity": 16
-  },
-  {
-    "original": "Refinement set (this session)",
-    "translation": "本次会话已设强化",
-    "capacity": 32
+    "capacity": 16,
+    "rva": 1872224
   },
   {
     "original": "Directly replace and equip any weapon, shield, or armor to this slot.",
     "translation": "直接替换并装备武器、盾牌或防具到此槽位。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1872576
   },
   {
     "original": "Change Equipment (Bypass Story / Quest Lock)",
     "translation": "更换装备（绕过剧情／任务锁）",
-    "capacity": 48
+    "capacity": 56,
+    "rva": 1872664
   },
   {
     "original": "This equipment type does not support abyss sockets.",
     "translation": "此装备类型不支持深渊孔位。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1872792
   },
   {
     "original": "No sockets",
     "translation": "无孔位",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1872848
   },
   {
     "original": "Locked",
     "translation": "锁定",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1872988
   },
   {
     "original": "Socket",
     "translation": "孔位",
-    "capacity": 8
+    "capacity": 12,
+    "rva": 1872996
   },
   {
     "original": "%s %d: %s",
     "translation": "%s %d：%s",
-    "capacity": 24
+    "capacity": 16,
+    "rva": 1873008
   },
   {
     "original": "This socket is locked. Click to unlock all sockets on this piece.",
     "translation": "此孔位已锁定。点击即可解锁该装备的全部孔位。",
-    "capacity": 72
-  },
-  {
-    "original": "Sockets unlocked!",
-    "translation": "孔位已解锁！",
-    "capacity": 20
+    "capacity": 72,
+    "rva": 1873024
   },
   {
     "original": "All Characters",
     "translation": "全部角色",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1873248
   },
   {
     "original": "Current Character Only",
     "translation": "仅当前角色",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1873264
   },
   {
     "original": "Kliff Only",
     "translation": "仅克里夫",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1873288
   },
   {
     "original": "Damiane Only",
     "translation": "仅戴米安",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1873304
   },
   {
     "original": "Oongka Only",
     "translation": "仅翁卡",
-    "capacity": 16
-  },
-  {
-    "original": "All Categories",
-    "translation": "全部分类",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1873320
   },
   {
     "original": "Matching Slot Only",
     "translation": "仅匹配槽位",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1873384
   },
   {
     "original": "Weapons",
     "translation": "武器",
-    "capacity": 13
+    "capacity": 8,
+    "rva": 1873424
   },
   {
     "original": "Shields & Off-Hand",
     "translation": "盾牌与副手",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1873432
   },
   {
     "original": "Accessories",
     "translation": "饰品",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1873456
   },
   {
     "original": "Equip Item",
     "translation": "装备物品",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1873472
   },
   {
     "original": "Filter equipment suitable for this character or show all items.",
     "translation": "筛选适合此角色的装备，或显示全部物品。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1873504
   },
   {
     "original": "Character Filter",
     "translation": "角色筛选",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1873568
   },
   {
     "original": "Filter items by weapon, armor, shield, or slot compatibility.",
     "translation": "按武器、防具、盾牌或槽位兼容性筛选。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1873592
   },
   {
     "original": "Category Filter",
     "translation": "分类筛选",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1873656
   },
   {
     "original": "Find any weapon, shield, or armor to equip.",
     "translation": "查找可装备的武器、盾牌或防具。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1873672
   },
   {
     "original": "Equip to active slot - bypasses quest & class lock",
     "translation": "装备到当前槽位（绕过任务与职业限制）",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1873720
   },
   {
     "original": "Could not equip item",
     "translation": "无法装备物品",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1873800
   },
   {
     "original": "No equipment found with current character/category filter.",
     "translation": "当前角色／分类筛选下没有装备。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1873824
   },
   {
     "original": "Showing first 200 items - use Search to narrow down.",
     "translation": "显示前200件，用搜索筛选",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1873904
   },
   {
     "original": "Current Time",
     "translation": "当前时间",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1874456
   },
   {
     "original": "%s: %s %d, %02d:%02d",
     "translation": "%s：%s %d，%02d:%02d",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1874472
   },
   {
     "original": "Current in-game world time.",
     "translation": "当前游戏世界时间。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1874496
   },
   {
     "original": "Set clock and sun to 06:00 AM (Sunrise).",
     "translation": "将时间和太阳设为 06:00（日出）。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1874528
   },
   {
     "original": "Unavailable right now.",
     "translation": "当前不可用。",
-    "capacity": 27
+    "capacity": 24,
+    "rva": 1874576
   },
   {
     "original": "Dawn / Morning (06:00)",
     "translation": "清晨 06:00",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1874600
   },
   {
     "original": "Set time to 06:00 (Dawn)",
     "translation": "设为 06:00（黎明）",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1874624
   },
   {
     "original": "Set clock and sun to 12:00 PM (Full Daylight).",
     "translation": "将时间和太阳设为 12:00（白昼）。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1874656
   },
   {
     "original": "Midday / Noon (12:00)",
     "translation": "正午 12:00",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1874704
   },
   {
     "original": "Set time to 12:00 (Noon)",
     "translation": "设为 12:00（正午）",
-    "capacity": 24
+    "capacity": 32,
+    "rva": 1874728
   },
   {
     "original": "Set clock and sun to 06:00 PM (Dusk).",
     "translation": "将时间设为18:00（日落）",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1874760
   },
   {
     "original": "Sunset / Golden Hour (18:00)",
-    "translation": "日落／黄金时刻（18:00）",
-    "capacity": 32
+    "translation": "日落／黄金时刻 (18:00)",
+    "capacity": 32,
+    "rva": 1874800
   },
   {
     "original": "Set time to 18:00 (Sunset)",
     "translation": "设为 18:00（日落）",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1874832
   },
   {
     "original": "Set clock and sun to 12:00 AM (Deep Night).",
     "translation": "将时间和太阳设为 00:00（深夜）。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1874864
   },
   {
     "original": "Midnight / Night (00:00)",
     "translation": "午夜／深夜（00:00）",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1874912
   },
   {
     "original": "Set time to 00:00 (Midnight)",
     "translation": "设为 00:00（午夜）",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1874944
   },
   {
     "original": "Set clock directly to this exact hour (0..23).",
     "translation": "将时间直接设为指定小时（0..23）。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1874976
   },
   {
     "original": "Set Exact Hour",
     "translation": "设精确小时",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1875024
   },
   {
     "original": "Set time to %02d:00",
     "translation": "设为 %02d:00",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1875040
   },
   {
     "original": "Dynamic (Game Default)",
-    "translation": "动态（游戏默认）",
-    "capacity": 24
+    "translation": "动态(游戏默认)",
+    "capacity": 24,
+    "rva": 1875064
   },
   {
     "original": "Clear Sky (Sunny)",
     "translation": "晴空（晴天）",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1875088
   },
   {
     "original": "Overcast (Cloudy)",
     "translation": "阴天（多云）",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1875112
   },
   {
     "original": "Rainy (Light Rain)",
     "translation": "降雨（小雨）",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1875136
   },
   {
     "original": "Thunderstorm (Storm)",
     "translation": "雷暴（风暴）",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1875160
   },
   {
     "original": "Dense Fog / Mist",
     "translation": "浓雾／薄雾",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1875184
   },
   {
     "original": "Select and lock active weather atmosphere.",
     "translation": "选择并锁定当前天气环境。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1875208
   },
   {
     "original": "Weather Preset",
     "translation": "天气预设",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1875256
   },
   {
     "original": "Weather set to %s",
     "translation": "天气已设为 %s",
-    "capacity": 32
+    "capacity": 24,
+    "rva": 1875272
   },
   {
     "original": "Reduces thick distant fog blur for enhanced scenery and visibility.",
     "translation": "减弱远处浓雾，提升景物清晰度和可见性。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1875296
   },
   {
     "original": "Clear Distant Fog",
     "translation": "消除远处浓雾",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1875368
   },
   {
     "original": "Forces constant clear sky with minimal cloud cover.",
     "translation": "强制保持晴空，云层降至最低。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1875392
   },
   {
     "original": "Force Clear Sky",
     "translation": "强制晴空",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1875448
   },
   {
     "original": "Immediately disperses rain, storms, and heavy fog.",
     "translation": "立即驱散降雨、风暴和浓雾。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1875464
   },
   {
     "original": "Instant Clear Weather",
     "translation": "立即放晴",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1875520
   },
   {
     "original": "Atmosphere cleared",
     "translation": "天气环境已清除",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1875544
   },
   {
     "original": "Adjust rainfall density and storm clouds.",
     "translation": "调整降雨密度和风暴云层。",
-    "capacity": 44
+    "capacity": 44,
+    "rva": 1875568
   },
   {
     "original": "Rain Intensity",
     "translation": "降雨强度",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1875624
   },
   {
     "original": "Adjust snowfall and winter blizzard intensity.",
     "translation": "调整降雪和暴风雪强度。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1875640
   },
   {
     "original": "Snow Intensity",
     "translation": "降雪强度",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1875688
   },
   {
     "original": "Adjust desert dust and sandstorm particles.",
     "translation": "调整沙尘和沙尘暴粒子。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1875704
   },
   {
     "original": "Dust / Sandstorm",
     "translation": "沙尘／沙尘暴",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1875752
   },
   {
     "original": "Controls cloud volume density and sky coverage.",
     "translation": "控制云层密度和天空覆盖率。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1875776
   },
   {
     "original": "Cloud Thickness",
     "translation": "云层厚度",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1875824
   },
   {
     "original": "Adjusts top elevation ceiling of cloud formations.",
     "translation": "调整云层顶部高度。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1875840
   },
   {
     "original": "Cloud Top Altitude",
     "translation": "云顶高度",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1875896
   },
   {
     "original": "Adjusts lower boundary elevation of cloud bottoms.",
     "translation": "调整云层底部高度。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1875920
   },
   {
     "original": "Cloud Base Altitude",
     "translation": "云底高度",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1875976
   },
   {
     "original": "Scales motion speed of cloud layer drifting across the sky.",
     "translation": "调整云层漂移速度。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1876000
   },
   {
     "original": "Cloud Drift Speed",
     "translation": "云层漂移速度",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1876064
   },
   {
     "original": "Adjusts foreground fog density and light scattering.",
     "translation": "调整前景雾气密度和光线散射。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1876088
   },
   {
     "original": "Fog Scattering (A)",
     "translation": "雾气散射（A）",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1876144
   },
   {
     "original": "Adjusts distant horizon fog and mountain mist blend.",
     "translation": "调整远处地平线雾气与山雾融合。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1876168
   },
   {
     "original": "Fog Horizon Blend (B)",
     "translation": "地平线雾融合(B)",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1876224
   },
   {
     "original": "Scales ambient wind force and environmental breeze.",
     "translation": "调整环境风力和微风强度。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1876248
   },
   {
     "original": "Wind Speed Multiplier",
     "translation": "风速倍率",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1876304
   },
   {
     "original": "Controls frequency and intensity of random wind gusts.",
     "translation": "控制随机阵风的频率和强度。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1876328
   },
   {
     "original": "Wind Gust Strength",
     "translation": "阵风强度",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1876384
   },
   {
     "original": "Controls vertical air currents and particle lift.",
     "translation": "控制垂直气流和粒子升力。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1876408
   },
   {
     "original": "Turbulence Lift",
     "translation": "乱流升力",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1876464
   },
   {
     "original": "Calms all environmental wind and dust to complete stillness.",
     "translation": "平息环境风力和沙尘，使其完全静止。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1876480
   },
   {
     "original": "No Wind",
     "translation": "无风",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1876544
   },
   {
     "original": "Advance Time (+)",
     "translation": "推进时间（+）",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1876952
   },
   {
     "original": "Advanced %d hours",
     "translation": "已推进 %d 小时",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1876976
   },
   {
     "original": "Rewinds the clock backward by this many hours; time keeps flowing after.",
     "translation": "将时间倒退指定小时，之后时间继续流动。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1877008
   },
   {
     "original": "Rewinds the clock backward. Unavailable right now.",
     "translation": "倒退时间。当前不可用。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1877088
   },
   {
     "original": "Rewind Time (-)",
     "translation": "倒退时间",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1877144
   },
   {
     "original": "Rewound %d hours",
     "translation": "已倒退 %d 小时",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1877160
   },
   {
     "original": "Set exact time to Morning, Noon, Sunset, or Midnight.",
     "translation": "将时间设为清晨、正午、日落或午夜。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1877184
   },
   {
     "original": "Time of Day Presets",
     "translation": "时间预设",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1877264
   },
   {
     "original": "Control weather, sky condition, and remove distance fog.",
     "translation": "控制天气、天空状态并消除远处浓雾。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1877288
   },
   {
     "original": "Weather & Atmosphere",
     "translation": "天气与环境",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1877368
   },
   {
     "original": "X %.2f  Y %.2f  Z %.2f",
     "translation": "X %.2f  Y %.2f  Z %.2f",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1877392
   },
   {
     "original": "Teleport to Destination",
     "translation": "传送至目的地",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1877568
   },
   {
     "original": "%s: X %.0f  Y (%s)  Z %.0f",
     "translation": "%s：X %.0f  Y（%s） Z %.0f",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1877592
   },
   {
     "original": "%s: X %.0f  Y %.0f  Z %.0f",
     "translation": "%s：X %.0f  Y %.0f  Z %.0f",
-    "capacity": 28
+    "capacity": 28,
+    "rva": 1877624
   },
   {
     "original": "Hotkey",
     "translation": "快捷键",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1877652
   },
   {
     "original": "Teleport to active map destination",
     "translation": "传送至当前地图目的地",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1877664
   },
   {
     "original": "%s (%s: %s).",
     "translation": "%s(%s:%s)",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1877704
   },
   {
     "original": "None",
     "translation": "无",
-    "capacity": 8
+    "capacity": 12,
+    "rva": 1738420
   },
   {
     "original": "%s: %s",
     "translation": "%s：%s",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1877720
   },
   {
     "original": "Set a destination/waypoint on the world map first.",
     "translation": "请先在世界地图设置目的地或航点。",
-    "capacity": 56
+    "capacity": 64,
+    "rva": 1877728
   },
   {
     "original": "Altitude to teleport to when destination marker does not specify height.",
     "translation": "目的地未指定高度时使用的传送高度。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1877792
   },
   {
     "original": "Sky Arrival Altitude",
     "translation": "天空降落高度",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1877872
   },
   {
     "original": "Save and teleport to custom bookmarked coordinates.",
     "translation": "保存并传送至自定义书签坐标。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1877896
   },
   {
     "original": "%s  (%zu)",
     "translation": "%s（%zu）",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1878048
   },
   {
     "original": "Location",
     "translation": "位置",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1878384
   },
   {
     "original": "%s #%zu",
     "translation": "%s #%zu",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1878400
   },
   {
     "original": "Location #%d",
     "translation": "位置 #%d",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1878408
   },
   {
     "original": "%s #%d",
     "translation": "%s #%d",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1878452
   },
   {
     "original": "Saved Location",
     "translation": "已保存位置",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1878464
   },
   {
     "original": "Saves your active player coordinates as a new custom bookmark.",
     "translation": "将当前玩家坐标保存为新的自定义书签。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1878480
   },
   {
     "original": "+ Save Current Location",
     "translation": "+ 保存当前位置",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1878544
   },
   {
     "original": "Location #%zu",
     "translation": "位置 #%zu",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1878568
   },
   {
     "original": "Saved '%s' (X %.0f, Y %.0f, Z %.0f)",
     "translation": "已存 %s X%.0f Y%.0f Z%.0f",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1878584
   },
   {
     "original": "Player position not ready",
     "translation": "玩家位置未就绪",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1878624
   },
   {
     "original": "Click '+ Save Current Location' above to bookmark any spot.",
     "translation": "点击上方“+ 保存当前位置”即可添加书签。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1878656
   },
   {
     "original": "No saved locations",
     "translation": "暂无已保存位置",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1878720
   },
   {
     "original": "%zu. %s  (X %.0f  Y %.0f  Z %.0f)",
     "translation": "%zu、%s（X %.0f  Y %.0f  Z %.0f）",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1878744
   },
   {
     "original": "Enter/A: Open details  |  Del/X: Delete location",
     "translation": "Enter/A：查看详情  |  Del/X：删除位置",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1878784
   },
   {
     "original": "Deleted '%s'",
     "translation": "已删 %s",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1878856
   },
   {
     "original": "Deletes all custom bookmarked locations.",
     "translation": "删除全部自定义书签位置。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1878872
   },
   {
     "original": "Clear All Saved Locations",
     "translation": "清除全部已保存位置",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1878920
   },
   {
     "original": "All saved locations cleared",
     "translation": "已清除全部保存位置",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1878952
   },
   {
     "original": "This saved location no longer exists.",
     "translation": "该保存位置已不存在。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1878984
   },
   {
     "original": "Location not found",
     "translation": "未找到位置",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1879024
   },
   {
     "original": "Teleport Here",
     "translation": "传送到这里",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1879048
   },
   {
     "original": "%s (X %.0f  Y %.0f  Z %.0f)",
     "translation": "%s（X %.0f  Y %.0f  Z %.0f）",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1879064
   },
   {
     "original": "Instantly warp your player to these coordinates.",
     "translation": "立即将玩家传送到这些坐标。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1879096
   },
   {
     "original": "Teleported to %s",
     "translation": "已传送至 %s",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1879152
   },
   {
     "original": "Teleport failed",
     "translation": "传送失败",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1879176
   },
   {
     "original": "Press Enter/A to rename this location on your keyboard.",
     "translation": "按 Enter/A 可在键盘上重命名此位置。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1879192
   },
   {
     "original": "Overwrites the saved coordinates with your current position.",
     "translation": "用当前位置覆盖已保存坐标。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1879248
   },
   {
     "original": "Update to Current Position",
     "translation": "更新为当前位置",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1879312
   },
   {
     "original": "Updated '%s' to X %.0f, Y %.0f, Z %.0f",
     "translation": "已更新 %s X%.0f Y%.0f Z%.0f",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1879344
   },
   {
     "original": "Removes this location from your bookmarks.",
     "translation": "从书签中移除此位置。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1879384
   },
   {
     "original": "Delete This Location",
     "translation": "删除此位置",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1879432
   },
   {
     "original": "Location deleted",
     "translation": "位置已删除",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1879456
   },
   {
     "original": "Directly add money, pouches, chests, or custom currency.",
     "translation": "直接添加金钱、钱袋、宝箱或自定义货币。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1879608
   },
   {
     "original": "Money & Currency",
     "translation": "货币与金钱",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1879688
   },
   {
     "original": "Quickly spawn Abyss Artifacts, Sealed Artifacts, Seeds, and Cells.",
     "translation": "快速生成深渊文物、封印文物、种子和细胞。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1879712
   },
   {
     "original": "Abyss Items & Artifacts",
     "translation": "深渊物品与文物",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1879800
   },
   {
     "original": "Recover sold, discarded, or missing documents, wanted notices, collectibles & unique quest items.",
     "translation": "找回售出、丢弃或缺失的文档、通缉令、收藏品和任务物品。",
-    "capacity": 104
+    "capacity": 104,
+    "rva": 1879904
   },
   {
     "original": "Restore Items",
     "translation": "恢复物品",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1880024
   },
   {
     "original": "Sets every storage's slot count up to 700 safely directly in RAM.",
     "translation": "在内存中安全地将各储存空间扩展至最多 700 格。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1880112
   },
   {
     "original": "Enables universal stack limits and automatically merges all duplicate items into 1 slot.",
     "translation": "启用统一堆叠上限，并将重复物品自动合并到一个槽位。",
-    "capacity": 96
+    "capacity": 96,
+    "rva": 1880208
   },
   {
     "original": "Enter custom max stack size using keyboard or arrow keys (Press ENTER to type).",
     "translation": "使用键盘或方向键输入自定义堆叠上限（按 ENTER 输入）。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1880320
   },
   {
     "original": "Set Max Stack Value",
     "translation": "设置最大堆叠数",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1880400
   },
   {
     "original": "%s  (%d)",
     "translation": "%s（%d）",
-    "capacity": 12
+    "capacity": 12,
+    "rva": 1880424
   },
   {
     "original": "Sets matching items below to this amount.",
     "translation": "将下方匹配的物品设为此数量。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1880928
   },
   {
     "original": "Sets every item in this category to this amount.",
     "translation": "将此分类中的每件物品设为此数量。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1880976
   },
   {
     "original": "Set %d items to x%d",
     "translation": "设%d件为x%d",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1881040
   },
   {
     "original": "Added %d items",
     "translation": "已加%d件",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1881248
   },
   {
     "original": "Added %d items, some failed",
     "translation": "已加%d件，部分失败",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1881264
   },
   {
     "original": "Adds this many of each matching item below.",
-    "translation": "为下方每件匹配物品添加指定数量。",
-    "capacity": 48
+    "translation": "为下方每件匹配物品添加指定数量",
+    "capacity": 48,
+    "rva": 1881720
   },
   {
     "original": "Adds this many of every item in this category.",
     "translation": "为本分类每件添加指定数量。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1881768
   },
   {
     "original": "Adding %d of each - %d items...",
     "translation": "每件%d个，共%d件……",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1881824
   },
   {
     "original": "Optional",
     "translation": "可选",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1881944
   },
   {
     "original": "Wipes all fake/bugged silver coins from your bag so you can fix the 0-Wallet desync.",
     "translation": "清除背包中的伪造银币，修复钱包为 0 的不同步问题。",
-    "capacity": 88
+    "capacity": 88,
+    "rva": 1881968
   },
   {
     "original": ">> Clear Bugged/Fake Wallet Coins <<",
     "translation": ">> 清除异常／伪造钱包硬币 <<",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1882056
   },
   {
     "original": "Fake coins cleared! Now sell 1 item to the merchant, then try Set Money.",
     "translation": "异常硬币已清除！先向商人出售1件物品，再设置金钱。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1882096
   },
   {
     "original": "Merges all scattered silver slots into 1 single master slot in your bag.",
     "translation": "将背包中分散的银币槽合并为一个主槽位。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1882176
   },
   {
     "original": "Consolidate All Money Stacks",
     "translation": "合并全部金钱堆叠",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1882256
   },
   {
     "original": "Consolidated money into 1 stack (cleaned %d duplicate slots).",
-    "translation": "已合并为 1 个金钱堆叠（清理 %d 个重复槽位）。",
-    "capacity": 64
+    "translation": "已合并为 1 个金钱堆叠（清理 %d 个重复槽位）",
+    "capacity": 64,
+    "rva": 1882288
   },
   {
     "original": "Specify the amount of Silver coins to add or set directly into your wallet (max 20,000,000). Set to 0 to clear bugged coins.",
     "translation": "输入要添加或设为钱包余额的银币数量（最多 20,000,000）。设为 0 可清除异常硬币。",
-    "capacity": 128
+    "capacity": 128,
+    "rva": 1882352
   },
   {
     "original": "Direct Silver Amount",
-    "translation": "直接设置银币数量",
-    "capacity": 24
+    "translation": "直接银币数量",
+    "capacity": 24,
+    "rva": 1882480
   },
   {
     "original": "Sets your Silver balance to the exact value specified above.",
     "translation": "将银币余额设为上方指定的准确数值。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1882504
   },
   {
     "original": ">> Set Wallet to Exact Amount <<",
     "translation": ">> 将钱包设为指定金额 <<",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1882568
   },
   {
     "original": "Wallet set to %d Silver!",
     "translation": "钱包已设为 %d 银币！",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1882608
   },
   {
     "original": "ENGINE BLOCK: Wallet is empty or too low (0 Silver).",
     "translation": "引擎阻止：钱包为空或余额过低（0 银币）。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1882640
   },
   {
     "original": "Please sell 1 junk item to any merchant to get at least 2 Silver first, then try again!",
     "translation": "请先向商人出售 1 件物品，获得至少 2 银币后再试！",
-    "capacity": 96
+    "capacity": 96,
+    "rva": 1882704
   },
   {
     "original": "Adds the specified silver amount on top of your current wallet balance.",
     "translation": "在当前钱包余额上增加指定数量的银币。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1882800
   },
   {
     "original": ">> Add Amount to Existing Wallet <<",
     "translation": ">> 向现有钱包增加金额 <<",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1882872
   },
   {
     "original": "Added +%d Silver to wallet!",
-    "translation": "已向钱包增加 +%d 银币！",
-    "capacity": 32
+    "translation": "+%d 银币已入钱包！",
+    "capacity": 32,
+    "rva": 1882912
   },
   {
     "original": "Silver added to bag!",
     "translation": "银币已入包！",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1882944
   },
   {
     "original": "Instantly sets wallet to 1,000,000 Silver.",
     "translation": "立即将钱包设为 1,000,000 银币。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1882968
   },
   {
     "original": "Set to 1,000,000 Silver (1 Million)",
     "translation": "设为 1,000,000 银币（100 万）",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1883016
   },
   {
     "original": "Wallet set to 1,000,000 Silver!",
     "translation": "钱包已设为100万银币！",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1883056
   },
   {
     "original": "Instantly sets wallet to 10,000,000 Silver.",
     "translation": "立即将钱包设为 10,000,000 银币。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1883088
   },
   {
     "original": "Set to 10,000,000 Silver (10 Million)",
     "translation": "设为 10,000,000 银币（1000 万）",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1883136
   },
   {
     "original": "Wallet set to 10,000,000 Silver!",
     "translation": "钱包已设为 10,000,000 银币！",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1883176
   },
   {
     "original": "Instantly sets wallet to 20,000,000 Silver (Safe Cap).",
     "translation": "钱包设为2000万银币（上限）。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1883216
   },
   {
     "original": "Set to 20,000,000 Silver (20 Million)",
     "translation": "设为 20,000,000 银币（2000 万）",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1883272
   },
   {
     "original": "Wallet set to 20,000,000 Silver!",
     "translation": "钱包已设为 20,000,000 银币！",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1883312
   },
   {
     "original": "Quantity of Full Silver Pouches to inject into your bag (10,000 Silver each).",
     "translation": "要注入背包的满额银币袋数量（每袋 10,000 银币）。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1883360
   },
   {
     "original": "Full Silver Pouches (Count)",
     "translation": "满额银币袋（数量）",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1883440
   },
   {
     "original": "Spawns the specified count of Full Silver Pouches into your bag.",
     "translation": "向背包生成指定数量的满额银币袋。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1883472
   },
   {
     "original": ">> Spawn Full Silver Pouches <<",
     "translation": ">> 生成满额银币袋 <<",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1883544
   },
   {
     "original": "Spawned %d Full Silver Pouches!",
     "translation": "已生成%d个银币袋！",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1883576
   },
   {
     "original": "Failed to spawn pouches.",
     "translation": "生成银币袋失败。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1883608
   },
   {
     "original": "Converts all Full Silver Pouches in your bag into spendable Silver coins and frees pouch slots.",
     "translation": "将背包中的满额银币袋兑换为可用银币并释放袋子槽位。",
-    "capacity": 96
+    "capacity": 96,
+    "rva": 1883648
   },
   {
     "original": ">> Cash In All Pouches (Instant Liquidate) <<",
     "translation": ">> 兑现全部银币袋（立即清算） <<",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1883744
   },
   {
     "original": "Liquidated pouches for +%lld Silver!",
     "translation": "兑现 +%lld 银币！",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1883792
   },
   {
     "original": "No Full Silver Pouches found in bag.",
     "translation": "背包中没有满额银币袋。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1883832
   },
   {
     "original": "Tools for bugged wallets and stack consolidation.",
     "translation": "修复异常钱包并整理金钱堆叠的工具。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1883872
   },
   {
     "original": "Sealed Artifacts Collected",
     "translation": "已收集封印文物",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1883944
   },
   {
     "original": "%s: %d / %d (%d Missing)",
     "translation": "%s：%d / %d（缺少 %d）",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1883976
   },
   {
     "original": "Scans your inventory for unique Sealed Abyss Artifact IDs (0001 to 0150).",
     "translation": "扫描背包中的封印深渊文物编号（0001 至 0150）。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1884016
   },
   {
     "original": "Slider to set target collection amount (1 to 150). Adds only missing numbers.",
     "translation": "滑块设置目标收集数量（1 至 150），只添加缺失编号。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1884096
   },
   {
     "original": "Target Total Sealed Artifacts",
     "translation": "目标封印文物总数",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1884176
   },
   {
     "original": "Skips numbers you already have so you get only unique ones!",
     "translation": "跳过已拥有编号，只获取未收集的文物！",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1884208
   },
   {
     "original": "Injects missing Sealed Abyss Artifacts into bag",
     "translation": "将缺失的封印深渊文物加入背包",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1884272
   },
   {
     "original": "%s (target: %d). %s",
-    "translation": "%s（目标：%d）。%s",
-    "capacity": 24
+    "translation": "%s(目标: %d). %s",
+    "capacity": 24,
+    "rva": 1884320
   },
   {
     "original": ">> Add Missing Sealed Artifacts to Target <<",
     "translation": ">> 补齐缺失文物至目标 <<",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1884344
   },
   {
     "original": "Added %d missing Sealed Artifacts",
     "translation": "已添加 %d 个缺失封印文物",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1884392
   },
   {
     "original": "Already have all artifacts up to target %d",
     "translation": "目标 %d 以内的文物已全部拥有",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1884432
   },
   {
     "original": "Adds all missing unique Sealed Artifact numbers to reach 150/150 complete collection.",
     "translation": "添加所有缺失编号，完成 150/150 封印文物收集。",
-    "capacity": 88
+    "capacity": 88,
+    "rva": 1884480
   },
   {
     "original": ">> Add ALL Missing Sealed Artifacts (1 to 150) <<",
     "translation": ">> 添加全部缺失封印文物（1 至 150） <<",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1884568
   },
   {
     "original": "Collection already complete (150/150)!",
     "translation": "收集已完成（150/150）！",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1884624
   },
   {
     "original": "Removes duplicate copies of the same sealed artifact number, leaving exactly 1 of each.",
     "translation": "移除同编号重复文物，每种仅保留 1 个。",
-    "capacity": 88
+    "capacity": 88,
+    "rva": 1884672
   },
   {
     "original": "Clean Duplicate Sealed Artifacts",
     "translation": "清理重复封印文物",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1884760
   },
   {
     "original": "Cleaned %d duplicate Sealed Artifacts",
     "translation": "已清理 %d 个重复封印文物",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1884800
   },
   {
     "original": "No duplicate Sealed Artifacts found",
     "translation": "未找到重复封印文物",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1884840
   },
   {
     "original": "Quantity of Abyss Artifacts (ready material for skill upgrade & blacksmith).",
     "translation": "深渊文物数量（用于技能升级和铁匠强化）。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1884880
   },
   {
     "original": "Abyss Artifacts (Count)",
     "translation": "深渊文物（数量）",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1884960
   },
   {
     "original": "Press Enter / Space / Click to inject Abyss Artifacts into your bag.",
     "translation": "按 Enter／空格／点击将深渊文物加入背包。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1884992
   },
   {
     "original": ">> Spawn Abyss Artifacts (Usable Material) <<",
     "translation": ">> 生成深渊文物（可用材料） <<",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1885064
   },
   {
     "original": "Added %d Abyss Artifacts",
     "translation": "已添加 %d 个深渊文物",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1885112
   },
   {
     "original": "Failed to add Abyss Artifacts",
     "translation": "添加深渊文物失败",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1885144
   },
   {
     "original": "Adds 100x Abyss Artifacts for gear refinement & skills.",
     "translation": "添加100个深渊文物用于强化。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1885176
   },
   {
     "original": "Add 100x Abyss Artifacts",
     "translation": "添加 100 个深渊文物",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1885232
   },
   {
     "original": "Added 100x Abyss Artifacts",
     "translation": "已添加 100 个深渊文物",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1885264
   },
   {
     "original": "Adds 500x Abyss Artifacts for gear refinement & skills.",
     "translation": "添加500个深渊文物用于强化。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1885296
   },
   {
     "original": "Add 500x Abyss Artifacts",
     "translation": "添加 500 个深渊文物",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1885352
   },
   {
     "original": "Added 500x Abyss Artifacts",
     "translation": "已添加 500 个深渊文物",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1885384
   },
   {
     "original": "Spawns 50x Blessing of the Immortal to boost skills.",
     "translation": "生成 50 个不朽者祝福以提升技能。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1885416
   },
   {
     "original": "Add 50x Blessing of the Immortal (Skill Points)",
     "translation": "添加 50 个不朽者祝福（技能点）",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1885472
   },
   {
     "original": "Added 50x Blessing of the Immortal",
     "translation": "已添加 50 个不朽者祝福",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1885520
   },
   {
     "original": "Spawns 50x Advanced Skill Manuals (SkillPoint_Book_02).",
-    "translation": "生成50本高级技能手册（SkillPoint_Book_02）。",
-    "capacity": 56
+    "translation": "生成 50 本高级技能手册 (SkillPoint_Book_02).",
+    "capacity": 56,
+    "rva": 1885560
   },
   {
     "original": "Add 50x Advanced Skill Manuals",
     "translation": "添加 50 本高级技能手册",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1885616
   },
   {
     "original": "Added 50x Advanced Skill Manuals",
     "translation": "已添加 50 本高级技能手册",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1885648
   },
   {
     "original": "Spawns 50x Abyssal Seeds (AbyssStone_Seed).",
     "translation": "生成50个深渊种子（AbyssStone_Seed）。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1885688
   },
   {
     "original": "Add 50x Abyssal Seeds",
     "translation": "添加50个种子",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1885736
   },
   {
     "original": "Added 50x Abyssal Seeds",
     "translation": "已添加50个种子",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1885760
   },
   {
     "original": "Spawns 50x Abyss Cells (AbyssRuinsCreatureCore).",
-    "translation": "生成 50 个深渊细胞（AbyssRuinsCreatureCore）。",
-    "capacity": 56
+    "translation": "生成 50 个深渊细胞 (AbyssRuinsCreatureCore).",
+    "capacity": 56,
+    "rva": 1885784
   },
   {
     "original": "Add 50x Abyss Cells",
     "translation": "添加50个细胞",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1885840
   },
   {
     "original": "Added 50x Abyss Cells",
     "translation": "已添加50个细胞",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1885864
   },
   {
     "original": "Spawns permanent Abyss HP stat items.",
     "translation": "生成永久加生命的深渊物品。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1885888
   },
   {
     "original": "Add 10x Vitality of the Abyss (+30 HP)",
     "translation": "添加10个深渊活力（+30HP）",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1885928
   },
   {
     "original": "Added 10x Vitality of the Abyss",
     "translation": "已添加 10 个深渊活力",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1885968
   },
   {
     "original": "Spawns permanent Abyss MP stat items.",
     "translation": "生成永久加法力的深渊物品。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1886000
   },
   {
     "original": "Add 10x Spirit of the Abyss (+2 MP)",
-    "translation": "添加 10 个深渊精神（+2 法力）",
-    "capacity": 40
+    "translation": "添加 10 个深渊精神 (+2 法力)",
+    "capacity": 40,
+    "rva": 1886040
   },
   {
     "original": "Added 10x Spirit of the Abyss",
     "translation": "已添加 10 个深渊精神",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1886080
   },
   {
     "original": "Spawns permanent Abyss SP stat items.",
     "translation": "生成永久加耐力的深渊物品。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1886112
   },
   {
     "original": "Add 10x Breath of the Abyss (+3 SP)",
-    "translation": "添加 10 个深渊气息（+3 耐力）",
-    "capacity": 40
+    "translation": "添加 10 个深渊气息 (+3 耐力)",
+    "capacity": 40,
+    "rva": 1886152
   },
   {
     "original": "Added 10x Breath of the Abyss",
     "translation": "已添加 10 个深渊气息",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1886192
   },
   {
     "original": "Missing",
     "translation": "缺少",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1886224
   },
   {
     "original": "Collection Status",
     "translation": "收集状态",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1886232
   },
   {
     "original": "%s: %d / %d (%d %s)",
     "translation": "%s：%d / %d（%d %s）",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1886256
   },
   {
     "original": "Current ownership status across your inventory, bags, and storages.",
     "translation": "背包、钱袋和储存空间中的当前拥有情况。",
-    "capacity": 68
+    "capacity": 68,
+    "rva": 1886288
   },
   {
     "original": "items",
     "translation": "物品",
-    "capacity": 7
+    "capacity": 12,
+    "rva": 1886356
   },
   {
     "original": "Automatically adds all missing items in this category to your inventory",
     "translation": "自动将此分类中缺少的物品加入背包",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1886368
   },
   {
     "original": "%s (%d %s).",
-    "translation": "%s（%d %s）。",
-    "capacity": 16
+    "translation": "%s（%d %s）",
+    "capacity": 16,
+    "rva": 1886440
   },
   {
     "original": ">> Restore All Missing in Category <<",
     "translation": ">> 恢复分类中全部缺失物品 <<",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1886456
   },
   {
     "original": "All items in this category are already owned!",
     "translation": "此分类中的物品已全部拥有！",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1886496
   },
   {
     "original": "Restoring %d missing items...",
     "translation": "恢复中 %d 件……",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1886544
   },
   {
     "original": "Failed to restore items or bulk add busy",
     "translation": "恢复失败或批量添加正在执行",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1886576
   },
   {
     "original": "Search items in this category by name or internal key.",
     "translation": "按名称或内部键搜索此分类物品。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1886624
   },
   {
     "original": "IN BAG",
     "translation": "背包",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1886680
   },
   {
     "original": "CATALOG",
     "translation": "目录",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1886688
   },
   {
     "original": "[%s]  %s",
     "translation": "[%s]  %s",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1886696
   },
   {
     "original": "Press to add 1 copy to inventory.",
     "translation": "按键添加 1 个到背包。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1886712
   },
   {
     "original": "In Inventory",
     "translation": "背包中",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1886752
   },
   {
     "original": "Not in Bag",
-    "translation": "不在背包",
-    "capacity": 12
+    "translation": "未持有",
+    "capacity": 12,
+    "rva": 1886768
   },
   {
     "original": "Status",
     "translation": "状态",
-    "capacity": 13
+    "capacity": 12,
+    "rva": 1886780
   },
   {
     "original": "%s: %s | %s: %s. %s",
     "translation": "%s：%s | %s：%s。%s",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1886792
   },
   {
     "original": "Catalog Item",
     "translation": "目录物品",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1886816
   },
   {
     "original": "Added 1x %s",
     "translation": "已加1个%s",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1886832
   },
   {
     "original": "Nothing in this category matches your search.",
     "translation": "此分类中没有匹配搜索的物品。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1886848
   },
   {
     "original": "Bounty Notices (Wanted Posters)",
     "translation": "悬赏通告（通缉令）",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1886896
   },
   {
     "original": "Documents & Lore Books",
     "translation": "文档与知识书籍",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1886928
   },
   {
     "original": "Recipes & Crafting Manuals",
     "translation": "配方与制作手册",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1886952
   },
   {
     "original": "Quest Keys, Passes & Memories",
     "translation": "任务钥匙/通行证/记忆",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1886984
   },
   {
     "original": "Collectibles & Collector's Chest",
     "translation": "收藏品与收藏家宝箱",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1887016
   },
   {
     "original": "Unique Quest Weapons & Boss Gear",
     "translation": "任务专属武器与首领装备",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1887056
   },
   {
     "original": "Mount, Mecha & Vehicle Gear",
     "translation": "坐骑、机甲与载具装备",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1887096
   },
   {
     "original": "Rare Medals, Tokens & Artifacts",
     "translation": "稀有勋章、代币与文物",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1887128
   },
   {
     "original": "Quest & Special Item Catalog Archive",
     "translation": "任务与特殊物品目录",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1887160
   },
   {
     "original": "Browse all 50+ Bounty Notices and Wanted Posters (Simon, Ulzok, Haldin, etc.).",
     "translation": "浏览50多份悬赏通告和通缉令（西蒙等）。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1887200
   },
   {
     "original": "1. Bounty Notices (Wanted Posters)",
     "translation": "1. 悬赏通告（通缉令）",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1887304
   },
   {
     "original": "Browse Skull Collector's Journal, archive records, voyager logs & historical notes.",
     "translation": "浏览骷髅收集者日志、档案记录、航海日志和历史笔记。",
-    "capacity": 88
+    "capacity": 88,
+    "rva": 1887344
   },
   {
     "original": "2. Documents & Lore Books",
     "translation": "2. 文档与知识书籍",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1887448
   },
   {
     "original": "Browse cooking recipe books, armor/weapon blueprints, and skill manuals.",
     "translation": "浏览烹饪配方、武器防具蓝图和技能手册。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1887488
   },
   {
     "original": "3. Recipes & Crafting Manuals",
     "translation": "3. 配方与制作手册",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1887592
   },
   {
     "original": "Browse quest dungeon keys, gate keys, vault keys, and quest memories.",
-    "translation": "浏览任务地牢钥匙、大门钥匙、宝库钥匙和任务记忆。",
-    "capacity": 72
+    "translation": "浏览任务地牢钥匙、大门钥匙、宝库钥匙和任务记忆",
+    "capacity": 72,
+    "rva": 1887632
   },
   {
     "original": "4. Quest Keys, Passes & Memories",
     "translation": "4. 任务钥匙、通行证与记忆",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1887720
   },
   {
     "original": "Browse Collectibles Chest, private storage items, and ceramic relics.",
     "translation": "浏览收藏家宝箱、私人储物品和陶瓷遗物。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1887760
   },
   {
     "original": "5. Collectibles & Collector's Chest",
     "translation": "5. 收藏品与收藏家宝箱",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1887856
   },
   {
     "original": "Browse one-time quest reward armor sets, faceless cloth gear, and boss drops.",
     "translation": "浏览一次性任务奖励套装、无面布甲和首领掉落。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1887904
   },
   {
     "original": "6. Unique Quest Weapons & Boss Gear",
     "translation": "6. 任务专属武器与首领装备",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1888000
   },
   {
     "original": "Browse Sotdae of Bond, Marni's Mecha power packs, cores, and specialized mount gear.",
     "translation": "浏览羁绊苏台、马尼机甲动力包、核心和专用坐骑装备。",
-    "capacity": 88
+    "capacity": 88,
+    "rva": 1888048
   },
   {
     "original": "7. Mount, Mecha & Vehicle Gear",
     "translation": "7. 坐骑装备",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1888160
   },
   {
     "original": "Browse Beighen refinement tokens, shadow contracts, super skill blessings & power cores.",
     "translation": "浏览贝根强化代币、暗影契约、技能祝福和能量核心。",
-    "capacity": 96
+    "capacity": 96,
+    "rva": 1888192
   },
   {
     "original": "8. Rare Medals, Tokens & Artifacts",
     "translation": "8. 稀有文物",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1888312
   },
   {
     "original": "Restore Lost & Sold Items (Buyback)",
     "translation": "恢复丢失与售出物品（回购）",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1888352
   },
   {
     "original": "Items you sell to merchants, discard, or delete will automatically appear here for instant recovery.",
     "translation": "出售、丢弃或删除的物品会自动出现在这里，可立即恢复。",
-    "capacity": 104
+    "capacity": 104,
+    "rva": 1888400
   },
   {
     "original": "No Lost / Sold Items Recorded",
     "translation": "无丢失或售出记录",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1888504
   },
   {
     "original": "recorded in history",
     "translation": "条历史记录",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1888536
   },
   {
     "original": "Lost & Sold Items",
     "translation": "丢失与售出物品",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1888560
   },
   {
     "original": "%s: %d %s",
     "translation": "%s：%d %s",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1888584
   },
   {
     "original": "Items you sold, discarded, or deleted. Select any item to buyback and restore.",
     "translation": "已出售、丢弃或删除的物品。选择物品即可回购并恢复。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1888608
   },
   {
     "original": "Restores every single lost, sold, or deleted item listed below back into your inventory.",
     "translation": "将下方所有丢失、售出或删除的物品恢复到背包。",
-    "capacity": 96
+    "capacity": 96,
+    "rva": 1888688
   },
   {
     "original": ">> Restore All Lost & Sold Items <<",
     "translation": ">> 恢复全部丢失与售出物品 <<",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1888784
   },
   {
     "original": "Restored %d lost items!",
     "translation": "已恢复%d件！",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1888824
   },
   {
     "original": "Clears the history log without adding items.",
     "translation": "清除历史记录，不添加物品。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1888848
   },
   {
     "original": "Clear Lost & Sold History",
     "translation": "清除丢失与售出历史",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1888896
   },
   {
     "original": "Lost items history cleared",
     "translation": "已清除丢失物品历史",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1888928
   },
   {
     "original": "Filter lost items by name or key...",
     "translation": "按名称或键筛选丢失物品……",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1888960
   },
   {
     "original": "RESTORE",
     "translation": "恢复",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1889000
   },
   {
     "original": "[%s]  %lldx  %s",
     "translation": "[%s]  %lldx  %s",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1889008
   },
   {
     "original": "Press to restore into inventory.",
     "translation": "按键恢复到背包。",
-    "capacity": 36
+    "capacity": 36,
+    "rva": 1889024
   },
   {
     "original": "Time",
     "translation": "时间",
-    "capacity": 8
+    "capacity": 8,
+    "rva": 1889068
   },
   {
     "original": "Source",
     "translation": "来源",
-    "capacity": 9
+    "capacity": 12,
+    "rva": 1889076
   },
   {
     "original": "%s: %s | %s: %s | %s: %s. %s",
-    "translation": "%s：%s | %s：%s | %s：%s。%s",
-    "capacity": 32
+    "translation": "%s：%s | %s：%s | %s：%s. %s",
+    "capacity": 32,
+    "rva": 1889088
   },
   {
     "original": "Lost & Sold",
     "translation": "丢失与售出",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1889120
   },
   {
     "original": "Restored %lldx %s",
     "translation": "已恢复 %lldx %s",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1889136
   },
   {
     "original": "Failed to restore item",
     "translation": "恢复物品失败",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1889160
   },
   {
     "original": "No lost items match your search filter.",
     "translation": "没有匹配筛选条件的丢失物品。",
-    "capacity": 48
+    "capacity": 48,
+    "rva": 1889184
   },
   {
     "original": "Browse the full database of quest items, wanted notices, recipes, and rare relics.",
     "translation": "浏览任务物品、通缉令、配方和稀有遗物的完整目录。",
-    "capacity": 88
+    "capacity": 88,
+    "rva": 1889232
   },
   {
     "original": "Num /",
-    "translation": "数字 /",
-    "capacity": 8
+    "translation": "数字/",
+    "capacity": 8,
+    "rva": 1889480
   },
   {
     "original": "Key 0x%02X",
     "translation": "按键 0x%02X",
-    "capacity": 17
+    "capacity": 17,
+    "rva": 1889488
   },
   {
     "original": "Marker Teleport key",
     "translation": "标记点传送键",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1890128
   },
   {
     "original": "Marker Teleport button",
     "translation": "标记点传送按钮",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1890152
   },
   {
     "original": "Teleport directly to the map marker / custom waypoint placed on the map.",
     "translation": "直接传送至地图上的标记点或自定义航点。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1890304
   },
   {
     "original": "Marker Teleport",
     "translation": "标记点传送",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1890384
   },
   {
     "original": "Segoe UI (Default)",
     "translation": "Segoe UI（默认）",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1890704
   },
   {
     "original": "Impact (Rampage)",
     "translation": "Impact（狂暴）",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1890728
   },
   {
     "original": "Georgia Bold",
     "translation": "Georgia 粗体",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1890752
   },
   {
     "original": "Select the built-in Windows font to use if no custom font is enabled.",
     "translation": "未启用自定义字体时选择 Windows 内置字体。",
-    "capacity": 72
+    "capacity": 72,
+    "rva": 1890768
   },
   {
     "original": "Built-In Fallback",
     "translation": "内置备用字体",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1890840
   },
   {
     "original": "Use a custom .ttf/.otf font from the game folder instead of built-in fonts.",
     "translation": "使用游戏目录中的 .ttf/.otf 字体替代内置字体。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1890864
   },
   {
     "original": "Enable Custom Font",
     "translation": "启用自定义字体",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1890944
   },
   {
     "original": "Place a .ttf or .otf file in the game directory.",
     "translation": "将 .ttf 或 .otf 文件放入游戏目录。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1890968
   },
   {
     "original": "No Fonts Found",
     "translation": "未找到字体",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1891040
   },
   {
     "original": "Select the custom font to load.",
     "translation": "选择自定义字体。",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1891056
   },
   {
     "original": "Select Custom Font",
     "translation": "选择自定义字体",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1891088
   },
   {
     "original": "Increases or decreases the size of the entire mod menu.",
     "translation": "放大或缩小整个修改器菜单。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1891112
   },
   {
     "original": "Menu Scale",
     "translation": "菜单缩放",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1891176
   },
   {
     "original": "Displays an enlarged icon and name when selecting items.",
     "translation": "选择物品时显示放大的图标和名称。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1891192
   },
   {
     "original": "Show Item Tooltip",
     "translation": "显示物品提示",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1891256
   },
   {
     "original": "Adjusts the preview image and panel size for item tooltips.",
     "translation": "调整物品提示的预览图和面板大小。",
-    "capacity": 64
+    "capacity": 64,
+    "rva": 1891280
   },
   {
     "original": "Tooltip Image Size",
     "translation": "提示图像大小",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1891344
   },
   {
     "original": "Customize the mod menu's size and item previews.",
     "translation": "自定义修改器菜单大小和物品预览。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1891488
   },
   {
     "original": "Menu UI Settings",
     "translation": "菜单界面设置",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1891552
   },
   {
     "original": "Crimson Red",
     "translation": "绯红",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1891576
   },
   {
     "original": "Cyber Cyan",
     "translation": "赛博青",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1891592
   },
   {
     "original": "Neon Purple",
     "translation": "霓虹紫",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1891608
   },
   {
     "original": "Matrix Emerald",
     "translation": "矩阵翠绿",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1891624
   },
   {
     "original": "Royal Gold",
     "translation": "皇家金",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1891640
   },
   {
     "original": "Sunset Orange",
     "translation": "落日橙",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1891656
   },
   {
     "original": "Customize the mod menu accent and header colors.",
     "translation": "自定义修改器菜单强调色和标题颜色。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1891672
   },
   {
     "original": "Theme Color",
     "translation": "主题颜色",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1891728
   },
   {
     "original": "Use PlayStation controller icons (Cross, Circle, etc) instead of Xbox buttons.",
     "translation": "使用 PlayStation 手柄图标（叉、圆等）替代 Xbox 按键。",
-    "capacity": 80
+    "capacity": 80,
+    "rva": 1891744
   },
   {
     "original": "PlayStation Icons",
     "translation": "PlayStation 图标",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1891824
   },
   {
     "original": "Select mod menu display language.",
     "translation": "选择修改器菜单显示语言。",
-    "capacity": 40
+    "capacity": 40,
+    "rva": 1891848
   },
   {
     "original": "Customize the header font (requires game restart).",
     "translation": "自定义标题字体（需要重启游戏）。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1891888
   },
   {
     "original": "Title Font",
     "translation": "标题字体",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1891960
   },
   {
     "original": "Show Console Window",
     "translation": "显示控制台窗口",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1892208
   },
   {
     "original": "Shows the debug console window. (Instantly toggles)",
     "translation": "显示调试控制台窗口（即时切换）。",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1892152
   },
   {
     "original": "Game version automatically detected by Trinity engine.",
     "translation": "Trinity 检测到的游戏版本",
-    "capacity": 56
+    "capacity": 56,
+    "rva": 1892232
   },
   {
     "original": "No Bounty",
     "translation": "无赏金",
-    "capacity": 16
+    "capacity": 16,
+    "rva": 1864568
   },
   {
     "original": "Crimes stop adding to your bounty or alerting faction guards (session-only, safe for save files).",
     "translation": "犯罪行为不会增加通缉赏金或引来阵营守卫（仅限当前会话，不影响存档）。",
     "capacity": 104,
-    "rva": 1660848
+    "rva": 1864464
   },
   {
     "original": "Character",
     "translation": "角色",
     "capacity": 16,
-    "rva": 1059440
+    "rva": 1254336
   },
   {
     "original": "Sky",
     "translation": "空中",
-    "capacity": 6,
-    "rva": 1039858
+    "capacity": 8,
+    "rva": 1877560
   },
   {
     "original": "Teleported to destination",
     "translation": "已传送到目的地",
     "capacity": 32,
-    "rva": 1532824
+    "rva": 1736320
   },
   {
     "original": "No destination found on map",
     "translation": "地图上未找到标记点",
     "capacity": 32,
-    "rva": 1532856
+    "rva": 1736352
   },
   {
     "original": "Player not ready",
     "translation": "玩家状态未就绪",
     "capacity": 24,
-    "rva": 1532888
+    "rva": 1736384
   },
   {
     "original": "Invalid destination coordinates",
     "translation": "目的地坐标无效",
     "capacity": 32,
-    "rva": 1532912
+    "rva": 1736408
   },
   {
     "original": "Unsafe destination context",
     "translation": "目的地环境不安全",
     "capacity": 32,
-    "rva": 1532944
+    "rva": 1736440
   },
   {
     "original": "Destination teleport failed",
     "translation": "目的地传送失败",
-    "capacity": 32,
-    "rva": 1532976
+    "capacity": 40,
+    "rva": 1736472
   },
   {
     "original": "Saved Locations",
     "translation": "保存位置",
-    "capacity": 22,
-    "rva": 1671618
+    "capacity": 16,
+    "rva": 1877968
   },
   {
     "original": "Saved Spot",
     "translation": "已存坐标",
     "capacity": 16,
-    "rva": 1041672
-  },
-  {
-    "original": "Inventory",
-    "translation": "背包",
-    "capacity": 16,
-    "rva": 1055216
+    "rva": 1231656
   },
   {
     "original": "Quest Items",
-    "translation": "任务道具",
+    "translation": "任务品",
     "capacity": 12,
-    "rva": 1059456
+    "rva": 1254352
   },
   {
     "original": "Camp",
     "translation": "营地",
     "capacity": 8,
-    "rva": 1059552
-  },
-  {
-    "original": "Wardrobe",
-    "translation": "衣柜",
-    "capacity": 16,
-    "rva": 1461064
+    "rva": 1254448
   },
   {
     "original": "Private Storage",
     "translation": "个人仓库",
     "capacity": 16,
-    "rva": 1464048
+    "rva": 1667328
   },
   {
     "original": "Bank",
     "translation": "银行",
     "capacity": 8,
-    "rva": 1059544
+    "rva": 1254440
   },
   {
     "original": "Medical Materials",
     "translation": "药材",
     "capacity": 24,
-    "rva": 1062904
+    "rva": 1252000
   },
   {
     "original": "Objects",
     "translation": "杂物",
     "capacity": 8,
-    "rva": 1062944
+    "rva": 1252024
   },
   {
     "original": "Kuku Pot (All)",
     "translation": "库库罐(全)",
     "capacity": 16,
-    "rva": 1056728
+    "rva": 1251592
   },
   {
     "original": "Kuku Pot",
     "translation": "库库罐",
     "capacity": 12,
-    "rva": 1056744
+    "rva": 1251608
   },
   {
     "original": "Lures",
     "translation": "诱饵",
     "capacity": 12,
-    "rva": 1056756
+    "rva": 1251620
   },
   {
     "original": "Day",
     "translation": "第",
-    "capacity": 10,
-    "rva": 1481910
+    "capacity": 8,
+    "rva": 1874448
   },
   {
     "original": "Language",
     "translation": "语言",
     "capacity": 16,
-    "rva": 1042720
+    "rva": 1232704
   },
   {
     "original": "Equipped %s!",
     "translation": "已装备 %s！",
     "capacity": 16,
-    "rva": 1666520
+    "rva": 1873784
   },
   {
     "original": "Key",
-    "translation": "按键",
-    "capacity": 9,
-    "rva": 1058975
+    "translation": "键",
+    "capacity": 4,
+    "rva": 1263732
   },
   {
     "original": "Blue",
     "translation": "蓝色",
     "capacity": 12,
-    "rva": 1659660
+    "rva": 1863276
   },
   {
     "original": "Green",
     "translation": "绿色",
     "capacity": 12,
-    "rva": 1659564
+    "rva": 1863180
   },
   {
     "original": "Red",
     "translation": "红色",
     "capacity": 8,
-    "rva": 1659440
+    "rva": 1863056
   },
   {
     "original": "Easy Parry (Just Guard)",
     "translation": "简易格挡（完美弹刀）",
-    "capacity": 32
+    "capacity": 32,
+    "rva": 1864320
   },
   {
     "original": "Natively triggers Perfect Parry and deflect counters whenever you guard against enemy attacks.",
     "translation": "防御敌人攻击时自动触发完美格挡与弹反还击。",
-    "capacity": 96
+    "capacity": 96,
+    "rva": 1864224
   },
   {
     "original": "Easy Evade (Just Evade)",
     "translation": "简易闪避(完美)",
-    "capacity": 24
+    "capacity": 24,
+    "rva": 1864440
   },
   {
     "original": "Natively triggers Perfect Dodge slow-motion counters whenever you dodge in combat.",
     "translation": "战斗中闪避时自动触发完美闪避慢动作与反击。",
-    "capacity": 88
+    "capacity": 88,
+    "rva": 1864352
+  },
+  {
+    "original": "Dye Profile",
+    "translation": "染色配置",
+    "capacity": 16,
+    "rva": 1868648
+  },
+  {
+    "original": "Dye Profiles",
+    "translation": "染色配置",
+    "capacity": 16,
+    "rva": 1867800
+  },
+  {
+    "original": "Profile Name",
+    "translation": "配置名称",
+    "capacity": 24,
+    "rva": 1868152
+  },
+  {
+    "original": "Save Current Dye",
+    "translation": "保存当前染色",
+    "capacity": 24,
+    "rva": 1868280
+  },
+  {
+    "original": "Save Profile Name",
+    "translation": "保存配置名",
+    "capacity": 24,
+    "rva": 1869080
+  },
+  {
+    "original": "Apply Profile",
+    "translation": "应用配置",
+    "capacity": 16,
+    "rva": 1868984
+  },
+  {
+    "original": "Overwrite With Current Dye",
+    "translation": "用当前染色覆盖",
+    "capacity": 32,
+    "rva": 1869216
+  },
+  {
+    "original": "Delete Profile",
+    "translation": "删除配置",
+    "capacity": 16,
+    "rva": 1869368
+  },
+  {
+    "original": "Preview Zone",
+    "translation": "预览区域",
+    "capacity": 16,
+    "rva": 1868880
+  },
+  {
+    "original": "Preview, apply, rename, overwrite or delete this saved appearance.",
+    "translation": "预览、应用、重命名、覆盖或删除该已保存外观。",
+    "capacity": 72,
+    "rva": 1868400
+  },
+  {
+    "original": "Saved appearance. Applying replaces every zone on this piece.",
+    "translation": "已保存外观，应用后替换该装备的全部区域。",
+    "capacity": 64,
+    "rva": 1868752
+  },
+  {
+    "original": "Save a look before experimenting with other colors.",
+    "translation": "尝试其他颜色前先保存外观。",
+    "capacity": 56,
+    "rva": 1868496
+  },
+  {
+    "original": "Save this appearance and restore it after trying other colors.",
+    "translation": "保存此外观，试色后可恢复。",
+    "capacity": 64,
+    "rva": 1869624
+  },
+  {
+    "original": "Capture the equipment's actual dye data in all zones, including natural zones. Saved across restarts.",
+    "translation": "采集该装备全部区域（含自然区域）的真实染色数据，重启后保留。",
+    "capacity": 104,
+    "rva": 1868176
+  },
+  {
+    "original": "Profiles restore all zones, materials and condition for this equipment type.",
+    "translation": "配置会恢复该装备类型的全部区域、材质与状态。",
+    "capacity": 80,
+    "rva": 1867904
+  },
+  {
+    "original": "Inspect the saved color, material and condition for each zone.",
+    "translation": "查看各区域已保存的颜色、材质与状态。",
+    "capacity": 64,
+    "rva": 1868816
+  },
+  {
+    "original": "Name this appearance, then choose Save Current Dye.",
+    "translation": "为此外观命名，再选择保存当前染色。",
+    "capacity": 56,
+    "rva": 1868096
+  },
+  {
+    "original": "Delete this preset from Trinity. The equipment's current appearance stays as it is.",
+    "translation": "从 Trinity 删除此预设，装备当前外观保持不变。",
+    "capacity": 88,
+    "rva": 1869280
+  },
+  {
+    "original": "Replace this saved appearance with the current dye on the selected equipment.",
+    "translation": "用所选装备的当前染色替换此已保存外观。",
+    "capacity": 80,
+    "rva": 1869136
+  },
+  {
+    "original": "Restore saved colors, material and condition. Zones saved as natural are cleared.",
+    "translation": "恢复已保存的颜色、材质与状态；原为自然区域的将被清除。",
+    "capacity": 88,
+    "rva": 1868896
+  },
+  {
+    "original": "Applying dye profile...",
+    "translation": "正在应用配置…",
+    "capacity": 24,
+    "rva": 1869000
+  },
+  {
+    "original": "Saving dye profile...",
+    "translation": "正在保存配置…",
+    "capacity": 24,
+    "rva": 1868304
+  },
+  {
+    "original": "Dye profile saved",
+    "translation": "染色配置已保存",
+    "capacity": 24,
+    "rva": 1865984
+  },
+  {
+    "original": "Dye profile deleted",
+    "translation": "染色配置已删除",
+    "capacity": 24,
+    "rva": 1869384
+  },
+  {
+    "original": "Dye profile renamed",
+    "translation": "染色配置已重命名",
+    "capacity": 32,
+    "rva": 1869104
+  },
+  {
+    "original": "Dye profile library is full",
+    "translation": "染色配置库已满",
+    "capacity": 32,
+    "rva": 1304824
+  },
+  {
+    "original": "No saved profiles for this equipment",
+    "translation": "此装备没有已保存的配置",
+    "capacity": 40,
+    "rva": 1868552
+  },
+  {
+    "original": "Profile does not match this equipment",
+    "translation": "配置与此装备不匹配",
+    "capacity": 40,
+    "rva": 1304784
+  },
+  {
+    "original": "Profile name is too long",
+    "translation": "配置名称过长",
+    "capacity": 32,
+    "rva": 1304856
+  },
+  {
+    "original": "Profile no longer exists",
+    "translation": "配置已不存在",
+    "capacity": 32,
+    "rva": 1304920
+  },
+  {
+    "original": "Profile or equipment changed",
+    "translation": "配置或装备已变更",
+    "capacity": 32,
+    "rva": 1868720
+  },
+  {
+    "original": "Could not apply profile - select the equipment again",
+    "translation": "无法应用配置，请重新选择装备",
+    "capacity": 56,
+    "rva": 1869024
+  },
+  {
+    "original": "Could not capture current dye",
+    "translation": "无法采集当前染色",
+    "capacity": 32,
+    "rva": 1869248
+  },
+  {
+    "original": "Could not capture dye profile - select the item again",
+    "translation": "无法采集染色配置，请重新选择物品",
+    "capacity": 56,
+    "rva": 1866008
+  },
+  {
+    "original": "Could not create the dye profile temporary file (Windows ",
+    "translation": "无法创建染色配置临时文件（Windows ",
+    "capacity": 64,
+    "rva": 1304600
+  },
+  {
+    "original": "Could not save dye profiles; previous file retained (Windows ",
+    "translation": "无法保存染色配置，已保留原文件（Windows ",
+    "capacity": 64,
+    "rva": 1304664
+  },
+  {
+    "original": "Could not update dye profile",
+    "translation": "无法更新染色配置",
+    "capacity": 32,
+    "rva": 1867768
+  },
+  {
+    "original": "Could not update %s - feature settings not saved.",
+    "translation": "无法更新 %s，功能设置未保存。",
+    "capacity": 56,
+    "rva": 1231736
+  },
+  {
+    "original": "Could not write %s - feature settings not saved.",
+    "translation": "无法写入 %s，功能设置未保存。",
+    "capacity": 64,
+    "rva": 1230400
+  },
+  {
+    "original": "Enter a non-empty profile name",
+    "translation": "请输入非空配置名称",
+    "capacity": 32,
+    "rva": 1304888
+  },
+  {
+    "original": "Enter a profile name (1-63 bytes) and valid dye data",
+    "translation": "请输入配置名称(1-63 字节)与有效染色数据",
+    "capacity": 56,
+    "rva": 1304728
+  },
+  {
+    "original": "Enter a profile name and wait for the equipment to load",
+    "translation": "请输入配置名称并等待装备加载",
+    "capacity": 56,
+    "rva": 1868328
+  },
+  {
+    "original": "Invalid or unsupported dye profile file",
+    "translation": "染色配置文件无效或不受支持",
+    "capacity": 40,
+    "rva": 1304536
+  },
+  {
+    "original": "Return to Dye Profiles and select the profile again.",
+    "translation": "请返回染色配置并重新选择该配置。",
+    "capacity": 56,
+    "rva": 1868664
+  },
+  {
+    "original": "Return to the equipment list and select the piece again.",
+    "translation": "请返回装备列表并重新选择该装备。",
+    "capacity": 64,
+    "rva": 1867816
+  },
+  {
+    "original": "Return to the equipment piece and select an unlocked socket.",
+    "translation": "请返回该装备并选择已解锁的孔位。",
+    "capacity": 64,
+    "rva": 1874032
+  },
+  {
+    "original": "The existing profile file is retained if a save fails.",
+    "translation": "保存失败时会保留现有配置文件。",
+    "capacity": 56,
+    "rva": 1868592
+  },
+  {
+    "original": "Wait for the current dye action to finish before saving or applying a profile.",
+    "translation": "请等待当前染色操作完成后再保存或应用配置。",
+    "capacity": 80,
+    "rva": 1867984
+  },
+  {
+    "original": "Dye is busy or equipment changed; retry the material/condition adjustment.",
+    "translation": "染色繁忙或装备已变更，请重试材质/状态调整。",
+    "capacity": 80,
+    "rva": 1870560
+  },
+  {
+    "original": "Dye is busy or equipment changed; select the item again.",
+    "translation": "染色繁忙或装备已变更，请重新选择物品。",
+    "capacity": 64,
+    "rva": 1866080
+  },
+  {
+    "original": "Dye operation in progress",
+    "translation": "染色操作进行中",
+    "capacity": 32,
+    "rva": 1868064
+  },
+  {
+    "original": "Choose a dye color first; material and condition are ready for the next color.",
+    "translation": "请先选择染色，材质与状态将在下次染色时生效。",
+    "capacity": 80,
+    "rva": 1865904
+  },
+  {
+    "original": "Change the selected dyed zones' material while keeping their colors. 0 = natural. Choose a color first for undyed zones.",
+    "translation": "在保留颜色的前提下调整所选染色区域的材质。0 = 自然。未染色区域请先选颜色。",
+    "capacity": 128,
+    "rva": 1870304
+  },
+  {
+    "original": "Change wear on the selected dyed zones. 100 = pristine, 0 = battle-scarred. Colors stay unchanged.",
+    "translation": "调整所选染色区域的磨损度。100 = 崭新，0 = 严重磨损。颜色不变。",
+    "capacity": 104,
+    "rva": 1870432
+  },
+  {
+    "original": "Dyeing all equipped items...",
+    "translation": "正在为全部装备染色…",
+    "capacity": 32,
+    "rva": 1866144
+  },
+  {
+    "original": "Dye all worn equipment pieces across all zones with the selected color.",
+    "translation": "用所选颜色为全部已穿戴装备的所有区域染色。",
+    "capacity": 72,
+    "rva": 1869968
+  },
+  {
+    "original": "Dye the entire equipped outfit/gear set with this exact color in one click.",
+    "translation": "一键将整套已装备外观/装备染为此颜色。",
+    "capacity": 80,
+    "rva": 1870752
+  },
+  {
+    "original": "Dye All Equipped Armor (Full Set)",
+    "translation": "全套护甲染色",
+    "capacity": 40,
+    "rva": 1867272
+  },
+  {
+    "original": "Dye All Mount Gear (Full Set)",
+    "translation": "全套坐骑装备染色",
+    "capacity": 32,
+    "rva": 1867456
+  },
+  {
+    "original": "Apply Color to All Equipped Armor",
+    "translation": "将颜色应用到全部护甲",
+    "capacity": 40,
+    "rva": 1870864
+  },
+  {
+    "original": "Apply Color to All Mount Gear",
+    "translation": "将颜色应用到全部马具",
+    "capacity": 32,
+    "rva": 1870832
+  },
+  {
+    "original": "Apply Current Color to All Equipped Armor",
+    "translation": "将当前颜色应用到全部护甲",
+    "capacity": 48,
+    "rva": 1870080
+  },
+  {
+    "original": "Apply Current Color to All Mount Gear",
+    "translation": "将当前颜色应用到全部马具",
+    "capacity": 40,
+    "rva": 1870040
+  },
+  {
+    "original": "Apply the selected color to all worn armor pieces (Helm, Chest, Gloves, Boots, Cloak) across all zones in one click.",
+    "translation": "一键将所选颜色应用到全部已穿戴护甲（头盔、胸甲、手套、靴子、披风）的所有区域。",
+    "capacity": 120,
+    "rva": 1867152
+  },
+  {
+    "original": "Apply the selected color to all equipped horse gear pieces (Chamfron, Barding, Saddle, Stirrup, Horseshoe) across all zones in one click.",
+    "translation": "一键将所选颜色应用到全部已装备马具（马面甲、马铠、马鞍、马镫、马蹄铁）的所有区域。",
+    "capacity": 144,
+    "rva": 1867312
+  },
+  {
+    "original": "Dye applied live!",
+    "translation": "染色已实时应用！",
+    "capacity": 32,
+    "rva": 1865664
+  },
+  {
+    "original": "Dye applied to %s live!",
+    "translation": "已实时染色 %s！",
+    "capacity": 24,
+    "rva": 1865640
+  },
+  {
+    "original": "Dye saved (visual pending reload)",
+    "translation": "染色已保存（视觉待重载）",
+    "capacity": 40,
+    "rva": 1865824
+  },
+  {
+    "original": "Dye saved to %s (visual pending reload)",
+    "translation": "已保存 %s（视觉待重载）",
+    "capacity": 40,
+    "rva": 1865784
+  },
+  {
+    "original": "All Equipment",
+    "translation": "全部装备",
+    "capacity": 16,
+    "rva": 1873408
+  },
+  {
+    "original": "Equipment changed",
+    "translation": "装备已变更",
+    "capacity": 24,
+    "rva": 1867880
+  },
+  {
+    "original": "Equipment edit failed - select the item again",
+    "translation": "装备编辑失败，请重新选择物品",
+    "capacity": 49,
+    "rva": 1892616
+  },
+  {
+    "original": "Equipment edit queued",
+    "translation": "装备编辑已排队",
+    "capacity": 24,
+    "rva": 1873096
+  },
+  {
+    "original": "Equipment sync incomplete - see Trinity.log",
+    "translation": "装备同步未完成，请查看 Trinity.log",
+    "capacity": 48,
+    "rva": 1892568
+  },
+  {
+    "original": "Equipment client/server copies updated",
+    "translation": "装备客户端与服务端已同步",
+    "capacity": 40,
+    "rva": 1892528
+  },
+  {
+    "original": "Edits are queued. Wait for the synchronization result before checking the game inventory.",
+    "translation": "编辑已排队，请等待同步结果后再查看游戏背包。",
+    "capacity": 96,
+    "rva": 1872864
+  },
+  {
+    "original": "Server copy not confirmed",
+    "translation": "服务端副本未确认",
+    "capacity": 28,
+    "rva": 1872960
+  },
+  {
+    "original": "Mount not summoned",
+    "translation": "未召唤坐骑",
+    "capacity": 24,
+    "rva": 1871144
+  },
+  {
+    "original": "Mount equipment loading",
+    "translation": "坐骑装备加载中",
+    "capacity": 24,
+    "rva": 1866488
+  },
+  {
+    "original": "Mount dye data updated - try re-equipping the piece if the color has not changed",
+    "translation": "坐骑染色数据已更新；若颜色未变请重新装备该部件",
+    "capacity": 88,
+    "rva": 1865696
+  },
+  {
+    "original": "Mount dye updated - visual refresh requested",
+    "translation": "坐骑染色已更新，已请求视觉刷新",
+    "capacity": 48,
+    "rva": 1865592
+  },
+  {
+    "original": "Your mount/horse is not currently active in the world.",
+    "translation": "您的坐骑/马匹当前不在世界中。",
+    "capacity": 56,
+    "rva": 1871088
+  },
+  {
+    "original": "The mount is detected. Waiting for its equipped items and dye data.",
+    "translation": "已检测到坐骑，正在等待其装备与染色数据。",
+    "capacity": 72,
+    "rva": 1866416
+  },
+  {
+    "original": "Active Mount (None Nearby)",
+    "translation": "当前坐骑（附近无）",
+    "capacity": 32,
+    "rva": 1866264
+  },
+  {
+    "original": "Mount %d (None)",
+    "translation": "坐骑 %d (无)",
+    "capacity": 16,
+    "rva": 1866296
+  },
+  {
+    "original": "No equipment found in bag",
+    "translation": "背包中未找到装备",
+    "capacity": 32,
+    "rva": 1871792
+  },
+  {
+    "original": "No refinable equipment found in bag",
+    "translation": "背包中未找到可强化装备",
+    "capacity": 40,
+    "rva": 1871960
+  },
+  {
+    "original": "Max Refine All Bag Gear (+10)",
+    "translation": "背包装备全部强化 (+10)",
+    "capacity": 32,
+    "rva": 1871888
+  },
+  {
+    "original": "Refines all weapons and armor in your inventory bag to +10.",
+    "translation": "将背包中全部武器与防具强化至 +10。",
+    "capacity": 64,
+    "rva": 1871824
+  },
+  {
+    "original": "Unlock All Bag Sockets",
+    "translation": "解锁全部孔位",
+    "capacity": 24,
+    "rva": 1871720
+  },
+  {
+    "original": "Opens all 5 sockets on all equipment pieces in your inventory bag.",
+    "translation": "解锁背包中全部装备的 5 个孔位。",
+    "capacity": 72,
+    "rva": 1871648
+  },
+  {
+    "original": "Refined %d bag/equipped items to +10",
+    "translation": "已将 %d 件背包/装备强化至 +10",
+    "capacity": 40,
+    "rva": 1871920
+  },
+  {
+    "original": "Queued refinement to +10 for %d piece%s",
+    "translation": "已排队将 %d 件%s强化至 +10",
+    "capacity": 40,
+    "rva": 1871416
+  },
+  {
+    "original": "Queued socket unlocks on %d piece%s",
+    "translation": "已排队解锁 %d 件%s的孔位",
+    "capacity": 40,
+    "rva": 1871576
+  },
+  {
+    "original": "Unlocked all sockets on %d bag/equipped items",
+    "translation": "已解锁 %d 件背包/装备的全部孔位",
+    "capacity": 48,
+    "rva": 1871744
+  },
+  {
+    "original": "[%s] Refinement +%d queued",
+    "translation": "[%s] 强化 +%d 已排队",
+    "capacity": 32,
+    "rva": 1872504
+  },
+  {
+    "original": "Socket edit queued: %s",
+    "translation": "孔位编辑排队: %s",
+    "capacity": 24,
+    "rva": 1874288
+  },
+  {
+    "original": "Socket clear queued",
+    "translation": "清空孔位已排队",
+    "capacity": 24,
+    "rva": 1872416
+  },
+  {
+    "original": "Socket unlock queued",
+    "translation": "解锁孔位已排队",
+    "capacity": 24,
+    "rva": 1872264
+  },
+  {
+    "original": "Socket data loading",
+    "translation": "孔位数据加载中",
+    "capacity": 24,
+    "rva": 1872000
+  },
+  {
+    "original": "Socket unavailable",
+    "translation": "孔位不可用",
+    "capacity": 24,
+    "rva": 1874096
+  },
+  {
+    "original": "Socket data is temporarily unavailable.",
+    "translation": "孔位数据暂时不可用。",
+    "capacity": 40,
+    "rva": 1873992
+  },
+  {
+    "original": "Socket data is temporarily unavailable. Refinement remains available.",
+    "translation": "孔位数据暂时不可用，仍可进行强化。",
+    "capacity": 72,
+    "rva": 1872720
+  },
+  {
+    "original": "Pick",
+    "translation": "选择",
+    "capacity": 8,
+    "rva": 1264128
+  },
+  {
+    "original": "Performance Diagnostics",
+    "translation": "性能诊断",
+    "capacity": 24,
+    "rva": 1892128
+  },
+  {
+    "original": "Log subsystem timing every 10 seconds when a call exceeds 2 ms. Off by default.",
+    "translation": "调用超过 2 毫秒时每 10 秒记录子系统耗时，默认关闭。",
+    "capacity": 80,
+    "rva": 1892048
+  },
+  {
+    "original": "Press ESC to abort picking.",
+    "translation": "按 ESC 取消选择。",
+    "capacity": 28,
+    "rva": 1904744
+  },
+  {
+    "original": "Remap w/ Ctrl+Shift: click anywhere to select new mouse button.",
+    "translation": "Ctrl+Shift 重映射：点击任意处选择新鼠标键。",
+    "capacity": 64,
+    "rva": 1904800
   }
 ]

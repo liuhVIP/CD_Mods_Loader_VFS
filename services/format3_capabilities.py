@@ -270,7 +270,7 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
         field_rules=(
             Format3FieldRule(
                 pattern=re.compile(
-                    r"^(__clone_record__|string_key|is_blocked|craft_tool_info|"
+                    r"^(__clone_record__|__new_record__|string_key|is_blocked|craft_tool_info|"
                     r"item_consume_type|condition_list|need_knowledge_info|craft_tag_name|"
                     r"is_from_item_info|is_with_sealed_item|is_apply_enchant_level|"
                     r"is_material_item_only_same_item_no|is_allow_material_item_self_same|"
@@ -284,8 +284,8 @@ _CAPABILITIES: dict[str, Format3TableCapability] = {
                     r"enchant_level))$"
                 ),
                 reason_when_miss=(
-                    "multichangeinfo 当前支持 clone_record 复制记录、记录字段 set，"
-                    "以及 fixed_material_data_list[N].<field> 与 "
+                    "multichangeinfo 当前支持 clone_record 复制记录、new_record 完整记录模板、"
+                    "记录字段 set，以及 fixed_material_data_list[N].<field> 与 "
                     "recipe_item_group_info_list[N].<field> 下标写入"
                 ),
             ),
