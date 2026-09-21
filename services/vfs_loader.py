@@ -57,6 +57,7 @@ from cdmm.services.scanner import (
     MOD_TYPE_CDMOD,
     MOD_TYPE_FORMAT3,
     MOD_TYPE_JSON_PATCH,
+    load_index_by_mod_path,
     scan_mods,
 )
 from cdmm.services.standalone_archive_service import (
@@ -127,7 +128,23 @@ GAME_EXECUTABLE_MTIME_STATE_KEY = "game_executable_mtime_ns"
 # v22 invalidates snapshots built before the 2.02.00 storeinfo writer rewrite:
 # the old writer silently skipped every storeinfo intent, so the same mod set
 # produced snapshots without the store stock/count/reset-day patches.
-VFS_STATE_SCHEMA = 24
+# v25 invalidates snapshots built while the plan layer let a later ``add`` overwrite
+# an earlier ``set``/``add`` on the same coordinate: storeinfo ``buyable_stock_count``
+# came out as the bare delta (e.g. 46) instead of the accumulated value (e.g. 627),
+# which silently hides every appended shop row beyond the stale count.
+# v26 invalidates snapshots built before the storeinfo row-ordinal normalization:
+# appended shop rows kept the mod's stale ``raw_d`` (the row ordinal the mod
+# computed from the vanilla shelf), so two mods stocking the same shop shipped
+# duplicate ordinals and the game's vendor grid and buy handler disagreed about
+# which row was which (the grid listed the mod item, the purchase handed out the
+# other row's vanilla item).
+# v27 invalidates snapshots built before appended shop rows are put back on the
+# shelf slot their mod declared: pure positional renumbering pushed a custom
+# item's rows to the very end of a shop another mod had already inflated, which
+# in game means the rows sit past everything the vendor list shows.
+# v28 invalidates snapshots built before overlay 同最终路径冲突改为按模组加载顺序
+# 判定赢家：修好之前，后加载的 loose 模组会被先加载的 cdmod 完整资源静默压掉。
+VFS_STATE_SCHEMA = 29
 
 # 活动快照物化模式写入状态，确保旧复制快照只冷构建一次后切换到硬链接。
 VFS_MATERIALIZATION_MODE = "hardlink"
@@ -140,8 +157,13 @@ VFS_EMPTY_MAPPING_WARNING = "没有生成 VFS overlay entry，已使用空映射
 # 定位后 Format 3 分包内容会变化，必须丢弃旧分包重建。v6 加入 DMM
 # 纯插入型 change 识别与 ``autorelocate_disable`` 字面 offset 语义。
 # v7 让 2.02 storeinfo 的整表重写产物进入分包缓存并丢弃旧的“跳过 storeinfo”
-# 分包。
-VFS_PACKAGE_BUILD_SCHEMA = 9
+# 分包。v10 丢弃按“后者覆盖前者”合并 storeinfo 数值 ``add`` 生成的旧分包。
+# v11 丢弃未做行序规范化的 storeinfo 分包（raw_d 撞号 / 可买可卖计数不按行统计）。
+# v12 丢弃未把追加行放回声明货架位置的 storeinfo 分包。
+# v13 丢弃“cdmod 完整资源无条件压掉后加载 loose 文件”的旧分包：同一最终 PAMT
+# 路径冲突现在按模组加载顺序判定赢家。
+# v14 把 load_index 纳入分包缓存 key：同一最终路径的赢家随加载顺序变化。
+VFS_PACKAGE_BUILD_SCHEMA = 14
 
 # 冷构建返回后只读取文件元数据确认稳定，不重复读取或哈希大型 PAZ。
 VFS_STABILITY_CHECK_INTERVAL_SECONDS = 0.1
@@ -340,12 +362,14 @@ def build_vfs_package(
 
     stage_started = perf_counter()
     _notify_progress(progress_callback, "构建 loose 文件覆盖输入")
+    load_index_by_path = load_index_by_mod_path(mods)
     loose_overlay_inputs = build_loose_overlay_entries(
         game_dir,
         vanilla_store,
         warnings,
         errors,
         mods,
+        load_index_by_path,
     )
     cdmod_file_base_inputs = build_cdmod_file_base_entries(
         game_dir,
@@ -354,6 +378,7 @@ def build_vfs_package(
         warnings,
         errors,
         loose_overlay_inputs,
+        load_index_by_path,
     )
     loose_overlay_inputs = [*loose_overlay_inputs, *cdmod_file_base_inputs]
     _log_vfs_stage("构建 loose 覆盖输入", stage_started)
@@ -380,6 +405,7 @@ def build_vfs_package(
         warnings,
         errors,
         [*loose_overlay_inputs, *json_overlay_inputs],
+        load_index_by_path,
     )
     _log_vfs_stage("构建 Format 3 覆盖输入", stage_started)
 
@@ -906,6 +932,10 @@ def _overlay_package_cache_key(
         digest.update((entry.crypto_filename or "").encode("utf-8"))
         digest.update(b"\0")
         digest.update((entry.resolved_dir_path or "").encode("utf-8"))
+        digest.update(b"\0")
+        # 同一最终路径的赢家由加载顺序决定，下标必须参与 key，否则改顺序后仍会
+        # 命中旧分包，表现为“改了加载顺序但游戏里没变化”。
+        digest.update(str(entry.load_index).encode("ascii"))
         digest.update(b"\0")
         digest.update(len(entry.content).to_bytes(8, "little"))
         digest.update(entry.content)

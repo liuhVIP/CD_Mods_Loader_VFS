@@ -92,6 +92,9 @@ class OverlayInputEntry:
     preserve_entry_dir: bool = False
     # 已由目标驱动 PAMT 解析得到的最终目录；为空时兼容旧逻辑现场恢复。
     resolved_dir_path: str | None = None
+    # 产生该 entry 的模组在加载顺序中的下标。同一最终 PAMT 路径冲突时，最终字节
+    # 赢家必须是加载顺序更靠后的模组，而不是合成列表里的先后位置。
+    load_index: int | None = None
 
 
 @dataclass(frozen=True)

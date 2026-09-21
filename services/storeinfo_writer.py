@@ -69,6 +69,103 @@ class _Token:
         self.index = index
 
 
+def normalize_store_entry_stock_rows(entry: StoreEntry) -> int:
+    """按 DMM 语义恢复 stock 表的「行序 + 按行计票」不变量。
+
+    原版 2.02.00 的 436 条 store entry 全部满足以下三条不变量（已逐条核验）：
+
+    * ``stock_data_list[i].raw_d == i``：``raw_d`` 是行序（DMM 日志把它写作
+      "next free row ordinal"）。模组导出时按各自看到的原版行数算这个序号，
+      所以两个模组给同一家店补货时会撞号；游戏的商品格子按位置排列，购买处理
+      按行序找行，撞号就会出现「格子显示模组物品、买到的却是另一行的原版物品」。
+    * ``buyable_stock_count == 行中 flag_c != 0 的数量``
+    * ``sellable_stock_count == 行中 flag_b != 0 的数量``
+
+    DMM 从 2.3.3 起在所有模组挂载完成后统一重排：行按位置编号，可买/可卖数量
+    由行自身的标记统计，而不是听最后一个写这两个字段的模组。这里复刻同一语义。
+    返回被改写的字段数，便于日志与测试断言。
+    """
+    changed = 0
+    for index, record in enumerate(entry.stock_data_list):
+        if record.raw_d != index:
+            record.raw_d = index
+            changed += 1
+    buyable = sum(1 for record in entry.stock_data_list if record.flag_c)
+    sellable = sum(1 for record in entry.stock_data_list if record.flag_b)
+    if entry.buyable_stock_count != buyable:
+        entry.buyable_stock_count = buyable
+        changed += 1
+    if entry.sellable_stock_count != sellable:
+        entry.sellable_stock_count = sellable
+        changed += 1
+    return changed
+
+
+def _tail_declared_slots(entry: StoreEntry) -> tuple[int, list[int]]:
+    """定位「已带模组声明货架位置」的尾部行块，返回 ``(块起始下标, 槽位列表)``。
+
+    只能按载荷识别，不能按 intent 识别：计划层会把同一字段的整表 ``set`` 与
+    ``array_append`` 合并成一个整表 ``set``（2026-09-19 探针实测：All Gear 的
+    621 行 + OP Arsenal 的 6 次追加最终合成一个 627 行的 set intent），写入器
+    根本看不到 append。追加行的特征因此是纯数据面的：
+
+    * 位于列表尾部连续区段；
+    * 该区段每一行的 ``raw_d`` 都**不等于**自己的下标，而它前面的行全部等于；
+    * ``raw_d`` 仍是模组导出时算出的货架位置（OP Arsenal 写 ``40..45``，即
+      「原版 40 行货架之后」），因此全部为正、彼此不重复、且都落在块起点之前。
+
+    不满足时返回 ``(-1, [])``，调用方退化为 DMM 的纯按位置编号。``raw_d = 0``
+    是导出工具的缺省值（第三方 ``All Craft Material ... - Append`` 变体的追加行
+    全是 0），不能当成「插到货架最前面」，所以被显式排除。
+    """
+    rows = entry.stock_data_list
+    total = len(rows)
+    start = total
+    while start > 0 and rows[start - 1].raw_d != start - 1:
+        start -= 1
+    if start >= total:
+        return -1, []
+    slots = [record.raw_d for record in rows[start:]]
+    if any(slot <= 0 for slot in slots):
+        return -1, []
+    if len(set(slots)) != len(slots):
+        return -1, []
+    if any(slot >= start for slot in slots):
+        return -1, []
+    if slots != list(range(slots[0], slots[0] + len(slots))):
+        return -1, []
+    return start, slots
+
+
+def reposition_rows_to_declared_slots(entry: StoreEntry) -> int:
+    """把模组追加的库存行插回它自己声明的货架位置，返回被移动的行数。
+
+    动机（2026-09-19 实机反馈两轮）：OP Arsenal 追加的 6 行写 ``raw_d=40..45``
+    （「原版 40 行之后」）。同一家店被 ``All Craft Material`` 整表 set 成 621 行后，
+
+    * 保留原 ``raw_d`` 会与本店第 40~45 行撞号 —— 格子显示模组物品，购买处理按
+      行序找行，于是买到原版物品（第二轮反馈）；
+    * 单纯按位置重编号会把这 6 行推到货架最末尾（第 622~626 格），实机表现是
+      **店里翻不到**，等于模组不生效（第三轮反馈）。
+
+    这里取两者之间的正解：按模组声明的位置把它们插回去（后面的行整体后移），再由
+    ``normalize_store_entry_stock_rows`` 统一按位置重编号。
+
+    * ``raw_d`` 仍然等于行下标（原版不变量），购买处理能找到正确的行；
+    * 追加商品的货架位置与「原版货架 + 本模组」时一致，即模组作者预期并验证过的位置；
+    * 该结果**与加载顺序无关**，与 DMM 2.3.3 修这个碰撞时追求的 "either load order"
+      一致 —— 不管这家店被别的模组撑到多少行，本模组商品都落在同一批格子上。
+    """
+    start, slots = _tail_declared_slots(entry)
+    if start < 0:
+        return 0
+    rows = entry.stock_data_list
+    for offset, slot in enumerate(slots):
+        record = rows.pop(start + offset)
+        rows.insert(slot, record)
+    return len(slots)
+
+
 def build_storeinfo_changes(
     vanilla_body: bytes,
     vanilla_header: bytes,
@@ -100,6 +197,22 @@ def build_storeinfo_changes(
             ) from exc
         for intent in entry_intents:
             _apply_intent(parsed, intent, key)
+        moved = reposition_rows_to_declared_slots(parsed)
+        if moved:
+            logger.info(
+                "storeinfo writer: entry@%d(%s) 把 %d 条追加行插回声明的货架位置",
+                start,
+                parsed.string_key or key,
+                moved,
+            )
+        normalized = normalize_store_entry_stock_rows(parsed)
+        if normalized:
+            logger.info(
+                "storeinfo writer: entry@%d(%s) 规范化 %d 个字段（raw_d 行序 / 可买可卖计数）",
+                start,
+                parsed.string_key or key,
+                normalized,
+            )
         try:
             patched_entry = serialize_storeinfo_entry(parsed, key_size)
         except (StoreinfoParseError, struct.error) as exc:
@@ -156,7 +269,11 @@ def _resolve_intent_key(
     return resolved
 
 
-def _apply_intent(entry: StoreEntry, intent: Any, store_key: int) -> None:
+def _apply_intent(
+    entry: StoreEntry,
+    intent: Any,
+    store_key: int,
+) -> None:
     field = (getattr(intent, "field", "") or "").strip()
     op = (getattr(intent, "op", "set") or "set").strip()
     value = getattr(intent, "new", None)
@@ -170,7 +287,8 @@ def _apply_intent(entry: StoreEntry, intent: Any, store_key: int) -> None:
             setattr(entry, target, [_stock_record(item, store_key) for item in value])
             return
         if op == "array_append" and isinstance(value, dict):
-            getattr(entry, target).append(_stock_record(value, store_key))
+            record = _stock_record(value, store_key)
+            getattr(entry, target).append(record)
             return
         raise StoreinfoWriteRefused(
             f"store entry {store_key}: {field} 不支持 op={op!r} / "

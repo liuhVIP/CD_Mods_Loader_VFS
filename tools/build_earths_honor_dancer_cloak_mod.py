@@ -1,8 +1,16 @@
 """生成“大地荣誉皮制披风”替换为 0141 舞者披风的独立 ``.cdmod``。
 
 原 ``Demenissian Clothing`` loose 模组直接提供了一份长度不同的目标 Prefab。
-本工具以当前 1.14 原版 0163_t Prefab 为基底，只把内部唯一主 PAC 路径等长
-替换为原生 0141 披风，保留目标组件、UID、骨骼插槽和完整字节布局。
+本工具以当前原版 0163_t Prefab 为基底，把内部唯一主 PAC 路径等长替换为原生
+0141 披风，保留目标组件、UID、骨骼插槽和完整字节布局。
+
+只换网格会丢背挂武器净空：背挂武器挂在 ``Spine2_B_MainWeapon_Socket`` 上，其父骨
+``Bip_Weapon_Attach_In_02`` 由身体 socket 文件的
+``StackEquipInfo EquipTypeName="Back"`` 声明为可被披风推开，推离量来自披风材质属性
+``.pac_xml`` 的 ``_customGameData/_offsetLength``。0163 皮制披风声明 ``0.060000``，
+0141 舞者披风没有任何 ``_customGameData``；网格换成 0141 后游戏按网格路径读取 0141
+的 ``.pac_xml``，净空随之消失，背挂武器直接穿进披风。本工具因此在同一个包里同时
+覆盖 0141 的 ``.pac_xml``，只插入一条 Back 净空，其余字节与当前原版逐字节一致。
 """
 
 from __future__ import annotations
@@ -44,13 +52,42 @@ SOURCE_MAIN_PAC = (
     b"character/model/1_pc/2_phw/armor/19_cloak/cd_phw_00_cloak_00_0141.pac"
 )
 
-# 2026-07-21 从 Crimson Desert 1.14 原版读取的输入安全锚点。
+# 背挂武器净空：0163 皮制披风在材质属性里声明把 Back 装备推离 0.060000，
+# 0141 舞者披风完全没有该字段。网格换成 0141 之后游戏按网格路径读取它的
+# 材质属性，净空随之消失，所以本工具必须同时覆盖 0141 的材质属性。
+#
+# 取值依据（2026-09-19，用原版自身数据回归，不要再按“最大外扩 + 0163 的 0.06”
+# 硬推：那把 0141 估到 0.14，实机表现为武器完全悬空）：
+#   1. 取全部 46 件声明了 _offsetLength 的玩家女性披风（cd_phw_*）顶点，
+#      逐件算背面分带深度，对 44 件做线性回归，最好的特征（背中区域平均 z）
+#      r≈+0.44、残差 rms≈0.023 米，对 0141 的预测落在 0.067~0.077；
+#   2. 按背面剖面形状取最近邻（0160/0161/0146/0162/…）的取值区间是
+#      0.05~0.09，中位数 0.065；
+#   3. 与 0141 同系列（19_cloak 护甲批）的 14 件取值中位数 0.06。
+# 三条独立证据一致指向 0.065~0.077，因此默认 0.07（比同件原版皮革披风的
+# 0.06 只多 1 厘米），可用范围 0.06~0.09；明显更大的值会让背挂武器离开背部。
+PROPERTY_PAYLOAD_PATH = "assets/00001/cd_phw_00_cloak_00_0141.pac_xml"
+BACK_EQUIP_TYPE = "Back"
+DEFAULT_BACK_CLEARANCE = 0.07
+
+# 材质属性文件固定以这段自闭合头开始，注入只能发生在这里。
+PROPERTY_BOM = b"\xef\xbb\xbf"
+PROPERTY_COMMON_SELF_CLOSED = (
+    PROPERTY_BOM + b'<SkinnedMeshPropertyCommon ReflectObjectXMLDataVersion="9"/>'
+)
+PROPERTY_COMMON_OPEN = (
+    b'<SkinnedMeshPropertyCommon ReflectObjectXMLDataVersion="9">'
+)
+PROPERTY_ID_PATTERN = re.compile(rb'(?:IdBase|ItemID)="(\d+)"')
+
+# 2026-09-19 从 Crimson Desert 2.02.00 原版读取的输入安全锚点。
+# 0141 Prefab 在 2.02.00 由 1852 字节变为 1800 字节，其余四个资源未变。
 EXPECTED_RESOURCE_SHA256 = {
     TARGET_PREFAB_PATH: (
         "c8fc5aac1c953ee8ea518f9ac3f90b07c611516fd9ac4dc17485e66fdd77de52"
     ),
     SOURCE_PREFAB_PATH: (
-        "71ca9101ceee26756739b39c5c9ee8c145412b646c578e5dd7210d05a9999b89"
+        "0660f311b98b7f772882adf6405744254af96f2e2f8d3f5a63636a67089b73bc"
     ),
     SOURCE_MAIN_PAC_PATH: (
         "31bdc2a0d431a7bbe862399f0cc3f9e4f174f9c3f7c4b6519451746222554b0d"
@@ -69,8 +106,8 @@ PREFAB_PAYLOAD_PATH = "assets/00000/cd_phw_00_cloak_00_0163_t.prefab"
 
 PACKAGE_ID = "earths-honor-leather-cloak-dancer-0141"
 PACKAGE_NAME = "Earth's Honor Leather Cloak - Dancer Cloak 0141"
-PACKAGE_VERSION = "1.0"
-OUTPUT_FILENAME = "ZZZ - Earths Honor Leather Cloak to Dancer Cloak-1.0.cdmod"
+PACKAGE_VERSION = "1.1"
+OUTPUT_FILENAME = "ZZZ - Earths Honor Leather Cloak to Dancer Cloak-1.1.cdmod"
 
 
 @dataclass(frozen=True)
@@ -96,12 +133,28 @@ class NativeResourceAudit:
 
 
 @dataclass(frozen=True)
+class BackClearanceAudit:
+    """记录 0141 材质属性新增背挂武器净空的审计结果。"""
+
+    target_path: str
+    equip_type: str
+    offset_length: float
+    property_id: int
+    vanilla_size: int
+    vanilla_sha256: str
+    patched_size: int
+    patched_sha256: str
+    inserted_byte_count: int
+
+
+@dataclass(frozen=True)
 class BuildResult:
     """独立披风包生成结果。"""
 
     output_path: Path
     package_sha256: str
     prefab: PrefabAudit
+    back_clearance: BackClearanceAudit
     native_resources: tuple[NativeResourceAudit, ...]
 
 
@@ -122,8 +175,71 @@ def build_structural_cloak_prefab(target_content: bytes) -> bytes:
     return patched
 
 
-def build_dancer_cloak_mod(game_dir: Path, output_path: Path) -> BuildResult:
-    """从当前原版资源生成只覆盖 0163_t Prefab 的独立包。"""
+def _first_free_property_id(content: bytes) -> int:
+    """返回材质属性文件里尚未使用的对象 Id。"""
+    used = {int(match) for match in PROPERTY_ID_PATTERN.findall(content)}
+    for candidate in range(1, 1 << 31):
+        if candidate not in used:
+            return candidate
+    raise ValueError("材质属性文件对象 Id 已耗尽")
+
+
+def build_cloak_back_clearance_property(
+    property_content: bytes, offset_length: float
+) -> tuple[bytes, int]:
+    """为 0141 披风材质属性写入背挂武器净空，其余字节保持不变。
+
+    只把自闭合的 ``SkinnedMeshPropertyCommon`` 头展开为带
+    ``_customGameData/StackEquipDataContainer`` 的完整节点，字段取值与游戏原生
+    披风（例如 0163 的 ``_equipType="Back"``）完全同构，不做任何其它改动。
+    """
+    if not offset_length > 0:
+        raise ValueError("背挂武器净空必须为正数")
+    if b"_customGameData" in property_content:
+        raise ValueError("0141 披风材质属性已经声明 _customGameData")
+    if property_content.count(PROPERTY_COMMON_SELF_CLOSED) != 1:
+        raise ValueError("0141 披风材质属性自闭合头部数量异常")
+    if not property_content.startswith(PROPERTY_COMMON_SELF_CLOSED):
+        raise ValueError("0141 披风材质属性头部结构异常")
+
+    property_id = _first_free_property_id(property_content)
+    offset_text = f"{offset_length:.6f}"
+    head = b"".join(
+        (
+            PROPERTY_BOM,
+            PROPERTY_COMMON_OPEN,
+            b"\r\n\t",
+            (
+                f'<Vector Name="_customGameData" IdBase="{property_id}" '
+                'isOverrided="true">'
+            ).encode("ascii"),
+            b"\r\n\t\t",
+            (
+                f'<StackEquipDataContainer ItemID="{property_id}" '
+                f'_equipType="{BACK_EQUIP_TYPE}" _offsetLength="{offset_text}"/>'
+            ).encode("ascii"),
+            b"\r\n\t</Vector>\r\n",
+            b"</SkinnedMeshPropertyCommon>",
+        )
+    )
+    patched = head + property_content[len(PROPERTY_COMMON_SELF_CLOSED) :]
+    if not patched.startswith(PROPERTY_BOM + PROPERTY_COMMON_OPEN):
+        raise ValueError("0141 披风材质属性净空补丁丢失 BOM 或头部结构")
+    if patched.replace(head, PROPERTY_COMMON_SELF_CLOSED, 1) != property_content:
+        raise ValueError("0141 披风材质属性净空补丁改动了头部以外的字节")
+    if patched.count(b"_customGameData") != 1:
+        raise ValueError("0141 披风材质属性净空补丁数量异常")
+    if patched.count(offset_text.encode("ascii")) != 1:
+        raise ValueError("0141 披风材质属性净空取值异常")
+    return patched, property_id
+
+
+def build_dancer_cloak_mod(
+    game_dir: Path,
+    output_path: Path,
+    back_clearance: float = DEFAULT_BACK_CLEARANCE,
+) -> BuildResult:
+    """从当前原版资源生成覆盖 0163_t Prefab 与 0141 材质属性的独立包。"""
     game_dir = game_dir.resolve()
     output_path = output_path.resolve()
     pamt_path = game_dir / PAMT_DIR / "0.pamt"
@@ -154,7 +270,7 @@ def build_dancer_cloak_mod(game_dir: Path, output_path: Path) -> BuildResult:
                 f"expected={expected_sha256} actual={actual_sha256}"
             )
         resources[path] = content
-        if path != TARGET_PREFAB_PATH:
+        if path not in (TARGET_PREFAB_PATH, SOURCE_PROPERTY_PATH):
             native_audits.append(
                 NativeResourceAudit(
                     path=path,
@@ -190,6 +306,23 @@ def build_dancer_cloak_mod(game_dir: Path, output_path: Path) -> BuildResult:
         model_reference_count=len(target_model_references),
     )
 
+    property_source = resources[SOURCE_PROPERTY_PATH]
+    patched_property, property_id = build_cloak_back_clearance_property(
+        property_source, back_clearance
+    )
+    patched_property_sha256 = hashlib.sha256(patched_property).hexdigest()
+    clearance = BackClearanceAudit(
+        target_path=SOURCE_PROPERTY_PATH,
+        equip_type=BACK_EQUIP_TYPE,
+        offset_length=back_clearance,
+        property_id=property_id,
+        vanilla_size=len(property_source),
+        vanilla_sha256=hashlib.sha256(property_source).hexdigest(),
+        patched_size=len(patched_property),
+        patched_sha256=patched_property_sha256,
+        inserted_byte_count=len(patched_property) - len(property_source),
+    )
+
     replacements = {
         "schema": 1,
         "files": [
@@ -201,7 +334,16 @@ def build_dancer_cloak_mod(game_dir: Path, output_path: Path) -> BuildResult:
                 "size": len(patched),
                 "allow_new": False,
                 "allow_table_replace": False,
-            }
+            },
+            {
+                "target": SOURCE_PROPERTY_PATH,
+                "pamt_dir": PAMT_DIR,
+                "payload": PROPERTY_PAYLOAD_PATH,
+                "sha256": patched_property_sha256,
+                "size": len(patched_property),
+                "allow_new": False,
+                "allow_table_replace": False,
+            },
         ],
     }
     manifest = {
@@ -214,19 +356,20 @@ def build_dancer_cloak_mod(game_dir: Path, output_path: Path) -> BuildResult:
         "description": (
             "Replaces only the Earth's Honor leather cloak 0163_t prefab with "
             "the native female Dancer cloak 0141 main PAC while preserving the "
-            "complete target prefab structure."
+            "complete target prefab structure, and restores the back-sheathed "
+            "weapon clearance the 0141 material property never declared."
         ),
         "dependencies": [],
         "source": {
             "format": "target-prefab-same-length-pac-path-replacement",
-            "game_version": "1.14",
+            "game_version": "2.02.00",
             "original_mod": "Demenissian Clothing by Eyu94",
         },
         "components": [
             {
                 "type": CDMOD_FILE_REPLACEMENT_COMPONENT_TYPE,
                 "path": FILE_REPLACEMENT_PATH,
-                "file_count": 1,
+                "file_count": 2,
             }
         ],
     }
@@ -240,6 +383,13 @@ def build_dancer_cloak_mod(game_dir: Path, output_path: Path) -> BuildResult:
             "source_identity": "Dancer cloak 0141",
         },
         "prefab_audit": asdict(audit),
+        "back_clearance": {
+            "reason": (
+                "0163 皮制披风在材质属性声明 Back 装备净空 0.060000；0141 舞者披风"
+                "没有该字段，只替换网格会让背挂武器穿进披风。"
+            ),
+            "audit": asdict(clearance),
+        },
         "native_resources": [asdict(item) for item in native_audits],
         "safety": {
             "modifies_vanilla_archives": False,
@@ -247,6 +397,7 @@ def build_dancer_cloak_mod(game_dir: Path, output_path: Path) -> BuildResult:
             "preserves_target_prefab_size": True,
             "preserves_target_component_layout": True,
             "uses_same_length_pac_path_replacement": True,
+            "preserves_vanilla_back_clearance_semantics": True,
             "bundles_unrelated_demenissian_clothing_replacements": False,
         },
     }
@@ -258,35 +409,54 @@ def build_dancer_cloak_mod(game_dir: Path, output_path: Path) -> BuildResult:
             CDMOD_MANIFEST_PATH: manifest,
             FILE_REPLACEMENT_PATH: replacements,
             PREFAB_PAYLOAD_PATH: patched,
+            PROPERTY_PAYLOAD_PATH: patched_property,
             CDMOD_REPORT_PATH: report,
         },
     )
-    _verify_package(output_path, patched)
+    _verify_package(output_path, patched, patched_property)
     return BuildResult(
         output_path=output_path,
         package_sha256=hashlib.sha256(output_path.read_bytes()).hexdigest(),
         prefab=audit,
+        back_clearance=clearance,
         native_resources=tuple(native_audits),
     )
 
 
-def _verify_package(output_path: Path, expected_payload: bytes) -> None:
-    """用正式加载器回读，确认成品只有一个目标 Prefab 替换。"""
+def _verify_package(
+    output_path: Path,
+    expected_payload: bytes,
+    expected_property_payload: bytes,
+) -> None:
+    """用正式加载器回读，确认成品只有两个已审计的替换。"""
     package = load_cdmod_package(output_path)
     if package.dependencies or package.standalone_archives or package.resource_patches:
         raise ValueError("独立披风包只能包含无依赖的 file-replacement")
     files = [item for patch in package.file_patches for item in patch.files]
-    if len(files) != 1:
+    if len(files) != 2:
         raise ValueError(f"独立披风包替换文件数量异常：{len(files)}")
-    item = files[0]
-    if item.target != TARGET_PREFAB_PATH or item.pamt_dir != PAMT_DIR:
+    by_target = {item.target: item for item in files}
+    if set(by_target) != {TARGET_PREFAB_PATH, SOURCE_PROPERTY_PATH}:
         raise ValueError("独立披风包最终目标异常")
-    if item.content != expected_payload:
-        raise ValueError("独立披风包载荷回读不一致")
-    if len(item.content) != 1800:
+    if any(item.pamt_dir != PAMT_DIR for item in files):
+        raise ValueError("独立披风包 PAMT 目录异常")
+
+    prefab_item = by_target[TARGET_PREFAB_PATH]
+    if prefab_item.content != expected_payload:
+        raise ValueError("独立披风包 Prefab 载荷回读不一致")
+    if len(prefab_item.content) != 1800:
         raise ValueError("独立披风包未保持当前原版 Prefab 长度")
-    if item.content.count(SOURCE_MAIN_PAC) != 1 or TARGET_MAIN_PAC in item.content:
+    if (
+        prefab_item.content.count(SOURCE_MAIN_PAC) != 1
+        or TARGET_MAIN_PAC in prefab_item.content
+    ):
         raise ValueError("独立披风包主 PAC 路由回读异常")
+
+    property_item = by_target[SOURCE_PROPERTY_PATH]
+    if property_item.content != expected_property_payload:
+        raise ValueError("独立披风包材质属性载荷回读不一致")
+    if property_item.content.count(b"_customGameData") != 1:
+        raise ValueError("独立披风包材质属性净空回读异常")
 
 
 def _parse_args() -> argparse.Namespace:
@@ -296,13 +466,22 @@ def _parse_args() -> argparse.Namespace:
         "--game-dir", type=Path, required=True, help="Crimson Desert 根目录"
     )
     parser.add_argument("--output", type=Path, required=True, help="输出 .cdmod 路径")
+    parser.add_argument(
+        "--back-offset",
+        type=float,
+        default=DEFAULT_BACK_CLEARANCE,
+        help=(
+            "背挂武器推离披风的距离（米）。0163 原版为 0.06；0141 由原版披风"
+            "数据回归得到 0.07，可用范围 0.06~0.09"
+        ),
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     """生成包并输出 UTF-8 JSON 审计摘要。"""
     args = _parse_args()
-    result = build_dancer_cloak_mod(args.game_dir, args.output)
+    result = build_dancer_cloak_mod(args.game_dir, args.output, args.back_offset)
     payload = asdict(result)
     payload["output_path"] = str(result.output_path)
     print(json.dumps(payload, ensure_ascii=False, indent=2, default=str))

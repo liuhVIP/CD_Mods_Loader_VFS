@@ -49,6 +49,7 @@ from cdmm.services.scanner import (
     MOD_TYPE_CDMOD,
     MOD_TYPE_FORMAT3,
     MOD_TYPE_JSON_PATCH,
+    load_index_by_mod_path,
     scan_mods,
 )
 from cdmm.services.standalone_archive_service import (
@@ -141,12 +142,14 @@ def apply_loader(
     _notify_progress(progress_callback, "准备 meta 读取")
 
     phase_started = perf_counter()
+    load_index_by_path = load_index_by_mod_path(mods)
     loose_overlay_inputs = build_loose_overlay_entries(
         game_dir,
         vanilla_store,
         warnings,
         errors,
         mods,
+        load_index_by_path,
     )
     cdmod_file_base_inputs = build_cdmod_file_base_entries(
         game_dir,
@@ -155,6 +158,7 @@ def apply_loader(
         warnings,
         errors,
         loose_overlay_inputs,
+        load_index_by_path,
     )
     loose_overlay_inputs = [*loose_overlay_inputs, *cdmod_file_base_inputs]
     _log_phase("构建 loose overlay 输入", phase_started)
@@ -178,10 +182,12 @@ def apply_loader(
         warnings,
         errors,
         [*loose_overlay_inputs, *json_overlay_inputs],
+        load_index_by_path,
     )
     _log_phase("构建 Format 3 overlay 输入", phase_started)
     _notify_progress(progress_callback, "构建 Format 3 overlay 输入")
-    # loose 先写、JSON 再写、Format 3 最后写；同 entry_path 时 build_overlay 会保留最后写入结果。
+    # loose 先写、JSON 再写、Format 3 最后写；同一最终 PAMT 路径的赢家由
+    # build_overlay 按模组加载顺序判定（未标注 load_index 的来源仍保留后写入者）。
     overlay_inputs = [*loose_overlay_inputs, *json_overlay_inputs, *format3_overlay_inputs]
     errors = apply_missing_target_policy(
         errors,

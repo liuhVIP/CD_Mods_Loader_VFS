@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -107,12 +108,19 @@ def build_semantic_overlay_entries(
     warnings: list[str],
     errors: list[str],
     base_entries: list[OverlayInputEntry] | None = None,
+    load_index_by_path: dict[Path, int] | None = None,
 ) -> list[OverlayInputEntry]:
     """按唯一加载顺序合并Format 3/cdmod并复用现有writer生成entry。"""
     if not mods:
         return []
     initial_error_count = len(errors)
-    packages = _normalize_semantic_packages(mods, errors, warnings, game_dir=game_dir)
+    packages = _normalize_semantic_packages(
+        mods,
+        errors,
+        warnings,
+        game_dir=game_dir,
+        load_index_by_path=load_index_by_path,
+    )
     # errors 是整条构建管线共享的列表。前序 file-replacement 可能记录了
     # 当前游戏已删除的资源目标，稍后会由 missing_target_policy 降级为
     # warning；不能因此跳过所有无关的 Format 3 表。这里只响应本阶段新
@@ -170,10 +178,16 @@ def build_cdmod_file_base_entries(
     warnings: list[str],
     errors: list[str],
     base_entries: list[OverlayInputEntry] | None = None,
+    load_index_by_path: dict[Path, int] | None = None,
 ) -> list[OverlayInputEntry]:
     """在 JSON/Format 3 之前构建 cdmod 完整资源 base。"""
     initial_error_count = len(errors)
-    packages = _normalize_semantic_packages(mods, errors, warnings)
+    packages = _normalize_semantic_packages(
+        mods,
+        errors,
+        warnings,
+        load_index_by_path=load_index_by_path,
+    )
     if len(errors) > initial_error_count:
         return []
     return build_file_replacement_overlay_entries(
@@ -192,6 +206,7 @@ def _normalize_semantic_packages(
     warnings: list[str] | None = None,
     *,
     game_dir: Path | None = None,
+    load_index_by_path: dict[Path, int] | None = None,
 ) -> list[CdmodPackage]:
     """保持扫描顺序，把两种语义来源标准化为同一包模型。"""
     active_language = detect_active_paloc_language(game_dir) if game_dir is not None else None
@@ -199,18 +214,36 @@ def _normalize_semantic_packages(
     for mod in mods:
         try:
             if mod.mod_type == MOD_TYPE_CDMOD:
-                packages.append(load_cdmod_package(mod.path))
+                package = load_cdmod_package(mod.path)
             elif mod.mod_type == MOD_TYPE_FORMAT3:
-                packages.append(
-                    _format3_mod_to_package(
-                        mod,
-                        warnings,
-                        active_language=active_language,
-                    )
+                package = _format3_mod_to_package(
+                    mod,
+                    warnings,
+                    active_language=active_language,
                 )
+            else:
+                continue
+            packages.append(replace(package, load_index=_mod_load_index(mod, load_index_by_path)))
         except (OSError, ValueError) as exc:
             errors.append(f"{mod.name}: 语义模组解析失败：{exc}")
     return packages
+
+
+def _mod_load_index(
+    mod: DiscoveredMod,
+    load_index_by_path: dict[Path, int] | None,
+) -> int | None:
+    """返回模组在全局加载顺序中的下标；没有全局表时视为未知。
+
+    语义包拿到的 ``mods`` 是过滤后的子列表，只有全局表的下标才能和 loose entry
+    比较；子列表下标会造成“先加载的 cdmod 误压后加载的 loose”。
+    """
+    if load_index_by_path is None:
+        return None
+    try:
+        return load_index_by_path.get(mod.path.resolve())
+    except OSError:
+        return None
 
 
 def _format3_mod_to_package(

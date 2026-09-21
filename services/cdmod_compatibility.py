@@ -209,6 +209,19 @@ def _compare_operations(
             selector_identity,
             "对两个数组做稳定去重并集",
         )
+    if right.op == "add" and left.op in {"set", "add"}:
+        # `add` 是相对当前值累加，不是覆盖：后续模组在前序 set/add 结果上继续加，
+        # 属于可自动组合语义，不能按“后加载优先”丢弃前序数值。
+        if _is_int_delta(left.payload) and _is_int_delta(right.payload):
+            return _build_finding(
+                RELATION_AUTO_MERGE,
+                left_package,
+                left,
+                right_package,
+                right,
+                selector_identity,
+                "把 add 按数值累加到前序 set/add 结果上",
+            )
     if left.op == right.op == "set" and left.payload == right.payload:
         return _build_finding(
             RELATION_REDUNDANT,
@@ -228,6 +241,11 @@ def _compare_operations(
         selector_identity,
         "按唯一加载顺序决定，后一个模组优先",
     )
+
+
+def _is_int_delta(value: object) -> bool:
+    """判断 payload 是否是可直接参与累加的整数增量（排除 bool）。"""
+    return isinstance(value, int) and not isinstance(value, bool)
 
 
 def _is_storeinfo_stock_composition(

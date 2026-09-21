@@ -144,6 +144,24 @@ def remove_previous_overlay(game_dir: Path) -> None:
         logger.warning("跳过未知来源 overlay 目录：%s", target)
 
 
+def _current_entry_wins(previous: OverlayInputEntry, current: OverlayInputEntry) -> bool:
+    """同一最终路径冲突时判定当前 entry 是否为字节赢家。
+
+    两个 entry 都带 ``load_index`` 时按模组加载顺序取更靠后者；任一缺失时保持
+    历史行为（列表里后写入者获胜），以免影响未标注来源的调用方。
+    """
+    previous_index = previous.load_index
+    current_index = current.load_index
+    if previous_index is None or current_index is None:
+        return True
+    return current_index >= previous_index
+
+
+def _describe_load_index(entry: OverlayInputEntry) -> str:
+    """把加载顺序下标格式化为日志可读文本。"""
+    return "未知" if entry.load_index is None else str(entry.load_index)
+
+
 def build_overlay(overlay_dir: str, entries: list[OverlayInputEntry], game_dir: Path) -> OverlayBuildResult:
     """从解压后的 overlay entries 构建 0.paz/0.pamt。"""
     paz_buffer = bytearray()
@@ -151,8 +169,10 @@ def build_overlay(overlay_dir: str, entries: list[OverlayInputEntry], game_dir: 
     path_map_cache: dict[str, dict[str, str]] = {}
     seen: dict[str, tuple[OverlayInputEntry, str, str]] = {}
     for entry in entries:
-        # 同一最终 PAMT 路径采用最后写入结果，避免不同源路径解析到同一
+        # 同一最终 PAMT 路径只能保留一份，避免不同源路径解析到同一
         # dir_path/filename 后在 0.pamt 中留下重复记录，导致 PATHC 与 PAZ 尺寸错配。
+        # 赢家按模组加载顺序判定（见 _current_entry_wins），不再单纯取列表末位，
+        # 否则后加载的 loose 模组会被先加载的 cdmod 完整资源无条件压掉。
         filename = entry.entry_path.rsplit("/", 1)[-1]
         dir_path = (
             entry.resolved_dir_path
@@ -172,16 +192,26 @@ def build_overlay(overlay_dir: str, entries: list[OverlayInputEntry], game_dir: 
                 if previous_dir_path
                 else previous_filename
             )
+            winner_is_previous = not _current_entry_wins(previous_entry, entry)
+            winner = previous_entry if winner_is_previous else entry
             logger.warning(
-                "overlay 最终路径覆盖：%s/%s (%d bytes) -> %s/%s (%d bytes)，最终路径 %s",
+                "overlay 最终路径覆盖：%s；候选 %s/%s (%d bytes, 加载顺序 %s) 与 "
+                "%s/%s (%d bytes, 加载顺序 %s) 冲突，赢家 %s/%s (%d bytes)",
+                previous_path,
                 previous_entry.pamt_dir,
                 previous_entry.entry_path,
                 len(previous_entry.content),
+                _describe_load_index(previous_entry),
                 entry.pamt_dir,
                 entry.entry_path,
                 len(entry.content),
-                previous_path,
+                _describe_load_index(entry),
+                winner.pamt_dir,
+                winner.entry_path,
+                len(winner.content),
             )
+            if winner_is_previous:
+                continue
         seen[final_key] = (entry, dir_path, filename)
 
     for entry, dir_path, filename in seen.values():

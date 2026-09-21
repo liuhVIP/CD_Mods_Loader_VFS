@@ -77,6 +77,7 @@ def build_file_replacement_overlay_entries(
                     base_entries,
                     outputs,
                     owners,
+                    load_index=package.load_index,
                 )
         for patch in package.profiled_file_patches:
             selected_profile = _resolve_profile(
@@ -117,6 +118,7 @@ def build_file_replacement_overlay_entries(
                     base_entries,
                     outputs,
                     owners,
+                    load_index=package.load_index,
                 )
     if outputs:
         warnings.append(f"cdmod 完整资源：生成 {len(outputs)} 个替换 entry")
@@ -182,6 +184,8 @@ def _apply_replacement(
     base_entries: list[OverlayInputEntry],
     outputs: dict[tuple[str, str], OverlayInputEntry],
     owners: dict[tuple[str, str], str],
+    *,
+    load_index: int | None = None,
 ) -> None:
     """把普通或已选择的条件载荷写入统一完整资源输出。"""
     normalized = lower_game_rel_path(file.target)
@@ -205,6 +209,7 @@ def _apply_replacement(
                 pamt_dir=file.pamt_dir,
                 compression_type=0,
                 preserve_entry_dir=True,
+                load_index=load_index,
             )
             owners[identity] = package_name
             return
@@ -222,6 +227,7 @@ def _apply_replacement(
         target,
         file.content,
         vanilla_store,
+        load_index=load_index,
     )
     owners[identity] = package_name
 
@@ -266,6 +272,8 @@ def _replacement_entry(
     target: OverlayInputEntry | PazEntry,
     content: bytes,
     vanilla_store: VanillaStore,
+    *,
+    load_index: int | None = None,
 ) -> OverlayInputEntry:
     """保留目标 PAMT 元数据并替换资源明文。"""
     if isinstance(target, OverlayInputEntry):
@@ -278,6 +286,7 @@ def _replacement_entry(
             target.crypto_filename,
             target.preserve_entry_dir,
             target.resolved_dir_path,
+            load_index,
         )
     entry = vanilla_store.ensure_entry_backup(target)
     entry_path = entry.path
@@ -293,6 +302,7 @@ def _replacement_entry(
         encrypted=entry.encrypted,
         crypto_filename=Path(entry.path).name,
         resolved_dir_path=entry.resolved_dir_path,
+        load_index=load_index,
     )
 
 

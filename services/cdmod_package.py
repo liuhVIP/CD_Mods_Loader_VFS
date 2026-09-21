@@ -399,6 +399,8 @@ class CdmodPackage:
     legacy_json_patches: tuple[dict[str, Any], ...] = ()
     standalone_archives: tuple[CdmodStandaloneArchive, ...] = ()
     profiled_file_patches: tuple[CdmodProfiledFilePatch, ...] = ()
+    # 该包在 scan_mods() 加载顺序中的下标；用于与 loose 等其它来源判定最终路径赢家。
+    load_index: int | None = None
 
 
 def load_cdmod_package(path: Path) -> CdmodPackage:

@@ -30,7 +30,7 @@ CDMOD_PLAN_VALID = "VALID"
 CDMOD_PLAN_REJECTED = "REJECTED"
 
 # 构建计划schema，参与整体哈希，结构变化时必须提升。
-CDMOD_BUILD_PLAN_SCHEMA = 4
+CDMOD_BUILD_PLAN_SCHEMA = 5
 
 _STORE_STOCK_RAW_C_PATH = re.compile(r"^stock_data_list\[\d+]\.raw_c$")
 _STORE_STOCK_INDEX_PATH = re.compile(r"^stock_data_list\[(\d+)]$")
@@ -347,6 +347,40 @@ def _merge_same_coordinate(
             f"{coordinate}: 在前序 set 结果上应用 {incoming.op}",
             None,
         )
+    if incoming.op == "add" and _is_int_delta(incoming.payload):
+        # DMM 逐条应用 intent 时 ``add N`` 是相对当前值累加。计划层把同一坐标
+        # 压成一条最终操作，若直接把 ``add`` 当作覆盖结果，前序 ``set``/``add``
+        # 的数值会被静默丢掉（storeinfo 的 ``buyable_stock_count`` 正是这种写法：
+        # 先 set 库存总数、再 add 追加的行数），结果会出现“列表 627 行但可买 46 行”
+        # 这类游戏内表现为商品不可购买的错位。
+        if existing.op == "add" and _is_int_delta(existing.payload):
+            return (
+                CdmodPlannedOperation(
+                    target=existing.target,
+                    selector=existing.selector,
+                    path=existing.path,
+                    op="add",
+                    payload=existing.payload + incoming.payload,
+                    sources=sources,
+                    order=existing.order,
+                ),
+                f"{coordinate}: add+add 数值累加合并",
+                None,
+            )
+        if existing.op == "set" and _is_int_delta(existing.payload):
+            return (
+                CdmodPlannedOperation(
+                    target=existing.target,
+                    selector=existing.selector,
+                    path=existing.path,
+                    op="set",
+                    payload=existing.payload + incoming.payload,
+                    sources=sources,
+                    order=existing.order,
+                ),
+                f"{coordinate}: 在前序 set 结果上应用 add",
+                None,
+            )
     # 后续set具有明确覆盖语义；相同值也统一去重为一条操作。
     return (
         CdmodPlannedOperation(
@@ -465,6 +499,11 @@ def _is_ordered_store_stock_refinement(
 def _is_parent(parent: str, child: str) -> bool:
     """判断点路径或数组路径父子关系。"""
     return child.startswith(parent) and len(child) > len(parent) and child[len(parent)] in ".["
+
+
+def _is_int_delta(value: Any) -> bool:
+    """判断 payload 是否是可直接参与累加的整数增量（排除 bool）。"""
+    return isinstance(value, int) and not isinstance(value, bool)
 
 
 def _planned_list_elements(payload: Any) -> list[Any]:

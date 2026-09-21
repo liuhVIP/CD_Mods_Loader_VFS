@@ -561,6 +561,23 @@ def _sync_and_apply_load_order(
     return ordered_candidates
 
 
+def load_index_by_mod_path(mods: list[DiscoveredMod]) -> dict[Path, int]:
+    """返回模组路径到全局加载顺序下标的映射。
+
+    同一最终 PAMT 路径被多个模组声明时，下标更大（``load_order.json`` 越靠下）
+    的模组才是字节赢家。目录型模组按目录登记，文件型模组按文件路径登记；两者都
+    必须在同一张表里比较，所以只允许用这份由全局加载顺序生成的映射，禁止拿
+    “过滤后子列表”的下标参与判定。
+    """
+    result: dict[Path, int] = {}
+    for index, mod in enumerate(mods):
+        try:
+            result[mod.path.resolve()] = index
+        except OSError:
+            continue
+    return result
+
+
 def _read_existing_load_order(game_dir: Path, mods_dir: Path, warnings: list[str]) -> list[str]:
     """读取现有加载顺序；优先 .cdloader，兼容旧 mods 目录。"""
     load_order_path = _resolve_load_order_path(game_dir, mods_dir)

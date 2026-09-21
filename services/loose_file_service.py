@@ -25,6 +25,7 @@ from cdmm.common.constants import (
 )
 from cdmm.common.models import DiscoveredMod, OverlayInputEntry, PazEntry
 from cdmm.services.pamt_index_service import get_game_pamt_index, prefetch_game_pamt_dir_targets
+from cdmm.services.scanner import load_index_by_mod_path
 from cdmm.storage.vanilla_store import VanillaStore
 from cdmm.utils.path_utils import lower_game_rel_path
 
@@ -57,6 +58,7 @@ def build_loose_overlay_entries(
     warnings: list[str],
     errors: list[str],
     ordered_mods: list[DiscoveredMod] | None = None,
+    load_index_by_path: dict[Path, int] | None = None,
 ) -> list[OverlayInputEntry]:
     """收集 files/NNNN 和根部 NNNN loose 文件并生成 overlay entry。"""
     mods_dir = game_dir / MODS_DIR_NAME
@@ -65,6 +67,11 @@ def build_loose_overlay_entries(
 
     phase_started = perf_counter()
     loose_files = _iter_loose_files(mods_dir, ordered_mods)
+    load_index_by_dir = (
+        load_index_by_path
+        if load_index_by_path is not None
+        else load_index_by_mod_path(ordered_mods or [])
+    )
     enumerate_seconds = perf_counter() - phase_started
     numbered_count = sum(1 for _mod_dir, pamt_dir, _rel_path, _loose_path in loose_files if pamt_dir is not None)
     root_count = len(loose_files) - numbered_count
@@ -134,6 +141,7 @@ def build_loose_overlay_entries(
                     source_entry,
                     vanilla_store,
                     warnings,
+                    load_index=load_index_by_dir.get(mod_dir.resolve()),
                 )
             )
             mods_with_entries.add(mod_dir)
@@ -380,6 +388,8 @@ def _build_entry_from_loose_file(
     source_entry: PazEntry | None,
     vanilla_store: VanillaStore,
     warnings: list[str],
+    *,
+    load_index: int | None = None,
 ) -> OverlayInputEntry:
     """基于 loose 文件内容和 vanilla 元数据构造 overlay entry。"""
     content = loose_path.read_bytes()
@@ -389,6 +399,7 @@ def _build_entry_from_loose_file(
             entry_path=target_path,
             pamt_dir=pamt_dir,
             compression_type=0,
+            load_index=load_index,
         )
 
     # 确保原始 PAZ/PAMT 已备份，后续 overlay 构建可复用完整目录结构和压缩/加密标记。
@@ -401,6 +412,7 @@ def _build_entry_from_loose_file(
         encrypted=vanilla_entry.encrypted,
         crypto_filename=Path(vanilla_entry.path).name,
         resolved_dir_path=vanilla_entry.resolved_dir_path,
+        load_index=load_index,
     )
 
 

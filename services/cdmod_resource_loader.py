@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from cdmm.archive.pamt import derive_pamt_dir
@@ -73,6 +74,8 @@ def build_resource_overlay_entries(
                         f"cdmod 资源冲突：{operation.target_pamt_dir}/{operation.target} "
                         f"按加载顺序由 {package.name} 覆盖/叠加 {previous_owner}"
                     )
+                if package.load_index is not None:
+                    output = replace(output, load_index=package.load_index)
                 outputs[identity] = output
                 owners[identity] = package.name
                 warnings.append(f"{package.name}: 资源变换 {detail} -> {operation.target}")

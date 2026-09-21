@@ -2492,3 +2492,404 @@ Thank you.
   按“版本漂移”处理，也不要据此重打包。
 - 本轮**未实机验证**（需用户用 `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo
   -KeepRunning` 重新进游戏确认），也未重新打包。
+
+## 2026-09-19 舞女服金属件整组换腰带金色材质（1.18.8，实机确认）
+
+- 需求：`ZZZ - Earths Honor Armor to Goddess Dress - Dynamic Body Deep V Gold Belts` 的舞女服金属带
+  （脚环 + 上身带子）要显示成腰带那种金色。用户明确指定的做法是“把脚环改成腰带一样的材质”，
+  **不要逐参数猜颜色**。本轮是 1.18.5 / 1.18.6 / 1.18.7 连续三次失败后的修正，**已由用户实机确认通过**。
+- 前三次为什么会白改（两条根因都要记住）：
+  - **改错了对象**。一直被当成“脚环”的 `cd_phw_00_foot_belt_0135_00_01_01` 到 1.18.7 时其实
+    **已经是全件金色**：它的 `_colorBlendingMaskTexture` 是 64x64 纯红 `cd_temp_r_m.dds`
+    （解码后唯一颜色 =(255,0,0)），`_tintColorR` 作用于整件，不可能只剩局部发绿。继续在它身上
+    调色只会得到“看起来没变化”的假象。
+  - **真正发绿的是 `cd_phw_00_ub_0135_00_01_01`**（另一件金属带子）。它的
+    `_grimeBlendingOpacityParameter = 0x721C9F24`，按 Byte4 拆开是 (36, 159, 28, 114)，G 通道
+    159 占主导，就是那抹绿；该参数从 1.18.4 起从未被改过。1.18.5 的脚环其实完整抄了腰带的 42 个
+    参数（连腰带 1.18.4 自己的黄绿 grime 一起抄了），所以“发绿主因是 grime 没归零”，不是参数顺序错乱。
+- 由此固化的判断规则：**判断某件是不是金色不能只看 `_tintColorR`**，必须把整组 `_grimeBlending*`
+  （尤其 `_grimeBlendingOpacityParameter` 的 Byte4）一起审计；也**不能用子网格名字当几何部位的身份证明**
+  （`foot_belt` 实际有 1024 面真实几何，见 `reports/conversion.json` 的
+  `goddess_foot_belt_preserved_face_count: 1024`）。
+- 1.18.8 做法（`tools/build_goddess_gold_trim.py`）：
+  - 目标件 `cd_phw_00_foot_belt_0135_00_01_01`（脚环）+ `cd_phw_00_ub_0135_00_01_01`（上身带子）；
+    金色来源是腰带 `cd_phw_00_ub_0135_00_01_02`（已实机确认金色）的全部 42 个取值。
+  - 规则：目标件里凡是腰带也有的参数一律取腰带取值；只有 `_GOLD_MATERIAL_KEEP`（`_normalTexture`、
+    `_heightTexture`、`_detailMaskTexture`、`_screenSpaceDisplacementScale`、
+    `_detailScreenSpaceDisplacementScale`，属形状/贴图集、不是颜色配方）保留各件自己的；
+    目标件独有而腰带没有的（脚环的 `_dyeingTransformProperty4`）原样保留；**不新增、不删除任何参数节点**。
+  - 改动量：`reports/conversion.json` 的 `summary.gold_trim_parameter_change_count = 102` 处**实际**
+    取值变更 = 3 件 x 2 个 ModelProperty 索引（脚环 14/索引、带子 30/索引、腰带 7/索引）。每件的
+    金色配方规模另算：脚环 26 参数里取腰带配方 20 个、保留 6 个；带子 41 取 36、保留 5；
+    腰带 42 只重写 7 个、锁定 35 个。工具新增“参数本来就等于目标取值则跳过、不报错”分支：
+    1.18.4 本来就有 6 项等于腰带取值（`_overlayColorTexture`、`_colorBlendingMaskTexture`、
+    `_dyeingPropertyBlend`、`_colorBlendingFlag`、`_dyeingGlobalOpacity`、
+    `_damageBlendingParameter`），所以配方参数数大于实际变更数。
+  - 几何（PAC）、Prefab、体型 PAC、HKX 与隐藏裤子行为一律不碰；`_verify_output` 在写包前做字节级复核：
+    区间外逐字符比对、区间内逐参数比对，保留参数必须原值、换入参数必须等于腰带取值。
+- 产物与哈希：
+  - 成品 `G:\NppMODdown\crimsondesert\【服装汉化】清凉舞女长裙替换大地荣耀盔甲V1.18-cdmod\ZZZ - Earths Honor Armor to Goddess Dress - Dynamic Body Deep V Gold Belts-1.18.8-GoldMaterial.cdmod`，
+    745,056 字节，SHA-256 `1961F3A787201973A23B8232A2CD9BC28F764D5C44705C8064F5FE7C543AD1F9`；
+    同哈希文件已装入游戏 `mods`，`.cdloader/load_order.json` 末条已由 1.18.7 换成 1.18.8。
+  - manifest version `1.18.8-gold-material`；report `gold_trim.pieces` =
+    `['cd_phw_00_foot_belt_0135_00_01_01', 'cd_phw_00_ub_0135_00_01_01', 'cd_phw_00_ub_0135_00_01_02']`；
+    summary `{gold_trim_index_count: 6, gold_trim_parameter_change_count: 102, gold_trim_piece_count: 3}`。
+  - `tools/build_goddess_gold_trim.py` 与 `.work/_gold_trim_template.py` 同哈希
+    `AA02308886ED87D440FF400E6883B747CBDCEBCB98216849FC7847B7657417E9`；
+    `test/test_build_goddess_gold_trim.py` SHA-256 `26EE34FC034C69E0AEB1E7706278DBBB3332E5112A70176BD2E96BABD5CE806B`。
+  - 基线包 `.work/goddess1184/baseline-1.18.4-rebuilt.cdmod`（SHA-256
+    `a435f87eec6f1c49dd2b2b370f2ec8e7ed4996f392822d4cb6b4b9f829f02b91`）；1.18.7 已移出 `mods`
+    归档到 `.work/gold1187/`。
+- 构建与验证记录（不含实机部分）：`ruff check .` 通过；完整 `test/` 645 passed、1 failed，唯一失败是
+  既有无关用例 `test_trinity_catalog_generator.py::test_item_display_name_marks_missing_official_name_as_mod`
+  （期望 `[mod]` 实得 `[未收录]`），**不属于本轮范围，不要顺手去改**。VFS
+  `.\run_cdmm_vfs.ps1 -BuildOnly -AllowMissingTargets` 冷构建 46.65s：26 个映射文件、7 个 overlay 包
+  （`nppv3_statusinfo/stringinfo/equipslotinfo/iteminfo` 与 `nppvoice`/`nppgen`/`nppsa`）、5 个
+  standalone（0041–0045）、0 error、未启动游戏。快照核查（`snapshot-fccc4819aac77343-e6e74a93c4bc`
+  的 `nppsa`）pac_xml 与成品逐字节一致，金色常量 `#e6be8aff` 命中 12 处、旧铜色 `#b28543ff` 0 处。
+- 实机状态：**用户已实机确认通过**（脚环与上身带子都变成腰带那种金色）。这是 1.18.5–1.18.8 中
+  唯一有实机确认的版本。本轮构建验证只用 `-BuildOnly`，未由代理启动过游戏进程。
+
+## 2026-09-19 舞者披风替换背挂武器穿模修复（披风材质 `_customGameData/_offsetLength`）
+
+- 症状：`【服装】舞者服披风替换-大地荣誉皮制披风.cdmod`（1.0，只把 0163_t Prefab 里唯一主 PAC
+  路径等长换成原生 0141 舞者披风）实机中背挂武器直接穿进披风，游戏原版 0163 皮制披风不穿模。
+- 根因（已定位，不要再往网格、HKX 物理或 socket 文件上猜）：背挂武器净空来自**披风材质属性
+  `.pac_xml` 的 `_customGameData/_offsetLength`**。0163 的
+  `character/modelproperty/1_pc/2_phw/armor/19_cloak/cd_phw_00_cloak_00_0163.pac_xml` 头部是展开的，
+  声明 `<Vector Name="_customGameData" IdBase="526"><StackEquipDataContainer ItemID="526"
+  _equipType="Back" _offsetLength="0.060000"/></Vector>`；0141 的同名 `.pac_xml` 头部是自闭合的
+  `<SkinnedMeshPropertyCommon ReflectObjectXMLDataVersion="9"/>`，**完全没有 `_customGameData`**。
+  游戏按网格路径读取材质属性，网格换成 0141 后净空随之消失。
+- 交叉证据：`character/phw_01.pab.sockets.xml` 声明
+  `<StackEquipInfo EquipTypeName="Back" InnerPartNames="CD_Cloak CD_Upperbody"
+  OriginBoneName="Bip_Weapon_Attach_In_02" Axis="z" PushOriginBone="True">`；
+  `phw_description_player_001.xml` 里两手剑背挂走 `Spine2_B_MainWeapon_Socket`（父骨即上述骨）；
+  全量 983 件披风剖面里 397 件声明 `_offsetLength`（中位数 0.07、p90 0.134、最大 0.28，另有
+  3 件为 -1.0 哨兵值），0141 与 NPC 版 `cd_nhm_00_so_cloak_20141.pac` 都是 None。
+- 新增判断规则（今后换披风网格必须遵守）：**换网格必须连同该网格的 `.pac_xml` 一起补
+  `_customGameData` 净空**，否则构建日志 0 error、游戏里却武器穿模。
+- 取值方法（本轮踩过一次坑，务必照抄这条）：第一版把净空理解成“0163 的 0.06 + 两件披风背面
+  外壳最大外扩 0.080 = 0.14，于是取 0.15”，**实机结果是武器完全不穿模但整个悬空**（用户确认
+  “距离太远、原版是贴着的”）。正确做法是**用原版自身数据回归，不要用几何极值硬推**：
+  - 抽全部 46 件声明了 `_offsetLength` 的玩家女性披风（`cd_phw_*`，脚本
+    `.diagnostics/cape_clip/extract_phw_cloaks.py` → `.diagnostics/cape_clip/phw_cloaks/`），
+    逐件按 y 分带统计背面 z（max / min / mean / span × 两个 x 窗口），对 44 件做线性回归。
+  - 最优特征（背中区域平均 z）r≈+0.44、残差 rms≈0.023 米，对 0141 的预测 **0.067~0.077**；
+    按背面剖面形状取最近邻（0160=0.07、0161=0.06、0146=0.09、0162=0.05）落在 0.05~0.09；
+    同系列（19_cloak 护甲批）14 件中位数 0.06。三条独立证据一致 → **取 0.07**。
+  - 结论：`_offsetLength` 描述的是“这件披风在武器接触区域相对基准的抬升”，不是披风的最大
+    厚度或最大外扩；用最大外扩会系统性估大一倍。参考脚本
+    `.diagnostics/cape_clip/offset_fit3.py`、`offset_knn.py`。
+- 实现：`tools/build_earths_honor_dancer_cloak_mod.py` 1.1 同时替换两个目标（Prefab 1800 字节
+  等长 + 0141 `.pac_xml` 头部注入）。注入只把自闭合头展开为 `<Vector ...>` +
+  `<StackEquipDataContainer _equipType="Back" _offsetLength="0.070000"/>` 再闭合，插入 189 字节，
+  对象 Id 取文件内首个空闲 Id（0141 为 3，与原生“顺序分配”写法一致），**除头部外字节与 2.02.00
+  原版逐字节一致**；CLI `--back-offset` 可调（默认 0.07，可用 0.06~0.09）。回归用例在
+  `test/test_build_earths_honor_dancer_cloak_mod.py`（5 项）。
+- 产物与哈希：
+  - 交付包 `G:\NppMODdown\crimsondesert\【服装】舞者服披风替换-大地荣誉皮制披风\【服装】舞者服披风替换-大地荣誉皮制披风-1.1.cdmod`
+    与 `.diagnostics/cape_clip/out/ZZZ - Earths Honor Leather Cloak to Dancer Cloak-1.1.cdmod` 同哈希，
+    7118 字节，SHA-256 `F5B38FEF988298F0B25A6C13F7FE771BEAA92DF2D7AD5926A59746C78076BEE3`。
+  - Prefab 载荷 sha256 `9c03e8c54fda1d5e441b6375dd7b7db5e8e290599194f42d8447df100aa73ae0`（1800 字节）——
+    **与 1.0 包逐字节相同**，说明本轮只多出材质净空这一处改动。
+  - 0141 `.pac_xml` 60477 字节（原版 60288），sha256
+    `0a00c0727f867ec39746ab2039418d59327f3e18de717a0fef739921815d2471`；输入锚点为 2.02.00 原版
+    `18f2417a7c711d7a8bdddf108e28e1680f1ee2398d289f7f0522f577aedd8778`。中途作废的 0.15 版
+    （sha256 `94FCCB51…`）与 0.12 版（`47DA8F77…`）都不要再引用。
+- 安装状态：游戏 `mods` 内旧 1.0（2645 字节，sha256 `54617B8F00266B420679CA5FAC8A653D1F0F5516743463B2B08917F52F630F10`）
+  已移到 `.work/cape_clip_1.0/` 归档；新包以 `【服装】舞者服披风替换-大地荣誉皮制披风-1.1.cdmod`
+  安装，`.cdloader/load_order.json` 同位置条目同步改名（旧文件备份
+  `.work/load_order.pre-cape-1.1.json`）。该材质属性是全游戏共享资源，其它使用 0141 网格的装备
+  也会一起获得净空。
+- 构建与验证：`run_cdmm_vfs.ps1 -BuildOnly -AllowMissingTargets` 冷构建 53.88s，26 个映射文件、
+  7 个 overlay 包、5 个 standalone（0041-0045）、0 error；快照
+  `snapshot-714b61a54c0450a4-151540259e25` 的 `nppsa` 中两个目标逐字节命中（prefab 1800 /
+  pac_xml 60477，`resolved_dir_path` = `character/modelproperty/1_pc/2_phw/armor/19_cloak`）。
+  完整 `test/` 647 passed / 1 failed（唯一失败仍是既有无关用例
+  `test_trinity_catalog_generator.py::test_item_display_name_marks_missing_official_name_as_mod`），
+  `ruff check .` 通过。
+- 实机状态：**0.07 版已由用户实机确认通过**（背挂武器贴着披风，既不穿模也不悬空）。
+  版本演进全过程：1.0（无 `_customGameData`）实机穿模 → 1.1@0.15 实机“不穿模但整把武器完全悬空”
+  → 1.1@0.07 实机通过。以后同类问题直接照上面的回归方法定值，不要再用几何极值硬推。
+- 代码哈希：`tools/build_earths_honor_dancer_cloak_mod.py` SHA-256
+  `C584C1904BDC92DA3EC3779675C139B20319979EF1D030AB15CE93F6653A5AE0`；
+  `test/test_build_earths_honor_dancer_cloak_mod.py` SHA-256
+  `FD5F51C337DA03382B8BFA97208C5F628946D79E33A706E8F1187EBFB03513F3`。
+  交付包与游戏 `mods` 内现行文件哈希一致，均为
+  `F5B38FEF988298F0B25A6C13F7FE771BEAA92DF2D7AD5926A59746C78076BEE3`。
+- 若将来还要微调 `--back-offset`：下调到 0.06 会更贴、上调到 0.08/0.09 会更离背；每次只改这一个
+  变量重建，验证入口 `run_cdmm_vfs.bat -AllowMissingTargets -NoBuildVfsDemo -KeepRunning`。
+  本轮所有构建验证均未由代理启动过游戏进程。
+
+## 2026-09-19 StoreInfo 数值 `add` 被后续合并吞掉（商店追加商品买不到）
+
+- 触发：用户报 `OP Arsenal Lite - 30 ATK - 999 Copper v1.0.0.field.json`（Format 3，
+  5 把新武器 + 子弹）在 Hernand 军械店（`Store_Her_Equipment`，key=1）完全找不到。
+  该模组本身没有问题：`iteminfo` 里 5 个克隆 key（927071488 / 845954304 / 890094144 /
+  929371008 / 949374144）都在，`itemgroupinfo` 的 `ItemGroup_Equip*` 成员合并也都在，
+  丢的只有商店条目。
+- 两个独立原因，必须分开看：
+  1. **加载顺序语义冲突（不是 bug）**：`All Craft Material All Gear All Dye.field.json`
+     对 `Store_Her_Equipment.stock_data_list` 做整表 `set`（621 条），且排在 OP Arsenal
+     （第 16 位）之后的第 23 位。后加载的整表 `set` 按 DMM 语义就是整体替换，把前者的
+     6 条 `array_append` 全部抹掉——旧快照里 key=1 恰好 621 行、`buyable_stock_count=621`，
+     这就是「被整表覆盖」而不是「intent 被跳过」的判据。解决办法是把 OP Arsenal 移到
+     加载顺序最后：`.cdloader/load_order.json`（旧文件备份 `load_order.json.bak-20260919`）。
+  2. **cdmm 计划层 bug（本次修复）**：只调顺序仍然坏。`_merge_same_coordinate()` 只处理了
+     `set + 列表操作`，`add` 落在最后的兜底分支「后加载覆盖」，于是同一坐标
+     `set(buyable_stock_count=621)` + `add(6)` 合并成 `add 6`，运行层再对**原版** 40 累加
+     得到 46，而库存列表已经是 627 行——追加的 6 行落在可买数量之外，商店里依旧买不到。
+     这正是模组作者在 label 里写的「6 more buyable row(s), relative to whatever is
+     already there」被吃掉。
+- 修复：`services/cdmod_build_plan.py::_merge_same_coordinate()` 新增数值合并分支——
+  `add` 的 payload 是整数（`_is_int_delta`，排除 bool）时，`set + add` 合成
+  `set(前值+增量)`，`add + add` 合成 `add(增量之和)`；`add` 不是列表操作族成员，所以
+  不会与原有的列表分支互相干扰。`set` 仍是覆盖语义（`add` 在前、`set` 在后依旧取 `set`）。
+  `services/cdmod_compatibility.py::_compare_operations()` 同步把这种组合从
+  `DIRECT_CONFLICT`（「后一个模组优先」）改为 `RELATION_AUTO_MERGE`，避免报告继续误导。
+- `add` 目前**只有 storeinfo 一个使用者**（`storeinfo_writer.py::_add_entry_field`，
+  仅支持 entry 顶层整数标量），因此该合并分支的作用域天然被限制在 storeinfo 数值字段。
+- 缓存纪律：本次属于「输入不变、产物变化」，必须同时升 `CDMOD_BUILD_PLAN_SCHEMA`（4→5）、
+  `VFS_STATE_SCHEMA`（24→25）与 `VFS_PACKAGE_BUILD_SCHEMA`（9→10），否则热启动会继续
+  复用旧分包，表现为「已经修了但游戏里还是买不到」。
+- 字节级验证（2.02.00 真实归档、`--build-only --allow-missing-targets` 冷构建 57.25s）：
+  快照 `snapshot-ec7bdd8ea6911b9d-af319dd21905` 的 `nppgen` 中 key=1 为
+  **627 行 / buyable=627**，5 把武器落在索引 621..625 且全部 `< buyable`；436 个 entry
+  全部能被重建后的 header 正确解析；与位移前的 `snapshot-c08459f4f865f029-d292a2db2547`
+  逐包哈希对比只有 OP Arsenal 触及的 9 个表文件变化
+  （storeinfo/ iteminfo / itemgroupinfo / dropsetinfo / multichangeinfo 的 body+header）。
+  日志中冲突行已变为
+  `stock_data_list: 在前序 set 结果上应用 array_append` /
+  `buyable_stock_count: 在前序 set 结果上应用 add`，0 error。
+- 回归：`test/test_cdmod_build_plan.py` 新增 4 条（set+add 累加、连续 add 求和、
+  后置 set 仍覆盖、非整数 add 不参与合并）；完整 `test/` 651 passed / 1 failed
+  （唯一失败仍是既有无关用例
+  `test_trinity_catalog_generator.py::test_item_display_name_marks_missing_official_name_as_mod`），
+  `ruff check .` 通过。
+- 遗留观察（未定论）：该模组追加的 6 条 stock 记录 `raw_e` 全写 84，而原版 key=1 的
+  `raw_e` 是唯一的（0..11、57..84）。字节层面写入正确，但若实机仍不显示这 6 行，
+  下一个检查点就是 `raw_e` 是否必须唯一（试 85..90），不要再回头怀疑计划层。
+- 版本：`version.txt` 由 v9.4.2 升至 v9.4.3；本次只改加载器，未重新打包
+  （按基线要求先实机确认）。实机状态：**未验证**，待用户进游戏查看 Hernand 军械店。
+
+## 2026-09-19 商店行序 `raw_d` 撞号：买到的不是模组物品（对齐 DMM 2.3.3）
+
+- 承接上一条的实机反馈：挪好加载顺序、修好 `add` 合并后，OP Arsenal 的 5 把自定义武器
+  **确实出现在 Hernand 军械店了**，但**买回来的是原版武器**，不是模组克隆物。作者说这是
+  「单独添加的武器」，用户怀疑加载器没实现这块。已知克隆本身没问题：`nppv3_iteminfo` 里
+  5 个 key 的 `string_key` 已是 `Custom_*_OP`、`price_list` 是 999、`enchant_data_list`
+  里 30000 攻击 / 15 暴击 / 13 攻速都在，PALOC 名字也在。所以问题不在克隆，而在**商店行**。
+- **根因**：`stock_data_list[i].raw_d` 是**行序**（DMM 自己的日志把它写作
+  `(raw_d=<N> = next free row ordinal)`）。模组导出时按作者机器上看到的**原版货架**算这个
+  序号，于是 OP Arsenal 追加的 6 条写的是 `raw_d=40..45`（原版 key=1 正好 40 行）。
+  但同一家店被 `All Craft Material All Gear All Dye` 整表 `set` 成 621 行，那 621 行的
+  `raw_d` 是 0..620——追加的 6 行落在 621..626，`raw_d` 却还是 40..45，**与 40..45 行撞号**。
+  游戏的商品格子按列表位置枚举（所以能显示 `Dandelion OP` 等模组名字），购买处理按行序
+  找行，撞号时命中**第一行**，于是把那一行的物品发给玩家。
+- 证据来自 DMM 自己：2.9.0 内嵌 changelog（`.diagnostics/dmm_changelog_full.txt`）2.3.3 条目
+  原文——**Shop rows from different mods no longer collide.** Every mod numbers the rows it
+  adds from the vanilla shelf, so two mods stocking the same shop gave two rows the same
+  ordinal, and the vendor grid and the buy handler disagreed about which row was which.
+  After every mod has applied, rows are numbered by their position, and the shop's buyable
+  and sellable counts are taken from the rows themselves rather than from whichever mod
+  wrote them last. —— 即 DMM 是在**所有模组挂载完成后**统一按位置重编号，并且可买/可卖
+  数量由行自身统计。cdmm 之前照抄模组里的陈旧 `raw_d`，所以撞号。
+- 撞号行的实际内容对得上用户描述：索引 40..45 分别是 `200024 Sidmon_OneHandSword`、
+  `1000738 Taoria_OneHandSword`、`200051 LongBeak_OneHandSword`、
+  `200077 Rusty_Hunter_OneHandSword`、`200035 Silien_OneHandSword`、
+  `1001295 Ziane_OneHandSword`，全是原版单手剑。
+- 2.02.00 原版三条不变量（对 436 条 store entry 逐条核验，全部 0 违规，可作为长期基线）：
+  - `stock_data_list[i].raw_d == i`；
+  - `buyable_stock_count == 行中 flag_c != 0 的数量`；
+  - `sellable_stock_count == 行中 flag_b != 0 的数量`。
+  注意 `buyable + sellable == 行数` **不是**普适规则（那是 Equipment 类商店的巧合）：
+  Contribution 类商店同一行 `flag_b = flag_c = 1`，既买又卖，例如 `Store_Her_Contribution`
+  13 行、buyable = sellable = 13。判断口径只能用上面两条 flag 统计。
+- 修复：`services/storeinfo_writer.py::normalize_store_entry_stock_rows()`——把 `raw_d`
+  按位置重编号，并用 `flag_c` / `flag_b` 统计重算 `buyable_stock_count` /
+  `sellable_stock_count`。调用点在 `build_storeinfo_changes()` 里**该 entry 的全部 intent
+  应用完之后**、序列化之前，只作用于被 intent 触碰的 entry（未触碰的原版 entry 本来就满足
+  不变量，是空操作，字节不变）。`op=add` 的数值累加语义保留，但计数最终以行为准。
+- 缓存纪律：又是「输入不变、产物变化」，升 `VFS_STATE_SCHEMA`（25→26）与
+  `VFS_PACKAGE_BUILD_SCHEMA`（10→11）；本轮不动计划层，`CDMOD_BUILD_PLAN_SCHEMA` 保持 5。
+- 字节级验证（2.02.00 真实归档、`--build-only --allow-running-target`）：新快照
+  `snapshot-ec7bdd8ea6911b9d-3d0533679aa7` 的 `nppgen` 中 436 条 entry **0 违规**；
+  `Store_Her_Equipment` 627 行、`raw_d` = 0..626 唯一、buyable = 627、sellable = 0，
+  6 条追加行落在 621..626（**该结论已被同日第三轮修正**：纯按位置重编号在实机里
+  表现为「店里翻不到」，见下一条 2026-09-19「追加行放回模组声明的货架槽位」）；`nppv3_iteminfo` 里 5 个克隆 key 仍在（`Custom_*_OP`，price 999）。
+- 回归：`test/test_format3_storeinfo_writer.py` 新增 2 条（撞号行按位置重排、可买可卖
+  计数按行统计并覆盖模组字面值），并把 2 条依赖旧语义的用例改成新口径（append 不再保留
+  模组里的陈旧 `raw_d`；累加用例改用非派生整数标量 `reset_day`）。完整 `test/` 653 passed
+  / 1 failed（唯一失败仍是既有无关用例
+  `test_trinity_catalog_generator.py::test_item_display_name_marks_missing_official_name_as_mod`，
+  改动前后一致），`ruff check .` 通过。
+- **仍未动 `raw_e`**：这 6 条追加行的 `raw_e` 全是 84，与 All Gear 重新排序后的某一行
+  （索引 20 = `1001524 Golden_OneHandSword`，原版 39 行的稳定 id）重复。DMM changelog 只说
+  「按位置编号」，没提 `raw_e`，而原版 `raw_e` 本来就不等于位置（0..11、57..84），说明它是
+  另一套稳定 id（很可能与存档里的行状态相关），本轮**不**按位置重写它，避免动到原版行。
+  若实机购买后仍然拿到原版物品，下一个怀疑点就是 `raw_e`；判据是先问清「是不是每次购买都
+  得到同一件物品」（`raw_e` 撞号的特征），再决定是否只给重复值分配新 id。
+- 版本：`version.txt` 升至 v9.4.4（v9.4.3 与本次修复同属未打包的开发轮次，为便于区分实机
+  反馈对应的构建号而单独起号）。按基线要求：先实机确认，再打包。
+
+
+## 2026-09-19 追加行放回「模组声明的货架槽位」：纯按位置重编号在实机里翻不到
+
+- 承接上一条：v9.4.4（`raw_d` 纯按位置重编号）实机反馈变成**「雷特武器店直接找不到了、
+  模组不生效」**。字节级比对两轮快照：只有 `nppgen` 里 6 个 `raw_d` 不同
+  （`40→621` … `45→626`），其余 25 个文件逐文件 SHA256 **全同**，所以「消失」纯粹由这
+  6 个 `raw_d` 造成——按位置重编号把模组商品推到货架最末尾（第 622~626 格），实机就是翻不到。
+  教训：DMM 2.3.3 的「按位置编号」是它的语义，但能不能**看到**还取决于货架被撑成多大；
+  单纯照抄位置编号会把模组商品推出玩家的可翻范围。
+- 正解：把追加行插回**模组自己声明的槽位**（后面的行整体后移），再统一按位置重编号
+  （`raw_d` 仍等于下标，购买处理仍能找到正确的行）。依据是模组自己的标签：
+  `"stocks Dandelion OP (raw_d=40 = next free row ordinal)"` 等 6 条 `array_append`，
+  以及 `"6 more buyable row(s), relative to whatever is already there"`（`op=add`, `new=6`）
+  ——声明的 40..45 就是「原版 40 行货架紧接着的 6 个格子」。该结果**与加载顺序无关**
+  （不管这家店被别的模组撑到多少行，本模组商品都落在同一批格子），正是 DMM 2.3.3 追求的
+  "either load order"。
+- **关键坑（务必记住）：追加 intent 到写入器时已经不存在了。** 计划层会把同一字段的整表
+  `set`(621 行) 与 6 次 `array_append` 合并成**一个 627 行的 `set` intent**（探针
+  `.diagnostics/op_arsenal/probe_bridge_out2.py` 输出 `op=set field=stock_data_list ...
+  list len=627  tail=[619, 620, 40, 41, 42, 43, 44, 45]`）。因此任何「在 append 分支上
+  挂钩子记录下来」的实现都是**死代码**——上一版就是这么写的，重定位从未触发过。识别追加行
+  只能看**载荷**，不能看 intent。
+- 实现：`services/storeinfo_writer.py::_tail_declared_slots()`（定位尾部行块 + 校验槽位声明）
+  与 `reposition_rows_to_declared_slots()`（按槽位插回），在 `build_storeinfo_changes()` 里
+  于 `normalize_store_entry_stock_rows()` **之前**调用。必须**同时**满足才搬动：
+  - 尾部连续区段，且它前面的行全部满足 `raw_d == 下标`（原版不变量）；
+  - 该区段每行 `raw_d != 下标`；
+  - 全部 `> 0`——`raw_d = 0` 是导出工具的缺省值，第三方 `All Craft Material ... - Append`
+    变体的追加行全是 0，**不能**当成「插到货架最前面」；
+  - 彼此不重复、都落在块起点之前、且构成连续升序槽位。
+  任一不满足就退化为 DMM 的纯按位置编号。破坏面很小：整套模组里**只有 `Store_Her_Equipment`
+  这一条** entry 被搬动（日志里只会看到一条「插回声明的货架位置」）。
+- 测试夹具修正：`test/test_format3_storeinfo_writer.py::_entry()` 现在把合成 entry 的
+  `raw_d` 按下标重编号——原版 436 条 entry 都满足 `raw_d == 下标`，假数据违反这条不变量
+  会让「声明槽位」识别失真（这正是上一版 append 用例在本轮先失败的原因，不要靠放宽识别
+  条件去迁就假数据）。新增 3 条回归：整表 `set` 携带错位尾部行（**真实链路形状**）、
+  `raw_d` 已等于下标时不做任何搬动、尾部槽位不连续时不搬动。
+- 字节级验证（2.02.00 真实归档、强制冷构建）：`Store_Her_Equipment` 627 行，6 条追加商品
+  落在**位置 40~45**（`Dandelion OP` / `White Wind Rapier` / `Sigremon Greataxe` /
+  `Greathammer of Fire` / `DragonSlayer` / `Bullet x999`），`raw_d == 下标` 且唯一；
+  全表 436 条 entry **0 违规**（`raw_d` 行序 + 按 flag 统计 buyable/sellable）；
+  `nppgen/0.paz` SHA256 `FD9A23E719D6B5423DA16F65744F81E9ECA47598EE558DE53408CFD074A5D77E`
+  连续 3 次冷构建一致。日志（`force_cold_build.py` 抓取）：
+  `storeinfo writer: entry@387165(Store_Her_Equipment) 把 6 条追加行插回声明的货架位置`。
+- 缓存纪律：`VFS_STATE_SCHEMA` 26→27、`VFS_PACKAGE_BUILD_SCHEMA` 11→12（本轮不动计划层，
+  `CDMOD_BUILD_PLAN_SCHEMA` 保持 5）。另外：`force_cold_build.py` 只绕过整包复用、不绕过
+  `.cdloader/pamt_target_cache.json`；本轮改的是写入器产物、不走目标解析，所以本次缓存不影响结论。
+- 回归：完整 `test/` 658 passed / 1 failed（唯一失败仍是既有无关用例
+  `test_trinity_catalog_generator.py::test_item_display_name_marks_missing_official_name_as_mod`，
+  改动前后一致），`ruff check .` 通过。
+- 版本：`version.txt` = v9.4.5，**这一版就是实机确认通过的那一版**（v9.4.4 是用户实机反馈
+  「店里翻不到」的旧构建，不要再拿它做对照或发布）。
+- **实机确认（2026-09-20，用户反馈「这次没问题了，可以」）**：Hernand 军械店能看到并买到
+  模组武器本身。三轮闭环至此完成：加载顺序 / `add` 合并 → `raw_d` 撞号（买回原版物品）→
+  追加行放回声明槽位（店里翻不到）。
+- 今后遇到商店相关的两个症状，照这条查，不要重头猜：
+  - 「店里能看到模组物品，买回来却是原版」→ `raw_d` 撞号，行序必须**唯一**；
+  - 「模组商品在店里翻不到 / 像没装」→ 商品被推到货架末尾，必须落在**模组声明的槽位**
+    （通常是原版货架紧接着的位置），槽位由模组自己的 `raw_d` 标签声明（例：
+    `raw_d=40 = next free row ordinal`）。
+  两条都只能用**产物字节**验证（`raw_d == 下标`、全表 0 违规、商品在预期槽位）；
+  「构建 0 error / 表能解析 / 热构建命中缓存」都不能当成生效证据。
+- 仍未动 `raw_e`（这 6 条追加行的 `raw_e` 全是 84，与 All Gear 重新排序后的某行重复）：
+  实机购买正常，所以 `raw_e` **不需要**按位置重写。只有将来再出现「每次买到的都是同一件」
+  的原版物品，才把它当作下一个怀疑点。
+- 下一步：已满足「先实机确认，再打包」的前置条件，可以打包（`version.txt` = v9.4.5，
+  入口 `build_cdloader_vfs_nuitka.ps1`，并按上面 v9.4.0 那节的产物核验步骤检查）。
+  自实机确认之后**未再改动任何加载器代码**，所以 v9.4.5 成品的行为就是用户确认过的行为。
+
+## 2026-09-21 overlay 同最终路径冲突改为按加载顺序判定赢家（女性翁卡「装了没效果」根因）
+
+- 症状：用户安装 `N20260921005331`（Human Oongka - Female，2.0.2，2026-09-19）后游戏内
+  **完全没效果**，怀疑「模组失效 / 版本不匹配 / 加载器没加载」。结论是三者都不是：
+  模组结构正确、版本匹配、加载器也确实加载了，但它被**另一个模组的同路径资源静默压掉**。
+- 模组内容（只有两个文件，无嵌套子目录）：
+  `0009/character/appearance/1_pc/1_phm/cd_phm_oongka/cd_phm_oongka_00000.app_xml`
+  （980 B，sha1 `2e60d3239440`）与
+  `0009/character/descriptors/customizationmeta/meshparam_example_female_oongka.xml`
+  （81690 B，sha1 `5156cee61472`）。这两条路径在原版 `0009` PAMT 中**确实存在**
+  （`resolved_dir_path` 分别为 `character/appearance/1_pc/1_phm/cd_phm_oongka`、
+  `character/descriptors/customizationmeta`），所以不是版本/路径问题。
+- 冲突方：`Human Female - Five Witch Faces and Hairstyles - K-Makeup-2.02.00.cdmod`
+  也替换同一个 `cd_phm_oongka_00000.app_xml`，内容 784 B（sha1 `fa9d69737c9e`）。
+  翁卡模组加载顺序是 **73**（最后），K-Makeup 是 **26**，本应翁卡获胜。
+- 根因链：`services/vfs_loader.py::build_vfs_package()` 把 cdmod 完整资源**无条件追加在
+  loose 之后**，而 `overlay_service.build_overlay()` 的同最终路径去重是「列表末位获胜」，
+  于是加载顺序完全失效——后加载的 loose 模组被先加载的 cdmod 完整资源压掉。
+  本次实测在该 `nppsa` 分包里共 **9 组**同最终路径冲突（oongka x1、macduff x3、
+  damian x1、`phw_description` x1、`cd_phw_00_*_0163/0151/0184.pac` x3）。
+- 修复（判定权只认「模组在全局 `load_order.json` 里的下标」）：
+  - `common/models.py`：`OverlayInputEntry` 新增 `load_index: int | None`。
+  - `services/scanner.py`：新增 `load_index_by_mod_path(mods)`（全局下标映射，键为
+    `mod.path.resolve()`）。
+  - `services/loose_file_service.py` / `services/cdmod_semantic_loader.py`
+    (`_mod_load_index`，**没有全局表时返回 None，绝不用过滤后子列表下标**)
+    / `services/cdmod_file_loader.py` / `services/cdmod_resource_loader.py`
+    / `services/cdmod_package.py::CdmodPackage.load_index`：逐层透传。
+  - `services/overlay_service.py`：新增 `_current_entry_wins()`（两侧都有下标时取更大者；
+    任一为 None 时保持历史「后写入者获胜」），冲突日志改为打印可读赢家。
+  - `services/vfs_loader.py` 与 `services/loader.py` 两处管线都
+    `load_index_by_path = load_index_by_mod_path(mods)` 并传入。
+- 缓存失效：`VFS_PACKAGE_BUILD_SCHEMA` 12→**14**（v13 丢弃旧覆盖行为；v14 把 `load_index`
+  纳入分包缓存 key，否则「改了加载顺序但游戏里没变化」），`VFS_STATE_SCHEMA` 27→**29**。
+- 新增回归 `test/test_overlay_load_order_priority.py`（7 项，全通过）。
+- 字节级验证（真实 2.02.00 归档，74 个模组，强制冷构建，退出码 0 / 24 个映射文件 /
+  7 个 overlay 包 / standalone `0041`-`0044`）：`nppsa` 里
+  `cd_phm_oongka_00000.app_xml` = **980 B / sha1 `2e60d3239440`，与模组文件逐字节一致**；
+  `cd_phw_damian_00000.app_xml` 现为 785 B（Nude_Damiane idx 58 胜 K-Makeup 26）；
+  `phw_description_player_001.xml` 3638 B（idx 53 胜 26）。日志原文：
+  `overlay 最终路径覆盖：character/appearance/1_pc/1_phm/cd_phm_oongka/cd_phm_oongka_00000.app_xml；
+  候选 … (980 bytes, 加载顺序 73) 与 … (784 bytes, 加载顺序 26) 冲突，赢家 … (980 bytes)`。
+- 诊断纪律（重要）：`force_cold_build.py` **只绕过整包复用，不绕过 `.cdloader/vfs_package_cache`
+  分包缓存**。分包缓存命中时 `build_overlay()` 根本不会被调用，覆盖日志一行都不会出现，
+  很容易误判成「修复没生效 / 根本没有冲突」。要复现覆盖日志必须先把
+  `.cdloader/vfs_package_cache` 改名或清掉再冷构建。
+- 边界：`overlay_service.build_overlay` 每个分包单独调用，同最终路径只可能在**同一个分包**
+  内冲突；`nppsa` 里 loose 与 cdmod 完整资源同路径就是本次这类问题的固定现场。
+  今后凡是「模组装了没反应、但日志 0 error」，先查 `nppsa` 里该路径的**实际字节**是不是
+  目标模组的内容，不要只看「构建成功」。
+- 回归基线：完整 `test/` 669 passed / 1 failed（唯一失败是既有无关用例
+  `test_trinity_catalog_generator.py::test_item_display_name_marks_missing_official_name_as_mod`，
+  生成器 2026-09-18 已把标记改成 `[未收录]`，而 `test/` 被 gitignore 的旧用例仍写 `[mod]`，
+  改动前后一致），`ruff check .` 通过。
+- 用户的质疑（重要，记录备查）：用户最初认为「K-Makeup 是改克里夫的、翁卡模组是改翁卡的，
+  不该冲突，而且 DMM 两个都能一起用」。逐文件核对后确认**不是误判**：K-Makeup 这个包
+  本身有 424 个替换目标，其中 **4 条**与其它模组撞车（`cd_phm_oongka` / `cd_phm_macduff` /
+  `cd_phw_damian` 的 `_00000.app_xml` 与 `phw_description_player_001.xml`），
+  也就是说它不仅改克里夫，也定义了翁卡槽位。两个 `app_xml` 内容互斥：
+  K-Makeup 用 `MeshParamFile="meshparam_example_oongka.xml"` + `cd_pom_00_*_oongka`（原身体），
+  翁卡模组用 `MeshParamFile="meshparam_example_female_oongka.xml"` +
+  `cd_phw_00_nude_00_0001_damian` / `cd_phw_00_head_00_0207`（女性身体）。
+  同一最终路径只能有一个定义生效，所以冲突是**固有的**。全库扫描确认改这条路径的只有这两个模组，
+  没有第三方。注意 `meshparam_example_oongka.xml`（K-Makeup，55558 B）与
+  `meshparam_example_female_oongka.xml`（翁卡模组，81690 B）**文件名不同，不冲突**，两个都在包里。
+  用户「DMM 两个都能用」的观察同样正确，因为 DMM 的规则就是后加载者赢（内嵌 changelog 原文：
+  `If two mods change the SAME value, the lower (later) one in load order wins it; reorder to change which.`
+  与 `Both mods replace this game data file only the last in load order will take effect`）。
+  旧 cdmm 恰恰违反这条：`vfs_loader` 把 cdmod 完整资源无条件排在 loose 之后，于是顺序 26 的
+  K-Makeup 压掉顺序 73 的翁卡模组。本次修复后行为与 DMM 一致。
+- 影响面交代：本次共改变 9 条最终路径的赢家，其中 4 条原本由 K-Makeup 获胜
+  （`cd_phm_oongka_00000.app_xml` 980 B@73 胜 784 B@26、
+  `cd_phm_macduff_00000.app_xml` 959 B@48 胜 958 B@26、
+  `cd_phw_damian_00000.app_xml` 785 B@58 胜 874 B@26、
+  `phw_description_player_001.xml` 17334 B@53 胜 22342 B@26）。K-Makeup 其余 420 个目标照常生效，
+  不存在「整体失效」。想反过来保留 K-Makeup 版本，只需把它往下拖（现在加载顺序真的生效）。
+- **实机确认（2026-09-21，用户反馈「确实生效了」）**：女性翁卡模组在游戏内正常生效。
+- 打包（2026-09-21，`version.txt` = v9.4.7，入口 `build_cdloader_vfs_nuitka.ps1`，仍是
+  `--standalone` 目录版）：`dist_nuitka/cdloader-VFS-v9.4.7.zip`，18,247,301 字节，
+  SHA-256 `35BBAA45577A916AABBFCB3FA306470E28B6AD56C2283AF2D2EFF45F78025D8E`；
+  结构与 v9.4.6 完全一致（外层 `cdloader-VFS-v9.4.7.exe` + `cdloader-Physical-v9.4.7.exe`
+  + `cdloader/cdloader-vfs-core.exe` + `cdloader/cdmm/private/vfs_runtime/` +
+  `cdloader/SHA256SUMS.txt` + 封面 + 两种加载方式说明），三个 EXE 的
+  FileVersion/ProductVersion 均为 `9.4.7.0`。
+- 产物核验（按 v9.4.0 那节的方法实做）：解包后的 `cdloader/cdloader-vfs-core.exe` 中检出
+  `load_index_by_mod_path`（7 处）、`_current_entry_wins`、`_describe_load_index` 与
+  新日志文案 `overlay 最终路径覆盖`，证明修复确实编入成品；再实跑外层 EXE
+  `cdloader-VFS-v9.4.7.exe --game-dir <游戏目录> --allow-missing-targets --no-build-vfs-demo --build-only`：
+  冷构建退出码 **0**、**24** 个映射文件、7 个 overlay 包、standalone `0041`-`0044`、**未启动游戏**；
+  该产物生成的快照里 `nppsa/cd_phm_oongka_00000.app_xml` 仍是 **980 B / sha1 `2e60d3239440`**
+  （与模组文件逐字节一致）。
