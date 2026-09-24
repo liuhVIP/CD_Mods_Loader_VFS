@@ -2893,3 +2893,38 @@ Thank you.
   冷构建退出码 **0**、**24** 个映射文件、7 个 overlay 包、standalone `0041`-`0044`、**未启动游戏**；
   该产物生成的快照里 `nppsa/cd_phm_oongka_00000.app_xml` 仍是 **980 B / sha1 `2e60d3239440`**
   （与模组文件逐字节一致）。
+
+## 2026-09-21 翁卡（Oongka）性转中文配音成品
+
+- 成品：`T:\Ai TTS\oongka_female_voice_chinese_work\2.02.00\oongka_female_voice_chinese_2.02.00.cdmod`，
+  12,675,808 字节，SHA-256 `78e746f2ab7eb57e44ad300a361d372511ad81b668733f3e7d1dccfc397c3a2c`；
+  已安装到游戏 `mods\oongka_female_voice_chinese_2.02.00.cdmod`。
+- 构成：1122 条 file-replacement —— 761 条有简中字幕的对白换成 VoxCPM2 女声（音色取游戏简中奈拉配音切片
+  `ref_voices\C1_奈拉clone1_5.60s.wav`），198 条无字幕对白 + 163 条战斗/喘息音静音；
+  包内不含 PALOC / 表 / meta，加载器侧无需任何改动。
+- 工具：新增 `tools/oongka_voice_tts_workflow.py`（prepare → generate → convert → package → verify），
+  与既有 `tools/oongka_voice_workflow.py`（inventory / silence）共用同一份 `records.json`；
+  流程文档 `docs/oongka-voice-tts-workflow.md`（docs 目录被 gitignore，仅本地保存）。本次未改动加载器代码。
+- **运行前提（重要）**：VoxCPM2 CLI 必须在 `yzylauncher-win.exe` 已启动时运行。launcher 未启动时，
+  引擎会在 `Running on device: cuda, dtype: bfloat16` 之后以 `0xC0000005` 访问冲突、或伪造的
+  “CUDA out of memory”（30 GiB 空闲仍报 OOM、`0 bytes allocated by PyTorch`）崩溃。
+  这不是加载器或工作流的缺陷，以后再遇到先确认 launcher 是否在跑，不要先去改脚本或换参考音频。
+- 实现要点：`{Staticinfo:Knowledge:Knowledge_Kliff#克里夫}` 这类 PALOC 占位必须先还原成人名再送 TTS；
+  完全相同文本去重（761 条里 64 条复用，实际生成 697 次）；TTS WEM 与对白原版一致，为 48 kHz 单声道 Vorbis。
+  原版 WEM 在 PAMT 中是 raw（`compression_type = 0`，`comp_size == orig_size`），因此**不受** LZ4 的
+  `comp_size > orig_size` 约束，长句生成得比原版大也安全；静音包那套“必须小于原版”的限制不能套到 TTS 上。
+- 打包纪律：默认把静音包合并进同一个 cdmod。**不要再单独安装
+  `oongka_female_voice_silence_2.02.00.cdmod`**，否则同一目标被两个包重复声明，结果取决于加载顺序。
+  翁卡与克里夫目标集合互斥（`unique_oongka_*` vs `unique_kliff_*`），两个配音包可以共存。
+  音色只覆盖简中 `0035`，切到英文/韩文会回到原版男声（媒体 ID 不跨语言通用）。
+- 验证状态（2026-09-21）：`verify` 1122/1122 命中当前 PAMT、0 条表/meta、SHA 全对、全为 WEM；
+  VFS BuildOnly 通过（24 个映射文件、7 个 overlay 包、standalone `0041`-`0044`），正确快照的 `nppvoice`
+  内 1122 条逐条字节一致；**用户实机反馈「目前没什么问题」**。这是抽查级实机确认，
+  不是逐条全量核验，对外只能表述为「实机正常、未发现问题」。
+- 核对快照时的坑：`.cdloader\vfs_active` 下会同时存在多个 `snapshot-*` 目录，按名字排序取“最后一个”会拿到旧快照，
+  必须用构建输出打印的 `VFS 输出目录` 或 `vfs_mapping_tree.json` 指向的那个，否则会误判“替换没进 nppvoice”。
+- 回归基线：完整 `test/` 为 683 passed / 1 failed（失败的是既有
+  `test_trinity_catalog_generator.py::test_item_display_name_marks_missing_official_name_as_mod`，
+  期望 `[mod]` 实际 `[未收录]`，与本次改动无关）；`ruff check .` 通过。
+  新增回归 `test/test_oongka_voice_tts_workflow.py`（9 项：文本清洗、清单状态保持、去重分组、
+  合并打包、重叠目标与非法载荷拒绝）。
